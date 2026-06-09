@@ -20,6 +20,7 @@ const CIE10_CODES = [
 
 export default function Anamnesis() {
   const [patients, setPatients] = useState<any[]>([]);
+  const [institution, setInstitution] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [nextDiagId, setNextDiagId] = useState(1);
 
@@ -81,6 +82,13 @@ export default function Anamnesis() {
       .then((res) => res.json())
       .then((data) => setPatients(Array.isArray(data) ? data : []))
       .catch(() => setPatients([]));
+
+    fetch(`${API_URL}/institution`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setInstitution(data))
+      .catch(() => setInstitution(null));
   }, []);
 
   const updatePrescriptionText = (items: any[]) => {
@@ -176,85 +184,313 @@ export default function Anamnesis() {
       return;
     }
 
+    if (!formData.patientId) {
+      alert('Seleccione un paciente antes de imprimir la receta.');
+      return;
+    }
+
     const patient = patients.find((p) => p.id === formData.patientId);
+
+    const professionalName = localStorage.getItem('hcelm_professional_name') || institution?.directorName || '';
+    const professionalDni = localStorage.getItem('hcelm_professional_dni') || '';
+    const professionalCmp = localStorage.getItem('hcelm_professional_cmp') || institution?.directorCmp || '';
+    const professionalRne = localStorage.getItem('hcelm_professional_rne') || institution?.directorRne || '';
+
+    const today = new Date();
+    const fechaHora = today.toLocaleString('es-PE', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+
+    const primaryColor = institution?.primaryColor || '#0f766e';
+    const secondaryColor = institution?.secondaryColor || '#14b8a6';
 
     const html = `
       <html>
         <head>
           <title>Receta Médica</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 30px; }
-            h1 { text-align: center; margin-bottom: 5px; }
-            h2 { text-align: center; margin-top: 0; font-size: 16px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #333; padding: 8px; font-size: 13px; vertical-align: top; }
-            .datos { margin-top: 20px; font-size: 14px; }
-            .firma { margin-top: 80px; text-align: center; }
-            .footer { margin-top: 40px; font-size: 12px; text-align: center; }
+            @page {
+              size: A5;
+              margin: 12mm;
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+              color: #111827;
+              margin: 0;
+              padding: 0;
+              font-size: 12px;
+            }
+
+            .container {
+              width: 100%;
+            }
+
+            .header {
+              border-bottom: 3px solid ${primaryColor};
+              padding-bottom: 10px;
+              margin-bottom: 12px;
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+
+            .logo {
+              width: 70px;
+              height: 70px;
+              object-fit: contain;
+              border: 1px solid #e5e7eb;
+              padding: 3px;
+            }
+
+            .header-text {
+              flex: 1;
+            }
+
+            .institution-name {
+              font-size: 17px;
+              font-weight: bold;
+              color: ${primaryColor};
+              margin: 0 0 3px 0;
+              text-transform: uppercase;
+            }
+
+            .legal-name {
+              font-size: 12px;
+              margin: 0;
+              font-weight: bold;
+            }
+
+            .small {
+              font-size: 10.5px;
+              margin: 2px 0;
+              color: #374151;
+            }
+
+            .title {
+              text-align: center;
+              font-size: 18px;
+              font-weight: bold;
+              color: ${primaryColor};
+              margin: 8px 0 12px 0;
+              letter-spacing: 1px;
+            }
+
+            .section {
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              padding: 8px;
+              margin-bottom: 10px;
+            }
+
+            .section-title {
+              font-weight: bold;
+              color: ${primaryColor};
+              margin-bottom: 6px;
+              font-size: 12px;
+              border-bottom: 1px solid #e5e7eb;
+              padding-bottom: 3px;
+            }
+
+            .grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 4px 10px;
+            }
+
+            .field {
+              margin: 2px 0;
+            }
+
+            .label {
+              font-weight: bold;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 6px;
+            }
+
+            th {
+              background: ${secondaryColor};
+              color: white;
+              border: 1px solid #0f766e;
+              padding: 5px;
+              font-size: 10.5px;
+              text-align: left;
+            }
+
+            td {
+              border: 1px solid #d1d5db;
+              padding: 5px;
+              font-size: 10.5px;
+              vertical-align: top;
+            }
+
+            .medicine-name {
+              font-weight: bold;
+            }
+
+            .footer {
+              margin-top: 28px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              align-items: end;
+            }
+
+            .signature-box {
+              text-align: center;
+              padding-top: 35px;
+            }
+
+            .signature-line {
+              border-top: 1px solid #111827;
+              padding-top: 4px;
+              font-size: 11px;
+            }
+
+            .note {
+              font-size: 10px;
+              color: #4b5563;
+              border-left: 3px solid ${primaryColor};
+              padding-left: 6px;
+            }
+
+            .print-actions {
+              margin-top: 20px;
+              text-align: center;
+            }
+
+            @media print {
+              .print-actions {
+                display: none;
+              }
+            }
           </style>
         </head>
+
         <body>
-          <h1>RECETA MÉDICA</h1>
-          <h2>AME HEALTH SAC</h2>
+          <div class="container">
+            <div class="header">
+              ${
+                institution?.logoUrl
+                  ? `<img class="logo" src="${institution.logoUrl}" />`
+                  : `<div class="logo" style="display:flex;align-items:center;justify-content:center;color:#6b7280;font-size:10px;">LOGO</div>`
+              }
 
-          <div class="datos">
-            <p><b>Paciente:</b> ${patient?.fullName || ''}</p>
-            <p><b>Documento:</b> ${patient?.documentNumber || ''}</p>
-            <p><b>Fecha:</b> ${formData.fechaAtencion}</p>
-            <p><b>Diagnóstico:</b> ${formData.diagnosticoPrincipal.codigo} - ${formData.diagnosticoPrincipal.descripcion}</p>
-          </div>
+              <div class="header-text">
+                <p class="institution-name">${institution?.name || 'CONSULTORIO MÉDICO'}</p>
+                <p class="legal-name">${institution?.legalName || 'AME HEALTH SAC'}</p>
+                <p class="small"><b>RUC:</b> ${institution?.ruc || '-'}</p>
+                <p class="small"><b>Dirección:</b> ${institution?.address || '-'}</p>
+                <p class="small"><b>Teléfono:</b> ${institution?.phone || '-'} ${institution?.email ? `| <b>Email:</b> ${institution.email}` : ''}</p>
+                <p class="small"><b>Ciudad:</b> ${institution?.city || ''} ${institution?.country || ''}</p>
+              </div>
+            </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Medicamento</th>
-                <th>Presentación</th>
-                <th>Cantidad</th>
-                <th>Vía</th>
-                <th>Dosis</th>
-                <th>Frecuencia</th>
-                <th>Días</th>
-                <th>Indicaciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${recipeItems
-                .map(
-                  (m) => `
-                <tr>
-                  <td>${m.medicationName} ${m.concentration}</td>
-                  <td>${m.presentation}</td>
-                  <td>${m.quantity}</td>
-                  <td>${m.route}</td>
-                  <td>${m.dose}</td>
-                  <td>${m.frequency}</td>
-                  <td>${m.durationDays || ''}</td>
-                  <td>${m.indications || ''}</td>
-                </tr>
-              `,
-                )
-                .join('')}
-            </tbody>
-          </table>
+            <div class="title">RECETA MÉDICA</div>
 
-          <div class="firma">
-            ___________________________<br/>
-            Médico tratante<br/>
-            CMP
-          </div>
+            <div class="section">
+              <div class="section-title">Datos del paciente</div>
+              <div class="grid">
+                <p class="field"><span class="label">Paciente:</span> ${patient?.fullName || ''}</p>
+                <p class="field"><span class="label">Documento:</span> ${patient?.documentNumber || ''}</p>
+                <p class="field"><span class="label">Fecha:</span> ${fechaHora}</p>
+                <p class="field"><span class="label">Tipo doc.:</span> ${patient?.documentType || 'DNI'}</p>
+              </div>
+            </div>
 
-          <div class="footer">
-            Esta receta forma parte de la Historia Clínica Electrónica Las Mercedes.
+            <div class="section">
+              <div class="section-title">Diagnóstico</div>
+              <p class="field">
+                <span class="label">${formData.diagnosticoPrincipal.codigo || ''}</span>
+                ${formData.diagnosticoPrincipal.descripcion ? ` - ${formData.diagnosticoPrincipal.descripcion}` : ''}
+                ${formData.diagnosticoPrincipal.tipo ? ` (${formData.diagnosticoPrincipal.tipo})` : ''}
+              </p>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Prescripción farmacológica</div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 28%;">Medicamento</th>
+                    <th style="width: 12%;">Cantidad</th>
+                    <th style="width: 14%;">Vía</th>
+                    <th style="width: 14%;">Dosis</th>
+                    <th style="width: 14%;">Frecuencia</th>
+                    <th style="width: 8%;">Días</th>
+                    <th style="width: 18%;">Indicaciones</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  ${recipeItems
+                    .map(
+                      (m) => `
+                    <tr>
+                      <td>
+                        <div class="medicine-name">${m.medicationName}</div>
+                        <div>${m.concentration || ''}</div>
+                        <div>${m.presentation || ''}</div>
+                      </td>
+                      <td>${m.quantity || ''}</td>
+                      <td>${m.route || ''}</td>
+                      <td>${m.dose || ''}</td>
+                      <td>${m.frequency || ''}</td>
+                      <td>${m.durationDays || ''}</td>
+                      <td>${m.indications || ''}</td>
+                    </tr>
+                  `,
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Profesional responsable</div>
+              <div class="grid">
+                <p class="field"><span class="label">Nombre:</span> ${professionalName}</p>
+                <p class="field"><span class="label">DNI:</span> ${professionalDni || '-'}</p>
+                <p class="field"><span class="label">CMP:</span> ${professionalCmp || '-'}</p>
+                <p class="field"><span class="label">RNE:</span> ${professionalRne || '-'}</p>
+              </div>
+            </div>
+
+            <div class="footer">
+              <div class="note">
+                Esta receta forma parte de la Historia Clínica Electrónica HCELM.
+                La dispensación debe realizarse conforme a criterio farmacéutico y normativa vigente.
+              </div>
+
+              <div class="signature-box">
+                <div class="signature-line">
+                  ${professionalName || 'Médico tratante'}<br/>
+                  CMP ${professionalCmp || '-'} ${professionalRne ? `| RNE ${professionalRne}` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="print-actions">
+              <button onclick="window.print()" style="padding:8px 18px;background:${primaryColor};color:white;border:none;border-radius:6px;cursor:pointer;">
+                Imprimir / Guardar PDF
+              </button>
+            </div>
           </div>
         </body>
       </html>
     `;
 
     const win = window.open('', '_blank');
+
     if (win) {
       win.document.write(html);
       win.document.close();
-      win.print();
     }
   };
 
@@ -700,7 +936,7 @@ export default function Anamnesis() {
                 onClick={printRecipe}
                 className="mt-4 bg-indigo-600 text-white px-4 py-2 rounded"
               >
-                Imprimir receta
+                Generar receta institucional / PDF
               </button>
             </div>
           )}

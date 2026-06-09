@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "Institution" ADD COLUMN     "logoHeight" INTEGER DEFAULT 70,
+ADD COLUMN     "logoWidth" INTEGER DEFAULT 70,
+ADD COLUMN     "sealHeight" INTEGER DEFAULT 70,
+ADD COLUMN     "sealWidth" INTEGER DEFAULT 120,
+ADD COLUMN     "signatureHeight" INTEGER DEFAULT 70,
+ADD COLUMN     "signatureWidth" INTEGER DEFAULT 180;

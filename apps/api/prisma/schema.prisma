@@ -1,14 +1,10 @@
-// ✅ 1. DATASOURCE
 datasource db {
   provider = "postgresql"
 }
 
-// ✅ 2. GENERATOR
 generator client {
   provider = "prisma-client-js"
 }
-
-// ✅ 3. MODELOS BASE
 
 model Tenant {
   id        String   @id @default(uuid()) @db.Uuid
@@ -106,8 +102,7 @@ model Certificate {
   observations    String?
   place           String?
   issueDate       DateTime
-
-  pdfUrl String?
+  pdfUrl          String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -148,15 +143,26 @@ model Institution {
   tenantId String @unique @db.Uuid
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  name           String?
-  legalName      String?
-  ruc            String?
-  address        String?
-  phone          String?
-  email          String?
-  city           String? @default("Arequipa")
-  country        String? @default("Perú")
-  logoUrl        String?
+  name      String?
+  legalName String?
+  ruc       String?
+  address   String?
+  phone     String?
+  email     String?
+  city      String? @default("Arequipa")
+  country   String? @default("Perú")
+
+  logoUrl      String?
+  signatureUrl String?
+  sealUrl      String?
+  logoWidth    Int?    @default(70)
+  logoHeight   Int?    @default(70)
+
+  signatureWidth  Int? @default(180)
+  signatureHeight Int? @default(70)
+
+  sealWidth      Int?    @default(120)
+  sealHeight     Int?    @default(70)
   primaryColor   String? @default("#0f766e")
   secondaryColor String? @default("#14b8a6")
 
@@ -187,8 +193,6 @@ model HceConfig {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
-
-// ✅ 4. FARMACIA Y RECETAS
 
 model Medication {
   id       String @id @default(uuid()) @db.Uuid

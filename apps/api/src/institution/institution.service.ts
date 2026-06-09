@@ -24,12 +24,25 @@ export class InstitutionService {
         email: '',
         city: 'Arequipa',
         country: 'Perú',
+
         logoUrl: '',
+        signatureUrl: '',
+        sealUrl: '',
+
+        logoWidth: 70,
+        logoHeight: 70,
+        signatureWidth: 180,
+        signatureHeight: 70,
+        sealWidth: 120,
+        sealHeight: 70,
+
         primaryColor: '#0f766e',
         secondaryColor: '#14b8a6',
+
         directorName: 'Dr. Alfonso Rodríguez Rojas',
         directorCmp: 'CMP 43992',
         directorRne: 'RNE 43920',
+
         timezone: 'America/Lima',
         language: 'es',
       },
@@ -48,12 +61,25 @@ export class InstitutionService {
         email: data.email,
         city: data.city,
         country: data.country,
+
         logoUrl: data.logoUrl,
+        signatureUrl: data.signatureUrl,
+        sealUrl: data.sealUrl,
+
+        logoWidth: Number(data.logoWidth || 70),
+        logoHeight: Number(data.logoHeight || 70),
+        signatureWidth: Number(data.signatureWidth || 180),
+        signatureHeight: Number(data.signatureHeight || 70),
+        sealWidth: Number(data.sealWidth || 120),
+        sealHeight: Number(data.sealHeight || 70),
+
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
+
         directorName: data.directorName,
         directorCmp: data.directorCmp,
         directorRne: data.directorRne,
+
         timezone: data.timezone,
         language: data.language,
       },
@@ -67,12 +93,25 @@ export class InstitutionService {
         email: data.email,
         city: data.city || 'Arequipa',
         country: data.country || 'Perú',
-        logoUrl: data.logoUrl,
+
+        logoUrl: data.logoUrl || '',
+        signatureUrl: data.signatureUrl || '',
+        sealUrl: data.sealUrl || '',
+
+        logoWidth: Number(data.logoWidth || 70),
+        logoHeight: Number(data.logoHeight || 70),
+        signatureWidth: Number(data.signatureWidth || 180),
+        signatureHeight: Number(data.signatureHeight || 70),
+        sealWidth: Number(data.sealWidth || 120),
+        sealHeight: Number(data.sealHeight || 70),
+
         primaryColor: data.primaryColor || '#0f766e',
         secondaryColor: data.secondaryColor || '#14b8a6',
+
         directorName: data.directorName,
         directorCmp: data.directorCmp,
         directorRne: data.directorRne,
+
         timezone: data.timezone || 'America/Lima',
         language: data.language || 'es',
       },

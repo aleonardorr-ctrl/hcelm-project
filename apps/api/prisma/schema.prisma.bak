@@ -1,0 +1,81 @@
+// ... (MANTENGA TODOS SUS MODELOS EXISTENTES: User, Tenant, Establishment, etc.)
+
+model Patient {
+  id              String      @id @default(uuid()) @db.Uuid
+  // ✅ MANTENGA AQUÍ TODOS SUS CAMPOS ACTUALES (fullName, documentNumber, birthDate, etc.)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // ✅ AGREGUE EXACTAMENTE ESTA LÍNEA (relación inversa requerida por Prisma)
+  anamnesis       Anamnesis[]
+}
+
+// ✅ AGREGUE ESTE MODELO AL FINAL DEL ARCHIVO, DESPUÉS DE TODOS LOS DEMÁS
+model Anamnesis {
+  id                      String   @id @default(uuid()) @db.Uuid
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  patientId               String   @db.Uuid
+  patient                 Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  fechaAtencion           DateTime
+  motivoConsulta          String
+  tiempoEnfermedad        String?
+  anamnesisActual         String?
+  funcionesBiologicas     String?
+  antecedentesPersonales  String?
+  antecedentesFamiliares  String?
+  signosVitales           Json?
+  examenFisico            String?
+  diagnosticoPrincipal    Json?
+  diagnosticosSecundarios Json?
+  examenesAuxiliares      String?
+  prescripcionesFarmacia  String?
+  destinoFinal            String   @default("alta_medica")
+  issuedBy                String?  @default("admin@amehealth.pe")
+}
+model Institution {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @unique @db.Uuid
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  
+  name            String?
+  legalName       String?
+  ruc             String?
+  address         String?
+  phone           String?
+  email           String?
+  city            String?  @default("Arequipa")
+  country         String?  @default("Perú")
+  logoUrl         String?
+  primaryColor    String?  @default("#0f766e")
+  secondaryColor  String?  @default("#14b8a6")
+  
+  directorName    String?
+  directorCmp     String?
+  directorRne     String?
+  
+  timezone        String?  @default("America/Lima")
+  language        String?  @default("es")
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model HceConfig {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @unique @db.Uuid
+  tenant                Tenant   @relation(fields: [tenantId], references: [id])
+  
+  requireCie10          Boolean  @default(true)
+  allowMultipleDiagnoses Boolean @default(true)
+  defaultRestDays       Int      @default(1)
+  requireVitalSigns     Boolean  @default(true)
+  autoSaveDrafts        Boolean  @default(true)
+  signatureRequired     Boolean  @default(true)
+  customFields          Json?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}

@@ -1,0 +1,6 @@
+DELETE FROM "User" WHERE "tenantId" IN (SELECT id FROM "Tenant" WHERE ruc = '20611138777');
+DELETE FROM "Patient" WHERE "tenantId" IN (SELECT id FROM "Tenant" WHERE ruc = '20611138777');
+DELETE FROM "Tenant" WHERE ruc = '20611138777';
+INSERT INTO "Tenant" (id, name, ruc, active, "createdAt", "updatedAt") VALUES ('00000000-0000-0000-0000-000000000001', 'AME HEALTH SAC', '20611138777', true, NOW(), NOW());
+INSERT INTO "User" (id, "tenantId", email, password, "fullName", role, cmp, active, "createdAt", "updatedAt") VALUES ('admin-uuid-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'admin@amehealth.pe', '$2b$10$EIXXkF5lQ3l5XJ7v7z7w3uY9Z8a7b6c5d4e3f2g1h0i9j8k7l6m5', 'Dr. Alfonso', 'admin', 'CMP 43992', true, NOW(), NOW());
+INSERT INTO "Patient" (id, "tenantId", "fullName", "documentNumber", "documentType", "createdAt", "updatedAt") VALUES ('patient-uuid-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'Juan Perez', '78945612', 'DNI', NOW(), NOW());

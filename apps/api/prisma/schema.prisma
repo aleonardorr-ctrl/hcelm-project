@@ -1,0 +1,252 @@
+// ✅ 1. DATASOURCE
+datasource db {
+  provider = "postgresql"
+}
+
+// ✅ 2. GENERATOR
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ✅ 3. MODELOS BASE
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  ruc       String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users          User[]
+  patients       Patient[]
+  establishments Establishment[]
+  institutions   Institution[]
+  hceConfigs     HceConfig[]
+  anamnesis      Anamnesis[]
+  certificates   Certificate[]
+  medications    Medication[]
+  prescriptions  Prescription[]
+}
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  email    String
+  password String
+  fullName String?
+  role     String  @default("medico")
+  cmp      String?
+  rne      String?
+  active   Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  certificates  Certificate[]
+  prescriptions Prescription[]
+}
+
+model Patient {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  fullName       String
+  documentNumber String
+  documentType   String    @default("DNI")
+  birthDate      DateTime?
+  gender         String?
+  phone          String?
+  email          String?
+  address        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  anamnesis     Anamnesis[]
+  certificates  Certificate[]
+  prescriptions Prescription[]
+}
+
+model Establishment {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @unique @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String
+  address      String?
+  phone        String?
+  email        String?
+  logoUrl      String?
+  directorName String?
+  directorCmp  String?
+  directorRne  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Certificate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  patientId String  @db.Uuid
+  patient   Patient @relation(fields: [patientId], references: [id])
+
+  issuedBy     String @db.Uuid
+  issuedByUser User   @relation(fields: [issuedBy], references: [id])
+
+  certificateType String   @default("REST_CERTIFICATE")
+  diagnoses       String[]
+  restDays        Int?
+  observations    String?
+  place           String?
+  issueDate       DateTime
+
+  pdfUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Anamnesis {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  patientId String  @db.Uuid
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  fechaAtencion           DateTime
+  motivoConsulta          String
+  tiempoEnfermedad        String?
+  anamnesisActual         String?
+  funcionesBiologicas     String?
+  antecedentesPersonales  String?
+  antecedentesFamiliares  String?
+  signosVitales           Json?
+  examenFisico            String?
+  diagnosticoPrincipal    Json?
+  diagnosticosSecundarios Json?
+  examenesAuxiliares      String?
+  prescripcionesFarmacia  String?
+  destinoFinal            String   @default("alta_medica")
+  issuedBy                String?  @default("admin@amehealth.pe")
+
+  prescriptions Prescription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Institution {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @unique @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name           String?
+  legalName      String?
+  ruc            String?
+  address        String?
+  phone          String?
+  email          String?
+  city           String? @default("Arequipa")
+  country        String? @default("Perú")
+  logoUrl        String?
+  primaryColor   String? @default("#0f766e")
+  secondaryColor String? @default("#14b8a6")
+
+  directorName String?
+  directorCmp  String?
+  directorRne  String?
+
+  timezone String? @default("America/Lima")
+  language String? @default("es")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HceConfig {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @unique @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  requireCie10           Boolean @default(true)
+  allowMultipleDiagnoses Boolean @default(true)
+  defaultRestDays        Int     @default(1)
+  requireVitalSigns      Boolean @default(true)
+  autoSaveDrafts         Boolean @default(true)
+  signatureRequired      Boolean @default(true)
+  customFields           Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ✅ 4. FARMACIA Y RECETAS
+
+model Medication {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  genericName    String
+  commercialName String?
+  concentration  String?
+  presentation   String
+  route          String?
+  active         Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prescriptionItems PrescriptionItem[]
+}
+
+model Prescription {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  patientId String  @db.Uuid
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  anamnesisId String?    @db.Uuid
+  anamnesis   Anamnesis? @relation(fields: [anamnesisId], references: [id], onDelete: SetNull)
+
+  issuedBy String @db.Uuid
+  doctor   User   @relation(fields: [issuedBy], references: [id])
+
+  issueDate DateTime @default(now())
+  notes     String?
+  pdfUrl    String?
+
+  items PrescriptionItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PrescriptionItem {
+  id String @id @default(uuid()) @db.Uuid
+
+  prescriptionId String       @db.Uuid
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  medicationId String     @db.Uuid
+  medication   Medication @relation(fields: [medicationId], references: [id])
+
+  quantity     Int
+  route        String?
+  dose         String?
+  frequency    String?
+  durationDays Int?
+  indications  String?
+
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,8 @@
+{
+  "files.autoSave": "off",
+  "editor.formatOnSave": false,
+  "files.trimTrailingWhitespace": false,
+  "files.insertFinalNewline": false,
+  "editor.suggestOnTriggerCharacters": false,
+  "files.associations": { "*.env": "properties" }
+}

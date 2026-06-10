@@ -3,6 +3,19 @@ import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:3000/api';
 
+const PROFESSIONAL_TYPES = [
+  'Médico',
+  'Enfermería',
+  'Técnico de enfermería',
+  'Psicólogo',
+  'Químico farmacéutico',
+  'Administrador',
+  'Caja',
+  'Almacén',
+  'Gerencia',
+  'Otro',
+];
+
 export default function ProfessionalVerification() {
   const navigate = useNavigate();
 
@@ -12,13 +25,16 @@ export default function ProfessionalVerification() {
   const [form, setForm] = useState({
     name: '',
     dni: '',
+    professionalType: '',
     cmp: '',
     rne: '',
+    professionalLicense: '',
     role: '',
   });
 
   const professionalVerified = localStorage.getItem('hcelm_professional_verified') === 'true';
   const currentProfessionalName = localStorage.getItem('hcelm_professional_name');
+  const currentProfessionalType = localStorage.getItem('hcelm_professional_type');
   const currentProfessionalCmp = localStorage.getItem('hcelm_professional_cmp');
 
   useEffect(() => {
@@ -32,31 +48,70 @@ export default function ProfessionalVerification() {
       .catch(() => setUsers([]));
   }, []);
 
+  const inferProfessionalType = (role: string) => {
+    const normalized = (role || '').toLowerCase();
+
+    if (normalized.includes('medico') || normalized.includes('médico')) return 'Médico';
+    if (normalized.includes('enfer')) return 'Enfermería';
+    if (normalized.includes('farmacia')) return 'Químico farmacéutico';
+    if (normalized.includes('caja')) return 'Caja';
+    if (normalized.includes('almacen') || normalized.includes('almacén')) return 'Almacén';
+    if (normalized.includes('admin')) return 'Administrador';
+    if (normalized.includes('gerencia')) return 'Gerencia';
+
+    return '';
+  };
+
   const handleSelectUser = (userId: string) => {
     setSelectedUserId(userId);
     const user = users.find((u) => u.id === userId);
 
     if (user) {
+      const inferredType = inferProfessionalType(user.role || '');
+
       setForm({
         name: user.fullName || '',
         dni: '',
+        professionalType: inferredType,
         cmp: user.cmp || '',
         rne: user.rne || '',
+        professionalLicense: '',
         role: user.role || '',
       });
     }
   };
 
+  const requiresCmp = form.professionalType === 'Médico';
+  const showsProfessionalLicense = [
+    'Enfermería',
+    'Psicólogo',
+    'Químico farmacéutico',
+    'Otro',
+  ].includes(form.professionalType);
+
+  const getLicenseLabel = () => {
+    if (form.professionalType === 'Enfermería') return 'Colegiatura de enfermería';
+    if (form.professionalType === 'Psicólogo') return 'Colegiatura profesional';
+    if (form.professionalType === 'Químico farmacéutico') return 'CQFP / Colegiatura Q.F.';
+    return 'Registro / colegiatura profesional';
+  };
+
   const validateProfessional = () => {
     if (!form.name.trim()) return alert('Ingrese el nombre del profesional.');
+    if (!form.professionalType.trim()) return alert('Seleccione el tipo de profesional.');
     if (!form.dni.trim()) return alert('Ingrese el DNI del profesional.');
-    if (!form.cmp.trim()) return alert('Ingrese el CMP del profesional.');
+
+    if (requiresCmp && !form.cmp.trim()) {
+      return alert('Para médico se requiere CMP.');
+    }
 
     localStorage.setItem('hcelm_professional_verified', 'true');
     localStorage.setItem('hcelm_professional_name', form.name);
     localStorage.setItem('hcelm_professional_dni', form.dni);
-    localStorage.setItem('hcelm_professional_cmp', form.cmp);
+    localStorage.setItem('hcelm_professional_type', form.professionalType);
+    localStorage.setItem('hcelm_professional_cmp', form.cmp || '');
     localStorage.setItem('hcelm_professional_rne', form.rne || '');
+    localStorage.setItem('hcelm_professional_license', form.professionalLicense || '');
     localStorage.setItem('hcelm_professional_role', form.role || '');
 
     navigate('/');
@@ -70,16 +125,20 @@ export default function ProfessionalVerification() {
     localStorage.removeItem('hcelm_professional_verified');
     localStorage.removeItem('hcelm_professional_name');
     localStorage.removeItem('hcelm_professional_dni');
+    localStorage.removeItem('hcelm_professional_type');
     localStorage.removeItem('hcelm_professional_cmp');
     localStorage.removeItem('hcelm_professional_rne');
+    localStorage.removeItem('hcelm_professional_license');
     localStorage.removeItem('hcelm_professional_role');
 
     setSelectedUserId('');
     setForm({
       name: '',
       dni: '',
+      professionalType: '',
       cmp: '',
       rne: '',
+      professionalLicense: '',
       role: '',
     });
   };
@@ -99,15 +158,15 @@ export default function ProfessionalVerification() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-3xl p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-emerald-50 flex items-center justify-center p-6">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-4xl p-8">
         <div className="flex justify-between items-start gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-emerald-700">
               Validación profesional
             </h1>
             <p className="text-slate-600 mt-1">
-              Identifique al profesional responsable antes de ingresar al sistema clínico.
+              Identifique al responsable operativo o clínico antes de ingresar a HCELM.
             </p>
           </div>
 
@@ -125,7 +184,8 @@ export default function ProfessionalVerification() {
             <p className="font-semibold text-emerald-800">Profesional activo</p>
             <p className="text-slate-700">
               {currentProfessionalName || 'Profesional validado'}
-              {currentProfessionalCmp ? ` | ${currentProfessionalCmp}` : ''}
+              {currentProfessionalType ? ` | ${currentProfessionalType}` : ''}
+              {currentProfessionalCmp ? ` | CMP ${currentProfessionalCmp}` : ''}
             </p>
 
             <button
@@ -138,17 +198,17 @@ export default function ProfessionalVerification() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div>
             <label className="block font-medium text-slate-700 mb-1">
-              Seleccionar profesional
+              Seleccionar usuario del sistema
             </label>
             <select
               value={selectedUserId}
               onChange={(e) => handleSelectUser(e.target.value)}
               className="w-full border p-2 rounded"
             >
-              <option value="">-- Seleccione profesional --</option>
+              <option value="">-- Seleccione usuario --</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.fullName || u.email} - {u.role}
@@ -159,7 +219,7 @@ export default function ProfessionalVerification() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Nombre del profesional"
+              label="Nombre del responsable"
               value={form.name}
               onChange={(value) => setForm({ ...form, name: value })}
             />
@@ -170,17 +230,60 @@ export default function ProfessionalVerification() {
               onChange={(value) => setForm({ ...form, dni: value })}
             />
 
-            <Input
-              label="CMP"
-              value={form.cmp}
-              onChange={(value) => setForm({ ...form, cmp: value })}
-            />
+            <div>
+              <label className="block font-medium text-slate-700 mb-1">
+                Tipo de profesional / responsable
+              </label>
+              <select
+                value={form.professionalType}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    professionalType: e.target.value,
+                    cmp: e.target.value === 'Médico' ? form.cmp : '',
+                    rne: e.target.value === 'Médico' ? form.rne : '',
+                  })
+                }
+                className="w-full border p-2 rounded"
+              >
+                <option value="">-- Seleccione tipo --</option>
+                {PROFESSIONAL_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <Input
-              label="RNE"
-              value={form.rne}
-              onChange={(value) => setForm({ ...form, rne: value })}
+              label="Rol en el sistema"
+              value={form.role}
+              onChange={(value) => setForm({ ...form, role: value })}
             />
+
+            {form.professionalType === 'Médico' && (
+              <>
+                <Input
+                  label="CMP"
+                  value={form.cmp}
+                  onChange={(value) => setForm({ ...form, cmp: value })}
+                />
+
+                <Input
+                  label="RNE"
+                  value={form.rne}
+                  onChange={(value) => setForm({ ...form, rne: value })}
+                />
+              </>
+            )}
+
+            {showsProfessionalLicense && (
+              <Input
+                label={getLicenseLabel()}
+                value={form.professionalLicense}
+                onChange={(value) => setForm({ ...form, professionalLicense: value })}
+              />
+            )}
           </div>
 
           <div className="border rounded-lg p-4 bg-blue-50">

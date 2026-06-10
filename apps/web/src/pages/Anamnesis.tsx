@@ -39,6 +39,35 @@ export default function Anamnesis() {
     indications: '',
   });
 
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis>({
+    codigo: '',
+    descripcion: '',
+    tipo: 'presuntivo',
+  });
+
+  const [destinationDetails, setDestinationDetails] = useState({
+    altaIndicaciones: '',
+    altaSignosAlarma: '',
+    altaControl: '',
+    voluntariaMotivo: '',
+    voluntariaRiesgos: '',
+    voluntariaResponsable: '',
+    voluntariaDniResponsable: '',
+    referenciaDestino: '',
+    referenciaMotivo: '',
+    referenciaEspecialidad: '',
+    referenciaMedicoReceptor: '',
+    referenciaTransporte: '',
+    observacionMotivo: '',
+    observacionTiempoEstimado: '',
+    observacionPlan: '',
+    observacionIndicaciones: '',
+    fallecidoFechaHora: '',
+    fallecidoCausaProbable: '',
+    fallecidoObservaciones: '',
+    fallecidoGenerarCertificado: false,
+  });
+
   const [formData, setFormData] = useState({
     patientId: '',
     fechaAtencion: new Date().toISOString().split('T')[0],
@@ -191,12 +220,21 @@ export default function Anamnesis() {
 
     const patient = patients.find((p) => p.id === formData.patientId);
 
-    const professionalName = localStorage.getItem('hcelm_professional_name') || institution?.directorName || '';
+    const professionalName =
+      localStorage.getItem('hcelm_professional_name') || institution?.directorName || '';
+
     const professionalDni = localStorage.getItem('hcelm_professional_dni') || '';
-    const professionalCmp = localStorage.getItem('hcelm_professional_cmp') || institution?.directorCmp || '';
-    const professionalRne = localStorage.getItem('hcelm_professional_rne') || institution?.directorRne || '';
+
+    const professionalCmp =
+      localStorage.getItem('hcelm_professional_cmp') || institution?.directorCmp || '';
+
+    const professionalRne =
+      localStorage.getItem('hcelm_professional_rne') || institution?.directorRne || '';
+
+    const professionalType = localStorage.getItem('hcelm_professional_type') || 'Profesional';
 
     const today = new Date();
+
     const fechaHora = today.toLocaleString('es-PE', {
       dateStyle: 'short',
       timeStyle: 'short',
@@ -205,16 +243,19 @@ export default function Anamnesis() {
     const primaryColor = institution?.primaryColor || '#0f766e';
     const secondaryColor = institution?.secondaryColor || '#14b8a6';
 
+    const logoWidth = Number(institution?.logoWidth || 70);
+    const logoHeight = Number(institution?.logoHeight || 70);
+    const signatureWidth = Number(institution?.signatureWidth || 180);
+    const signatureHeight = Number(institution?.signatureHeight || 70);
+    const sealWidth = Number(institution?.sealWidth || 120);
+    const sealHeight = Number(institution?.sealHeight || 70);
+
     const html = `
       <html>
         <head>
           <title>Receta Médica</title>
           <style>
-            @page {
-              size: A5;
-              margin: 12mm;
-            }
-
+            @page { size: A5; margin: 12mm; }
             body {
               font-family: Arial, sans-serif;
               color: #111827;
@@ -222,11 +263,7 @@ export default function Anamnesis() {
               padding: 0;
               font-size: 12px;
             }
-
-            .container {
-              width: 100%;
-            }
-
+            .container { width: 100%; }
             .header {
               border-bottom: 3px solid ${primaryColor};
               padding-bottom: 10px;
@@ -235,19 +272,14 @@ export default function Anamnesis() {
               align-items: center;
               gap: 12px;
             }
-
             .logo {
-              width: 70px;
-              height: 70px;
+              width: ${logoWidth}px;
+              height: ${logoHeight}px;
               object-fit: contain;
               border: 1px solid #e5e7eb;
               padding: 3px;
             }
-
-            .header-text {
-              flex: 1;
-            }
-
+            .header-text { flex: 1; }
             .institution-name {
               font-size: 17px;
               font-weight: bold;
@@ -255,19 +287,8 @@ export default function Anamnesis() {
               margin: 0 0 3px 0;
               text-transform: uppercase;
             }
-
-            .legal-name {
-              font-size: 12px;
-              margin: 0;
-              font-weight: bold;
-            }
-
-            .small {
-              font-size: 10.5px;
-              margin: 2px 0;
-              color: #374151;
-            }
-
+            .legal-name { font-size: 12px; margin: 0; font-weight: bold; }
+            .small { font-size: 10.5px; margin: 2px 0; color: #374151; }
             .title {
               text-align: center;
               font-size: 18px;
@@ -276,14 +297,12 @@ export default function Anamnesis() {
               margin: 8px 0 12px 0;
               letter-spacing: 1px;
             }
-
             .section {
               border: 1px solid #d1d5db;
               border-radius: 6px;
               padding: 8px;
               margin-bottom: 10px;
             }
-
             .section-title {
               font-weight: bold;
               color: ${primaryColor};
@@ -292,27 +311,14 @@ export default function Anamnesis() {
               border-bottom: 1px solid #e5e7eb;
               padding-bottom: 3px;
             }
-
             .grid {
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 4px 10px;
             }
-
-            .field {
-              margin: 2px 0;
-            }
-
-            .label {
-              font-weight: bold;
-            }
-
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-top: 6px;
-            }
-
+            .field { margin: 2px 0; }
+            .label { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
             th {
               background: ${secondaryColor};
               color: white;
@@ -321,54 +327,61 @@ export default function Anamnesis() {
               font-size: 10.5px;
               text-align: left;
             }
-
             td {
               border: 1px solid #d1d5db;
               padding: 5px;
               font-size: 10.5px;
               vertical-align: top;
             }
-
-            .medicine-name {
-              font-weight: bold;
-            }
-
+            .medicine-name { font-weight: bold; }
             .footer {
-              margin-top: 28px;
+              margin-top: 24px;
               display: grid;
               grid-template-columns: 1fr 1fr;
-              gap: 20px;
+              gap: 18px;
               align-items: end;
             }
-
-            .signature-box {
-              text-align: center;
-              padding-top: 35px;
-            }
-
-            .signature-line {
-              border-top: 1px solid #111827;
-              padding-top: 4px;
-              font-size: 11px;
-            }
-
             .note {
               font-size: 10px;
               color: #4b5563;
               border-left: 3px solid ${primaryColor};
               padding-left: 6px;
             }
-
-            .print-actions {
-              margin-top: 20px;
-              text-align: center;
+            .signature-area { text-align: center; }
+            .signature-box {
+              position: relative;
+              width: ${Math.max(sealWidth, 220)}px;
+              height: ${Math.max(sealHeight, 200)}px;
+              margin: 0 auto 10px auto;
             }
-
-            @media print {
-              .print-actions {
-                display: none;
-              }
+            .seal-img {
+              position: absolute;
+              left: 50%;
+              top: 0;
+              transform: translateX(-50%);
+              width: ${Math.max(sealWidth, 220)}px;
+              height: ${Math.max(sealHeight, 200)}px;
+              object-fit: contain;
+              opacity: 0.95;
+              z-index: 1;
             }
+            .signature-img {
+              position: absolute;
+              left: 50%;
+              bottom: 55px;
+              transform: translateX(-50%);
+              width: ${Math.min(signatureWidth, Math.round(Math.max(sealWidth, 220) * 0.65))}px;
+              height: ${Math.min(signatureHeight, Math.round(Math.max(sealHeight, 200) * 0.35))}px;
+              object-fit: contain;
+              z-index: 10;
+            }
+            .signature-line {
+              border-top: 1px solid #111827;
+              padding-top: 4px;
+              font-size: 11px;
+            }
+            .print-actions { margin-top: 20px; text-align: center; }
+            @media print { .print-actions { display: none; } }
           </style>
         </head>
 
@@ -386,8 +399,12 @@ export default function Anamnesis() {
                 <p class="legal-name">${institution?.legalName || 'AME HEALTH SAC'}</p>
                 <p class="small"><b>RUC:</b> ${institution?.ruc || '-'}</p>
                 <p class="small"><b>Dirección:</b> ${institution?.address || '-'}</p>
-                <p class="small"><b>Teléfono:</b> ${institution?.phone || '-'} ${institution?.email ? `| <b>Email:</b> ${institution.email}` : ''}</p>
-                <p class="small"><b>Ciudad:</b> ${institution?.city || ''} ${institution?.country || ''}</p>
+                <p class="small"><b>Teléfono:</b> ${institution?.phone || '-'} ${
+                  institution?.email ? `| <b>Email:</b> ${institution.email}` : ''
+                }</p>
+                <p class="small"><b>Ciudad:</b> ${institution?.city || ''} ${
+                  institution?.country || ''
+                }</p>
               </div>
             </div>
 
@@ -414,7 +431,6 @@ export default function Anamnesis() {
 
             <div class="section">
               <div class="section-title">Prescripción farmacológica</div>
-
               <table>
                 <thead>
                   <tr>
@@ -427,25 +443,24 @@ export default function Anamnesis() {
                     <th style="width: 18%;">Indicaciones</th>
                   </tr>
                 </thead>
-
                 <tbody>
                   ${recipeItems
                     .map(
                       (m) => `
-                    <tr>
-                      <td>
-                        <div class="medicine-name">${m.medicationName}</div>
-                        <div>${m.concentration || ''}</div>
-                        <div>${m.presentation || ''}</div>
-                      </td>
-                      <td>${m.quantity || ''}</td>
-                      <td>${m.route || ''}</td>
-                      <td>${m.dose || ''}</td>
-                      <td>${m.frequency || ''}</td>
-                      <td>${m.durationDays || ''}</td>
-                      <td>${m.indications || ''}</td>
-                    </tr>
-                  `,
+                        <tr>
+                          <td>
+                            <div class="medicine-name">${m.medicationName}</div>
+                            <div>${m.concentration || ''}</div>
+                            <div>${m.presentation || ''}</div>
+                          </td>
+                          <td>${m.quantity || ''}</td>
+                          <td>${m.route || ''}</td>
+                          <td>${m.dose || ''}</td>
+                          <td>${m.frequency || ''}</td>
+                          <td>${m.durationDays || ''}</td>
+                          <td>${m.indications || ''}</td>
+                        </tr>
+                      `,
                     )
                     .join('')}
                 </tbody>
@@ -456,6 +471,7 @@ export default function Anamnesis() {
               <div class="section-title">Profesional responsable</div>
               <div class="grid">
                 <p class="field"><span class="label">Nombre:</span> ${professionalName}</p>
+                <p class="field"><span class="label">Tipo:</span> ${professionalType}</p>
                 <p class="field"><span class="label">DNI:</span> ${professionalDni || '-'}</p>
                 <p class="field"><span class="label">CMP:</span> ${professionalCmp || '-'}</p>
                 <p class="field"><span class="label">RNE:</span> ${professionalRne || '-'}</p>
@@ -468,10 +484,23 @@ export default function Anamnesis() {
                 La dispensación debe realizarse conforme a criterio farmacéutico y normativa vigente.
               </div>
 
-              <div class="signature-box">
+              <div class="signature-area">
+                <div class="signature-box">
+                  ${
+                    institution?.sealUrl
+                      ? `<img class="seal-img" src="${institution.sealUrl}" />`
+                      : ''
+                  }
+                  ${
+                    institution?.signatureUrl
+                      ? `<img class="signature-img" src="${institution.signatureUrl}" />`
+                      : ''
+                  }
+                </div>
                 <div class="signature-line">
-                  ${professionalName || 'Médico tratante'}<br/>
-                  CMP ${professionalCmp || '-'} ${professionalRne ? `| RNE ${professionalRne}` : ''}
+                  ${professionalName || 'Responsable'}<br/>
+                  ${professionalCmp ? `CMP ${professionalCmp}` : professionalType}
+                  ${professionalRne ? ` | RNE ${professionalRne}` : ''}
                 </div>
               </div>
             </div>
@@ -510,84 +539,108 @@ export default function Anamnesis() {
     }
   };
 
-  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>, id: number | null) => {
-    const val = e.target.value;
-    const found = CIE10_CODES.find((c) => c.code.toLowerCase() === val.toLowerCase());
+  const updateSelectedDiagnosisByCode = (value: string) => {
+    const found = CIE10_CODES.find((c) => c.code.toLowerCase() === value.toLowerCase());
 
-    if (id === null) {
-      setFormData((prev) => ({
-        ...prev,
-        diagnosticoPrincipal: {
-          ...prev.diagnosticoPrincipal,
-          codigo: val,
-          descripcion: found ? found.desc : prev.diagnosticoPrincipal.descripcion,
-        },
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        diagnosticosSecundarios: prev.diagnosticosSecundarios.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                codigo: val,
-                descripcion: found ? found.desc : d.descripcion,
-              }
-            : d,
-        ),
-      }));
-    }
+    setSelectedDiagnosis((prev) => ({
+      ...prev,
+      codigo: value,
+      descripcion: found ? found.desc : prev.descripcion,
+    }));
   };
 
-  const handleDescChange = (e: React.ChangeEvent<HTMLInputElement>, id: number | null) => {
-    const val = e.target.value;
-    const found = CIE10_CODES.find((c) => c.desc.toLowerCase() === val.toLowerCase());
+  const updateSelectedDiagnosisByDescription = (value: string) => {
+    const found = CIE10_CODES.find((c) => c.desc.toLowerCase() === value.toLowerCase());
 
-    if (id === null) {
-      setFormData((prev) => ({
-        ...prev,
-        diagnosticoPrincipal: {
-          ...prev.diagnosticoPrincipal,
-          descripcion: val,
-          codigo: found ? found.code : prev.diagnosticoPrincipal.codigo,
-        },
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        diagnosticosSecundarios: prev.diagnosticosSecundarios.map((d) =>
-          d.id === id
-            ? {
-                ...d,
-                descripcion: val,
-                codigo: found ? found.code : d.codigo,
-              }
-            : d,
-        ),
-      }));
-    }
+    setSelectedDiagnosis((prev) => ({
+      ...prev,
+      descripcion: value,
+      codigo: found ? found.code : prev.codigo,
+    }));
   };
 
-  const addSecondaryDiag = () => {
+  const addDiagnosisAsPrincipal = () => {
+    if (!selectedDiagnosis.codigo.trim()) {
+      alert('Seleccione o ingrese el código CIE-10.');
+      return;
+    }
+
+    if (!selectedDiagnosis.descripcion.trim()) {
+      alert('Ingrese la descripción del diagnóstico.');
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
-      diagnosticosSecundarios: [
-        ...prev.diagnosticosSecundarios,
-        {
-          id: nextDiagId,
-          codigo: '',
-          descripcion: '',
-          tipo: 'presuntivo',
-        },
-      ],
+      diagnosticoPrincipal: {
+        codigo: selectedDiagnosis.codigo,
+        descripcion: selectedDiagnosis.descripcion,
+        tipo: selectedDiagnosis.tipo || 'presuntivo',
+      },
     }));
+
+    setSelectedDiagnosis({
+      codigo: '',
+      descripcion: '',
+      tipo: 'presuntivo',
+    });
+  };
+
+  const addDiagnosisAsSecondary = () => {
+    if (!selectedDiagnosis.codigo.trim()) {
+      alert('Seleccione o ingrese el código CIE-10.');
+      return;
+    }
+
+    if (!selectedDiagnosis.descripcion.trim()) {
+      alert('Ingrese la descripción del diagnóstico.');
+      return;
+    }
+
+    const newDiag = {
+      id: nextDiagId,
+      codigo: selectedDiagnosis.codigo,
+      descripcion: selectedDiagnosis.descripcion,
+      tipo: selectedDiagnosis.tipo || 'presuntivo',
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      diagnosticosSecundarios: [...prev.diagnosticosSecundarios, newDiag],
+    }));
+
     setNextDiagId((prev) => prev + 1);
+
+    setSelectedDiagnosis({
+      codigo: '',
+      descripcion: '',
+      tipo: 'presuntivo',
+    });
+  };
+
+  const clearSelectedDiagnosis = () => {
+    setSelectedDiagnosis({
+      codigo: '',
+      descripcion: '',
+      tipo: 'presuntivo',
+    });
   };
 
   const removeSecondaryDiag = (id: number) => {
     setFormData((prev) => ({
       ...prev,
       diagnosticosSecundarios: prev.diagnosticosSecundarios.filter((d) => d.id !== id),
+    }));
+  };
+
+  const handleDestinationDetailChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    const { name, value, type } = e.target;
+
+    setDestinationDetails((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -608,7 +661,7 @@ export default function Anamnesis() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, destinationDetails, recipeItems }),
       });
 
       if (res.ok) {
@@ -707,75 +760,145 @@ export default function Anamnesis() {
         </div>
 
         <div className="border rounded-lg p-4 bg-yellow-50">
-          <label className="block font-bold text-slate-700 mb-3">Diagnóstico principal</label>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <input
-              list="cie-codes"
-              placeholder="Código"
-              value={formData.diagnosticoPrincipal.codigo}
-              onChange={(e) => handleCodeChange(e, null)}
-              className="border p-2 rounded"
-            />
-
-            <input
-              list="cie-descs"
-              placeholder="Descripción"
-              value={formData.diagnosticoPrincipal.descripcion}
-              onChange={(e) => handleDescChange(e, null)}
-              className="md:col-span-2 border p-2 rounded"
-            />
-
-            <select
-              value={formData.diagnosticoPrincipal.tipo}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  diagnosticoPrincipal: {
-                    ...prev.diagnosticoPrincipal,
-                    tipo: e.target.value,
-                  },
-                }))
-              }
-              className="border p-2 rounded"
-            >
-              <option value="presuntivo">Presuntivo</option>
-              <option value="definitivo">Definitivo</option>
-              <option value="repetitivo">Repetitivo</option>
-            </select>
+          <div className="flex justify-between items-start gap-4 mb-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-700">Diagnósticos CIE-10</h2>
+              <p className="text-sm text-slate-600">
+                Busque o ingrese un diagnóstico y luego agréguelo como principal o secundario.
+              </p>
+            </div>
           </div>
 
-          {formData.diagnosticosSecundarios.map((diag) => (
-            <div key={diag.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+          <div className="border rounded-lg p-3 bg-white mb-4">
+            <label className="block font-semibold text-slate-700 mb-2">
+              Diagnóstico seleccionado
+            </label>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <input
                 list="cie-codes"
-                placeholder="Código"
-                value={diag.codigo}
-                onChange={(e) => handleCodeChange(e, diag.id)}
+                placeholder="Código CIE-10"
+                value={selectedDiagnosis.codigo}
+                onChange={(e) => updateSelectedDiagnosisByCode(e.target.value)}
                 className="border p-2 rounded"
               />
 
               <input
                 list="cie-descs"
-                placeholder="Descripción"
-                value={diag.descripcion}
-                onChange={(e) => handleDescChange(e, diag.id)}
+                placeholder="Descripción del diagnóstico"
+                value={selectedDiagnosis.descripcion}
+                onChange={(e) => updateSelectedDiagnosisByDescription(e.target.value)}
                 className="md:col-span-2 border p-2 rounded"
               />
 
+              <select
+                value={selectedDiagnosis.tipo}
+                onChange={(e) =>
+                  setSelectedDiagnosis((prev) => ({ ...prev, tipo: e.target.value }))
+                }
+                className="border p-2 rounded"
+              >
+                <option value="presuntivo">Presuntivo</option>
+                <option value="definitivo">Definitivo</option>
+                <option value="repetitivo">Repetitivo</option>
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mt-3">
               <button
                 type="button"
-                onClick={() => removeSecondaryDiag(diag.id)}
-                className="text-red-600 font-bold"
+                onClick={addDiagnosisAsPrincipal}
+                className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
               >
-                Quitar
+                Agregar como diagnóstico principal
+              </button>
+
+              <button
+                type="button"
+                onClick={addDiagnosisAsSecondary}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Agregar como diagnóstico secundario
+              </button>
+
+              <button
+                type="button"
+                onClick={clearSelectedDiagnosis}
+                className="bg-gray-100 text-slate-700 px-4 py-2 rounded hover:bg-gray-200"
+              >
+                Limpiar selección
               </button>
             </div>
-          ))}
+          </div>
 
-          <button type="button" onClick={addSecondaryDiag} className="text-blue-600 mt-3">
-            + Agregar diagnóstico secundario
-          </button>
+          <div className="border rounded-lg p-3 bg-white mb-4">
+            <h3 className="font-bold text-slate-700 mb-2">Diagnóstico principal</h3>
+
+            {formData.diagnosticoPrincipal.codigo ? (
+              <div className="flex justify-between gap-3 items-start">
+                <div>
+                  <p className="font-semibold text-slate-800">
+                    {formData.diagnosticoPrincipal.codigo} - {formData.diagnosticoPrincipal.descripcion}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Tipo: {formData.diagnosticoPrincipal.tipo}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      diagnosticoPrincipal: {
+                        codigo: '',
+                        descripcion: '',
+                        tipo: 'presuntivo',
+                      },
+                    }))
+                  }
+                  className="text-red-600 font-bold"
+                >
+                  Quitar
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                Aún no se ha agregado diagnóstico principal.
+              </p>
+            )}
+          </div>
+
+          <div className="border rounded-lg p-3 bg-white">
+            <h3 className="font-bold text-slate-700 mb-2">Diagnósticos secundarios</h3>
+
+            {formData.diagnosticosSecundarios.length > 0 ? (
+              <div className="space-y-2">
+                {formData.diagnosticosSecundarios.map((diag) => (
+                  <div key={diag.id} className="border rounded p-2 flex justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-800">
+                        {diag.codigo} - {diag.descripcion}
+                      </p>
+                      <p className="text-sm text-slate-500">Tipo: {diag.tipo}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeSecondaryDiag(diag.id)}
+                      className="text-red-600 font-bold"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">
+                No hay diagnósticos secundarios agregados.
+              </p>
+            )}
+          </div>
 
           <datalist id="cie-codes">
             {CIE10_CODES.map((c) => (
@@ -942,8 +1065,9 @@ export default function Anamnesis() {
           )}
         </div>
 
-        <div>
-          <label className="block font-medium text-slate-700 mb-1">Destino final</label>
+        <div className="border rounded-lg p-4 bg-slate-50">
+          <label className="block font-bold text-slate-700 mb-2">Destino final del paciente</label>
+
           <select
             name="destinoFinal"
             value={formData.destinoFinal}
@@ -956,6 +1080,191 @@ export default function Anamnesis() {
             <option value="observacion">Observación</option>
             <option value="fallecido">Fallecido</option>
           </select>
+
+          {formData.destinoFinal === 'alta_medica' && (
+            <div className="mt-4 border rounded-lg p-4 bg-white">
+              <h3 className="font-bold text-emerald-700 mb-3">Alta médica</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <TextArea
+                  label="Indicaciones finales"
+                  name="altaIndicaciones"
+                  value={destinationDetails.altaIndicaciones}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Signos de alarma"
+                  name="altaSignosAlarma"
+                  value={destinationDetails.altaSignosAlarma}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Control / seguimiento"
+                  name="altaControl"
+                  value={destinationDetails.altaControl}
+                  onChange={handleDestinationDetailChange}
+                />
+              </div>
+            </div>
+          )}
+
+          {formData.destinoFinal === 'alta_voluntaria' && (
+            <div className="mt-4 border rounded-lg p-4 bg-white">
+              <h3 className="font-bold text-orange-700 mb-3">Alta voluntaria</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <TextArea
+                  label="Motivo de alta voluntaria"
+                  name="voluntariaMotivo"
+                  value={destinationDetails.voluntariaMotivo}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Riesgos explicados al paciente/familiar"
+                  name="voluntariaRiesgos"
+                  value={destinationDetails.voluntariaRiesgos}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Responsable / familiar"
+                  name="voluntariaResponsable"
+                  value={destinationDetails.voluntariaResponsable}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="DNI del responsable"
+                  name="voluntariaDniResponsable"
+                  value={destinationDetails.voluntariaDniResponsable}
+                  onChange={handleDestinationDetailChange}
+                />
+              </div>
+            </div>
+          )}
+
+          {formData.destinoFinal === 'referencia' && (
+            <div className="mt-4 border rounded-lg p-4 bg-white">
+              <h3 className="font-bold text-blue-700 mb-3">Referencia</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <InputText
+                  label="Establecimiento destino"
+                  name="referenciaDestino"
+                  value={destinationDetails.referenciaDestino}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Especialidad receptora"
+                  name="referenciaEspecialidad"
+                  value={destinationDetails.referenciaEspecialidad}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Médico receptor"
+                  name="referenciaMedicoReceptor"
+                  value={destinationDetails.referenciaMedicoReceptor}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Medio de transporte"
+                  name="referenciaTransporte"
+                  value={destinationDetails.referenciaTransporte}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Motivo de referencia"
+                  name="referenciaMotivo"
+                  value={destinationDetails.referenciaMotivo}
+                  onChange={handleDestinationDetailChange}
+                />
+              </div>
+            </div>
+          )}
+
+          {formData.destinoFinal === 'observacion' && (
+            <div className="mt-4 border rounded-lg p-4 bg-white">
+              <h3 className="font-bold text-purple-700 mb-3">Observación</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <TextArea
+                  label="Motivo de observación"
+                  name="observacionMotivo"
+                  value={destinationDetails.observacionMotivo}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Tiempo estimado"
+                  name="observacionTiempoEstimado"
+                  value={destinationDetails.observacionTiempoEstimado}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Plan de monitoreo"
+                  name="observacionPlan"
+                  value={destinationDetails.observacionPlan}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Indicaciones"
+                  name="observacionIndicaciones"
+                  value={destinationDetails.observacionIndicaciones}
+                  onChange={handleDestinationDetailChange}
+                />
+              </div>
+            </div>
+          )}
+
+          {formData.destinoFinal === 'fallecido' && (
+            <div className="mt-4 border rounded-lg p-4 bg-white">
+              <h3 className="font-bold text-red-700 mb-3">Fallecido / pase a certificado de defunción</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <InputText
+                  label="Fecha y hora de fallecimiento"
+                  name="fallecidoFechaHora"
+                  value={destinationDetails.fallecidoFechaHora}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Causa probable"
+                  name="fallecidoCausaProbable"
+                  value={destinationDetails.fallecidoCausaProbable}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Observaciones"
+                  name="fallecidoObservaciones"
+                  value={destinationDetails.fallecidoObservaciones}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <label className="flex items-center gap-2 border rounded p-3 bg-red-50">
+                  <input
+                    type="checkbox"
+                    name="fallecidoGenerarCertificado"
+                    checked={destinationDetails.fallecidoGenerarCertificado}
+                    onChange={handleDestinationDetailChange}
+                  />
+                  <span className="text-red-700 font-medium">
+                    Generar pase a certificado de defunción
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
         </div>
 
         <button
@@ -969,3 +1278,52 @@ export default function Anamnesis() {
     </div>
   );
 }
+
+function InputText({
+  label,
+  name,
+  value,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div>
+      <label className="block font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        name={name}
+        value={value || ''}
+        onChange={onChange}
+        className="w-full border p-2 rounded"
+      />
+    </div>
+  );
+}
+
+function TextArea({
+  label,
+  name,
+  value,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}) {
+  return (
+    <div className="md:col-span-2">
+      <label className="block font-medium text-slate-700 mb-1">{label}</label>
+      <textarea
+        name={name}
+        value={value || ''}
+        onChange={onChange}
+        className="w-full border p-2 rounded h-24"
+      />
+    </div>
+  );
+}
+

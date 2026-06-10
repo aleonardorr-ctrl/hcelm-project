@@ -18,12 +18,25 @@ export default function InstitutionSettings() {
     email: '',
     city: 'Arequipa',
     country: 'Perú',
+
     logoUrl: '',
+    signatureUrl: '',
+    sealUrl: '',
+
+    logoWidth: 70,
+    logoHeight: 70,
+    signatureWidth: 180,
+    signatureHeight: 70,
+    sealWidth: 120,
+    sealHeight: 70,
+
     primaryColor: '#0f766e',
     secondaryColor: '#14b8a6',
+
     directorName: '',
     directorCmp: '',
     directorRne: '',
+
     timezone: 'America/Lima',
     language: 'es',
   });
@@ -72,7 +85,17 @@ export default function InstitutionSettings() {
 
       if (instRes.ok) {
         const inst = await instRes.json();
-        setInstitution((prev) => ({ ...prev, ...inst }));
+
+        setInstitution((prev) => ({
+          ...prev,
+          ...inst,
+          logoWidth: Number(inst.logoWidth || 70),
+          logoHeight: Number(inst.logoHeight || 70),
+          signatureWidth: Number(inst.signatureWidth || 180),
+          signatureHeight: Number(inst.signatureHeight || 70),
+          sealWidth: Number(inst.sealWidth || 120),
+          sealHeight: Number(inst.sealHeight || 70),
+        }));
       }
 
       if (usersRes.ok) {
@@ -98,8 +121,21 @@ export default function InstitutionSettings() {
   const handleInstitutionChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
-    const { name, value } = e.target;
-    setInstitution((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+
+    const numericFields = [
+      'logoWidth',
+      'logoHeight',
+      'signatureWidth',
+      'signatureHeight',
+      'sealWidth',
+      'sealHeight',
+    ];
+
+    setInstitution((prev) => ({
+      ...prev,
+      [name]: numericFields.includes(name) || type === 'number' ? Number(value) : value,
+    }));
   };
 
   const handleHceChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -111,6 +147,51 @@ export default function InstitutionSettings() {
     }));
   };
 
+  const imageToBase64 = (file: File, field: 'logoUrl' | 'signatureUrl' | 'sealUrl') => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      setInstitution((prev) => ({
+        ...prev,
+        [field]: String(reader.result || ''),
+      }));
+    };
+
+    reader.onerror = () => {
+      alert('No se pudo leer la imagen seleccionada.');
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: 'logoUrl' | 'signatureUrl' | 'sealUrl',
+  ) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Seleccione un archivo de imagen válido.');
+      return;
+    }
+
+    const maxSizeMb = 2;
+    const maxSizeBytes = maxSizeMb * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      alert(`La imagen no debe superar ${maxSizeMb} MB.`);
+      return;
+    }
+
+    imageToBase64(file, field);
+  };
+
+  const clearImage = (field: 'logoUrl' | 'signatureUrl' | 'sealUrl') => {
+    setInstitution((prev) => ({ ...prev, [field]: '' }));
+  };
+
   const saveInstitution = async () => {
     setSaving(true);
 
@@ -118,7 +199,15 @@ export default function InstitutionSettings() {
       const res = await fetch(`${API_URL}/institution`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(institution),
+        body: JSON.stringify({
+          ...institution,
+          logoWidth: Number(institution.logoWidth || 70),
+          logoHeight: Number(institution.logoHeight || 70),
+          signatureWidth: Number(institution.signatureWidth || 180),
+          signatureHeight: Number(institution.signatureHeight || 70),
+          sealWidth: Number(institution.sealWidth || 120),
+          sealHeight: Number(institution.sealHeight || 70),
+        }),
       });
 
       if (!res.ok) {
@@ -266,8 +355,7 @@ export default function InstitutionSettings() {
           </button>
         ))}
       </div>
-
-      <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6">
         {activeTab === 'general' && (
           <div className="space-y-6">
             <h2 className="text-lg font-bold text-slate-700">Datos generales</h2>
@@ -408,36 +496,72 @@ export default function InstitutionSettings() {
 
         {activeTab === 'branding' && (
           <div className="space-y-6">
-            <h2 className="text-lg font-bold text-slate-700">Marca y apariencia</h2>
+            <h2 className="text-lg font-bold text-slate-700">Marca, logo, firma y sello</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="URL del logotipo" name="logoUrl" value={institution.logoUrl} onChange={handleInstitutionChange} />
-              
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Color primario</label>
-                <input
-                  type="color"
-                  name="primaryColor"
-                  value={institution.primaryColor || '#0f766e'}
-                  onChange={handleInstitutionChange}
-                  className="w-full h-11 border rounded"
-                />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <ImageUploader
+                label="Logotipo institucional"
+                value={institution.logoUrl}
+                onUpload={(e) => handleImageUpload(e, 'logoUrl')}
+                onClear={() => clearImage('logoUrl')}
+                width={institution.logoWidth}
+                height={institution.logoHeight}
+                widthName="logoWidth"
+                heightName="logoHeight"
+                onSizeChange={handleInstitutionChange}
+              />
 
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Color secundario</label>
-                <input
-                  type="color"
-                  name="secondaryColor"
-                  value={institution.secondaryColor || '#14b8a6'}
-                  onChange={handleInstitutionChange}
-                  className="w-full h-11 border rounded"
-                />
+              <ImageUploader
+                label="Firma escaneada"
+                value={institution.signatureUrl}
+                onUpload={(e) => handleImageUpload(e, 'signatureUrl')}
+                onClear={() => clearImage('signatureUrl')}
+                width={institution.signatureWidth}
+                height={institution.signatureHeight}
+                widthName="signatureWidth"
+                heightName="signatureHeight"
+                onSizeChange={handleInstitutionChange}
+              />
+
+              <ImageUploader
+                label="Sello escaneado"
+                value={institution.sealUrl}
+                onUpload={(e) => handleImageUpload(e, 'sealUrl')}
+                onClear={() => clearImage('sealUrl')}
+                width={institution.sealWidth}
+                height={institution.sealHeight}
+                widthName="sealWidth"
+                heightName="sealHeight"
+                onSizeChange={handleInstitutionChange}
+              />
+
+              <div className="grid grid-cols-1 gap-4 border rounded-lg p-4 bg-gray-50">
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Color primario</label>
+                  <input
+                    type="color"
+                    name="primaryColor"
+                    value={institution.primaryColor || '#0f766e'}
+                    onChange={handleInstitutionChange}
+                    className="w-full h-11 border rounded"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Color secundario</label>
+                  <input
+                    type="color"
+                    name="secondaryColor"
+                    value={institution.secondaryColor || '#14b8a6'}
+                    onChange={handleInstitutionChange}
+                    className="w-full h-11 border rounded"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="border rounded-lg p-4 bg-gray-50">
-              <p className="font-medium text-slate-700 mb-2">Vista previa del encabezado</p>
+              <p className="font-medium text-slate-700 mb-2">Vista previa institucional</p>
 
               <div
                 className="rounded p-4 text-white"
@@ -448,7 +572,12 @@ export default function InstitutionSettings() {
                     <img
                       src={institution.logoUrl}
                       alt="Logo"
-                      className="h-16 w-16 object-contain bg-white rounded p-1"
+                      style={{
+                        width: `${institution.logoWidth}px`,
+                        height: `${institution.logoHeight}px`,
+                        objectFit: 'contain',
+                      }}
+                      className="bg-white rounded p-1"
                     />
                   ) : (
                     <div className="h-16 w-16 bg-white/20 rounded flex items-center justify-center">
@@ -463,6 +592,52 @@ export default function InstitutionSettings() {
                   </div>
                 </div>
               </div>
+
+              <div className="mt-4 bg-white border rounded p-4">
+                <p className="text-sm font-medium text-slate-700 mb-3">Vista previa de firma y sello</p>
+
+                <div className="flex flex-wrap gap-6 items-end">
+                  <div className="text-center">
+                    {institution.signatureUrl ? (
+                      <img
+                        src={institution.signatureUrl}
+                        alt="Firma"
+                        style={{
+                          width: `${institution.signatureWidth}px`,
+                          height: `${institution.signatureHeight}px`,
+                          objectFit: 'contain',
+                        }}
+                        className="border rounded bg-white p-1"
+                      />
+                    ) : (
+                      <div className="h-20 w-48 border rounded flex items-center justify-center text-slate-400">
+                        Firma
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">Firma escaneada</p>
+                  </div>
+
+                  <div className="text-center">
+                    {institution.sealUrl ? (
+                      <img
+                        src={institution.sealUrl}
+                        alt="Sello"
+                        style={{
+                          width: `${institution.sealWidth}px`,
+                          height: `${institution.sealHeight}px`,
+                          objectFit: 'contain',
+                        }}
+                        className="border rounded bg-white p-1"
+                      />
+                    ) : (
+                      <div className="h-20 w-48 border rounded flex items-center justify-center text-slate-400">
+                        Sello
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-500 mt-1">Sello escaneado</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <SaveButton saving={saving} onClick={saveInstitution} label="Guardar branding" />
@@ -474,40 +649,11 @@ export default function InstitutionSettings() {
             <h2 className="text-lg font-bold text-slate-700">Configuración de historia clínica</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <CheckBox
-                label="Requerir CIE-10"
-                name="requireCie10"
-                checked={hceConfig.requireCie10}
-                onChange={handleHceChange}
-              />
-
-              <CheckBox
-                label="Permitir múltiples diagnósticos"
-                name="allowMultipleDiagnoses"
-                checked={hceConfig.allowMultipleDiagnoses}
-                onChange={handleHceChange}
-              />
-
-              <CheckBox
-                label="Requerir signos vitales"
-                name="requireVitalSigns"
-                checked={hceConfig.requireVitalSigns}
-                onChange={handleHceChange}
-              />
-
-              <CheckBox
-                label="Autoguardar borradores"
-                name="autoSaveDrafts"
-                checked={hceConfig.autoSaveDrafts}
-                onChange={handleHceChange}
-              />
-
-              <CheckBox
-                label="Requerir firma en documentos"
-                name="signatureRequired"
-                checked={hceConfig.signatureRequired}
-                onChange={handleHceChange}
-              />
+              <CheckBox label="Requerir CIE-10" name="requireCie10" checked={hceConfig.requireCie10} onChange={handleHceChange} />
+              <CheckBox label="Permitir múltiples diagnósticos" name="allowMultipleDiagnoses" checked={hceConfig.allowMultipleDiagnoses} onChange={handleHceChange} />
+              <CheckBox label="Requerir signos vitales" name="requireVitalSigns" checked={hceConfig.requireVitalSigns} onChange={handleHceChange} />
+              <CheckBox label="Autoguardar borradores" name="autoSaveDrafts" checked={hceConfig.autoSaveDrafts} onChange={handleHceChange} />
+              <CheckBox label="Requerir firma en documentos" name="signatureRequired" checked={hceConfig.signatureRequired} onChange={handleHceChange} />
 
               <div>
                 <label className="block font-medium text-slate-700 mb-1">
@@ -553,6 +699,105 @@ function Input({
         onChange={onChange}
         className="w-full border p-2 rounded"
       />
+    </div>
+  );
+}
+
+function ImageUploader({
+  label,
+  value,
+  onUpload,
+  onClear,
+  width,
+  height,
+  widthName,
+  heightName,
+  onSizeChange,
+}: {
+  label: string;
+  value: string;
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+  width: number;
+  height: number;
+  widthName: string;
+  heightName: string;
+  onSizeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <div className="border rounded-lg p-4 bg-gray-50">
+      <label className="block font-medium text-slate-700 mb-2">{label}</label>
+
+      <div className="mb-3">
+        {value ? (
+          <img
+            src={value}
+            alt={label}
+            style={{
+              width: `${width}px`,
+              height: `${height}px`,
+              objectFit: 'contain',
+            }}
+            className="border rounded bg-white p-1"
+          />
+        ) : (
+          <div
+            style={{ width: `${width}px`, height: `${height}px` }}
+            className="border rounded bg-white flex items-center justify-center text-slate-400"
+          >
+            Sin imagen
+          </div>
+        )}
+      </div>
+
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
+        onChange={onUpload}
+        className="w-full border p-2 rounded bg-white text-sm"
+      />
+
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div>
+          <label className="block text-xs text-slate-600 mb-1">Ancho px</label>
+          <input
+            type="number"
+            min={20}
+            max={500}
+            name={widthName}
+            value={width}
+            onChange={onSizeChange}
+            className="w-full border p-2 rounded"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-600 mb-1">Alto px</label>
+          <input
+            type="number"
+            min={20}
+            max={500}
+            name={heightName}
+            value={height}
+            onChange={onSizeChange}
+            className="w-full border p-2 rounded"
+          />
+        </div>
+      </div>
+
+      {value && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="mt-2 text-red-600 hover:underline text-sm"
+        >
+          Quitar imagen
+        </button>
+      )}
+
+      <p className="text-xs text-slate-500 mt-2">
+        Formatos aceptados: PNG, JPG, WEBP. Máximo sugerido: 2 MB.
+      </p>
     </div>
   );
 }

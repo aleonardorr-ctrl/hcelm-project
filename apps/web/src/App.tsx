@@ -17,9 +17,7 @@ import ProfessionalVerification from './pages/ProfessionalVerification';
 
 function TokenProtected({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem('ame_token');
-
   if (!token) return <Navigate to="/login" replace />;
-
   return <>{children}</>;
 }
 
@@ -43,6 +41,32 @@ function Navbar() {
   const professionalName = localStorage.getItem('hcelm_professional_name');
   const professionalCmp = localStorage.getItem('hcelm_professional_cmp');
 
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
+
+  const linkStyle = (path: string): React.CSSProperties => ({
+    color: 'white',
+    textDecoration: 'none',
+    padding: '8px 12px',
+    borderRadius: '8px',
+    fontWeight: isActive(path) ? 'bold' : 'normal',
+    background: isActive(path) ? 'rgba(255,255,255,0.28)' : 'transparent',
+    borderBottom: isActive(path) ? '2px solid white' : '2px solid transparent',
+    transition: 'all 0.2s ease',
+  });
+
+  const handleMouseEnter = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.currentTarget.style.background = 'rgba(255,255,255,0.20)';
+    e.currentTarget.style.transform = 'translateY(-1px)';
+  };
+
+  const handleMouseLeave = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    e.currentTarget.style.background = isActive(path) ? 'rgba(255,255,255,0.28)' : 'transparent';
+    e.currentTarget.style.transform = 'translateY(0)';
+  };
+
   const logout = () => {
     localStorage.removeItem('ame_token');
     localStorage.removeItem('hcelm_professional_verified');
@@ -55,49 +79,42 @@ function Navbar() {
     window.location.href = '/login';
   };
 
+  const MenuLink = ({ to, label }: { to: string; label: string }) => (
+    <Link
+      to={to}
+      style={linkStyle(to)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={(e) => handleMouseLeave(e, to)}
+    >
+      {label}
+    </Link>
+  );
+
   return (
-    <nav style={{ background: '#0f766e', padding: '15px', color: 'white' }}>
+    <nav style={{ background: '#0f766e', padding: '14px', color: 'white' }}>
       <div
         style={{
           maxWidth: '1200px',
           margin: '0 auto',
           display: 'flex',
-          gap: '20px',
+          gap: '10px',
           alignItems: 'center',
           flexWrap: 'wrap',
         }}
       >
-        <span style={{ fontWeight: 'bold', fontSize: '18px' }}>AME HEALTH</span>
+        <span style={{ fontWeight: 'bold', fontSize: '18px', marginRight: '8px' }}>
+          AME HEALTH
+        </span>
 
-        <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>
-          Inicio
-        </Link>
-
-        <Link to="/patients" style={{ color: 'white', textDecoration: 'none' }}>
-          Pacientes
-        </Link>
-
-        <Link to="/anamnesis" style={{ color: 'white', textDecoration: 'none' }}>
-          Anamnesis
-        </Link>
-
-        <Link to="/certificates/issue" style={{ color: 'white', textDecoration: 'none' }}>
-          Certificados
-        </Link>
-
-        <Link to="/institution" style={{ color: 'white', textDecoration: 'none' }}>
-          Configuración
-        </Link>
-
-        <Link
-          to="/professional-verification"
-          style={{ color: 'white', textDecoration: 'none' }}
-        >
-          Profesional
-        </Link>
+        <MenuLink to="/" label="Inicio" />
+        <MenuLink to="/patients" label="Pacientes" />
+        <MenuLink to="/anamnesis" label="Anamnesis" />
+        <MenuLink to="/certificates/issue" label="Certificados" />
+        <MenuLink to="/institution" label="Configuración" />
+        <MenuLink to="/professional-verification" label="Profesional" />
 
         {professionalName && (
-          <span style={{ marginLeft: 'auto', fontSize: '13px', opacity: 0.9 }}>
+          <span style={{ marginLeft: 'auto', fontSize: '13px', opacity: 0.95 }}>
             {professionalName} {professionalCmp ? `| ${professionalCmp}` : ''}
           </span>
         )}
@@ -108,9 +125,16 @@ function Navbar() {
             background: 'rgba(255,255,255,0.2)',
             border: '1px solid white',
             color: 'white',
-            padding: '6px 14px',
-            borderRadius: '6px',
+            padding: '7px 14px',
+            borderRadius: '8px',
             cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.32)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
           }}
         >
           Salir

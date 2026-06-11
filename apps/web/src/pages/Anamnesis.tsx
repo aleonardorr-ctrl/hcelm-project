@@ -3,6 +3,7 @@ import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
 import { generateReferralPdf } from '../utils/referralPdf';
 import { generateObservationPdf } from '../utils/observationPdf';
+import { generateSinadefReferralPdf } from '../utils/sinadefReferralPdf';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -1047,13 +1048,22 @@ export default function Anamnesis() {
 
           {formData.destinoFinal === 'fallecido' && (
             <div className="mt-4 border rounded-lg p-4 bg-white">
-              <h3 className="font-bold text-red-700 mb-3">Fallecido / pase a certificado de defunción</h3>
+              <h3 className="font-bold text-red-700 mb-3">
+                Fallecido / pase clínico para SINADEF
+              </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <InputText
                   label="Fecha y hora de fallecimiento"
                   name="fallecidoFechaHora"
                   value={destinationDetails.fallecidoFechaHora}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Lugar de fallecimiento"
+                  name="fallecidoLugar"
+                  value={destinationDetails.fallecidoLugar}
                   onChange={handleDestinationDetailChange}
                 />
 
@@ -1065,7 +1075,14 @@ export default function Anamnesis() {
                 />
 
                 <TextArea
-                  label="Observaciones"
+                  label="Resumen clínico relevante"
+                  name="fallecidoResumenClinico"
+                  value={destinationDetails.fallecidoResumenClinico}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <TextArea
+                  label="Observaciones clínicas"
                   name="fallecidoObservaciones"
                   value={destinationDetails.fallecidoObservaciones}
                   onChange={handleDestinationDetailChange}
@@ -1079,9 +1096,48 @@ export default function Anamnesis() {
                     onChange={handleDestinationDetailChange}
                   />
                   <span className="text-red-700 font-medium">
-                    Generar pase a certificado de defunción
+                    Registrar pase clínico para certificación SINADEF
                   </span>
                 </label>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const patient = patients.find((p) => p.id === formData.patientId);
+
+                    generateSinadefReferralPdf({
+                      institution,
+                      patient,
+                      formData,
+                      destinationDetails,
+                    });
+                  }}
+                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                >
+                  Generar pase clínico PDF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.open('https://www.minsa.gob.pe/defunciones/', '_blank');
+                  }}
+                  className="bg-slate-700 text-white px-4 py-2 rounded hover:bg-slate-800"
+                >
+                  Abrir plataforma SINADEF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert('Próxima fase: adjuntar PDF oficial emitido por SINADEF a la historia clínica.');
+                  }}
+                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200"
+                >
+                  Adjuntar certificado SINADEF
+                </button>
               </div>
             </div>
           )}

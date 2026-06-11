@@ -1,6 +1,7 @@
+import { useState, useEffect } from 'react';
 import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
-import { useState, useEffect } from 'react';
+import { generateReferralPdf } from '../utils/referralPdf';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -53,13 +54,21 @@ export default function Anamnesis() {
     altaControl: '',
     voluntariaMotivo: '',
     voluntariaRiesgos: '',
+    voluntariaResumenClinico: '',
     voluntariaResponsable: '',
     voluntariaDniResponsable: '',
+    voluntariaParentesco: '',
+    voluntariaTelefono: '',
     referenciaDestino: '',
     referenciaMotivo: '',
     referenciaEspecialidad: '',
     referenciaMedicoReceptor: '',
     referenciaTransporte: '',
+    referenciaServicioOrigen: '',
+    referenciaServicioDestino: '',
+    referenciaCondicion: '',
+    referenciaAcompanante: '',
+    referenciaResumenClinico: '',
     observacionMotivo: '',
     observacionTiempoEstimado: '',
     observacionPlan: '',
@@ -824,7 +833,6 @@ export default function Anamnesis() {
                   name="voluntariaRiesgos"
                   value={destinationDetails.voluntariaRiesgos}
                   onChange={handleDestinationDetailChange}
-                  
                 />
 
                 <TextArea
@@ -846,7 +854,6 @@ export default function Anamnesis() {
                   name="voluntariaDniResponsable"
                   value={destinationDetails.voluntariaDniResponsable}
                   onChange={handleDestinationDetailChange}
-                  
                 />
 
                 <InputText
@@ -862,24 +869,25 @@ export default function Anamnesis() {
                   value={destinationDetails.voluntariaTelefono}
                   onChange={handleDestinationDetailChange}
                 />
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const patient = patients.find((p) => p.id === formData.patientId);
+              </div>
 
-                      generateVoluntaryDischargePdf({
-                        institution,
-                        patient,
-                        formData,
-                        destinationDetails,
-                      });
-                    }}
-                    className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
-              >
-                    Generar PDF de alta voluntaria
-                  </button>
-                </div>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const patient = patients.find((p) => p.id === formData.patientId);
+
+                    generateVoluntaryDischargePdf({
+                      institution,
+                      patient,
+                      formData,
+                      destinationDetails,
+                    });
+                  }}
+                  className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+                >
+                  Generar PDF de alta voluntaria
+                </button>
               </div>
             </div>
           )}
@@ -917,12 +925,66 @@ export default function Anamnesis() {
                   onChange={handleDestinationDetailChange}
                 />
 
+                <InputText
+                  label="Servicio origen"
+                  name="referenciaServicioOrigen"
+                  value={destinationDetails.referenciaServicioOrigen}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Servicio destino"
+                  name="referenciaServicioDestino"
+                  value={destinationDetails.referenciaServicioDestino}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Condición actual del paciente"
+                  name="referenciaCondicion"
+                  value={destinationDetails.referenciaCondicion}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Acompañante"
+                  name="referenciaAcompanante"
+                  value={destinationDetails.referenciaAcompanante}
+                  onChange={handleDestinationDetailChange}
+                />
+
                 <TextArea
                   label="Motivo de referencia"
                   name="referenciaMotivo"
                   value={destinationDetails.referenciaMotivo}
                   onChange={handleDestinationDetailChange}
                 />
+
+                <TextArea
+                  label="Resumen clínico para referencia"
+                  name="referenciaResumenClinico"
+                  value={destinationDetails.referenciaResumenClinico}
+                  onChange={handleDestinationDetailChange}
+                />
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const patient = patients.find((p) => p.id === formData.patientId);
+
+                    generateReferralPdf({
+                      institution,
+                      patient,
+                      formData,
+                      destinationDetails,
+                    });
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                >
+                  Generar hoja de referencia PDF
+                </button>
               </div>
             </div>
           )}

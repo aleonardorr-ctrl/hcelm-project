@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
 import { generateReferralPdf } from '../utils/referralPdf';
+import { generateObservationPdf } from '../utils/observationPdf';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -1021,6 +1022,25 @@ export default function Anamnesis() {
                   value={destinationDetails.observacionIndicaciones}
                   onChange={handleDestinationDetailChange}
                 />
+              </div>
+
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const patient = patients.find((p) => p.id === formData.patientId);
+
+                    generateObservationPdf({
+                      institution,
+                      patient,
+                      formData,
+                      destinationDetails,
+                    });
+                  }}
+                  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+                >
+                  Generar orden de observación PDF
+                </button>
               </div>
             </div>
           )}

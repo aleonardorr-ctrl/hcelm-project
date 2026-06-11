@@ -4,6 +4,7 @@ import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
 import { generateReferralPdf } from '../utils/referralPdf';
 import { generateObservationPdf } from '../utils/observationPdf';
 import { generateSinadefReferralPdf } from '../utils/sinadefReferralPdf';
+import { generateHcePdf } from '../utils/hcePdf';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -1142,12 +1143,29 @@ export default function Anamnesis() {
             </div>
           )}
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            const patient = patients.find((p) => p.id === formData.patientId);
 
+            generateHcePdf({
+              institution,
+              patient,
+              formData,
+              destinationDetails,
+              recipeItems,
+            });
+          }}
+          className="bg-slate-700 text-white px-6 py-3 rounded-lg hover:bg-slate-800 font-medium"
+        >
+          Generar HCE PDF completa
+        </button>
         <button
           type="submit"
           disabled={saving}
           className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
         >
+        
           {saving ? 'Guardando...' : 'Guardar y finalizar atención'}
         </button>
       </form>

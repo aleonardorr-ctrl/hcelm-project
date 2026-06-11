@@ -1,4 +1,5 @@
 import { generateRecipePdf } from '../utils/recipePdf';
+import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
 import { useState, useEffect } from 'react';
 
 const API_URL = 'http://localhost:3000/api';
@@ -823,6 +824,14 @@ export default function Anamnesis() {
                   name="voluntariaRiesgos"
                   value={destinationDetails.voluntariaRiesgos}
                   onChange={handleDestinationDetailChange}
+                  
+                />
+
+                <TextArea
+                  label="Resumen clínico para alta voluntaria"
+                  name="voluntariaResumenClinico"
+                  value={destinationDetails.voluntariaResumenClinico}
+                  onChange={handleDestinationDetailChange}
                 />
 
                 <InputText
@@ -837,7 +846,40 @@ export default function Anamnesis() {
                   name="voluntariaDniResponsable"
                   value={destinationDetails.voluntariaDniResponsable}
                   onChange={handleDestinationDetailChange}
+                  
                 />
+
+                <InputText
+                  label="Parentesco"
+                  name="voluntariaParentesco"
+                  value={destinationDetails.voluntariaParentesco}
+                  onChange={handleDestinationDetailChange}
+                />
+
+                <InputText
+                  label="Teléfono"
+                  name="voluntariaTelefono"
+                  value={destinationDetails.voluntariaTelefono}
+                  onChange={handleDestinationDetailChange}
+                />
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const patient = patients.find((p) => p.id === formData.patientId);
+
+                      generateVoluntaryDischargePdf({
+                        institution,
+                        patient,
+                        formData,
+                        destinationDetails,
+                      });
+                    }}
+                    className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+              >
+                    Generar PDF de alta voluntaria
+                  </button>
+                </div>
               </div>
             </div>
           )}

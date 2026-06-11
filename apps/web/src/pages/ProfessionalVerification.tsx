@@ -114,7 +114,7 @@ export default function ProfessionalVerification() {
     localStorage.setItem('hcelm_professional_license', form.professionalLicense || '');
     localStorage.setItem('hcelm_professional_role', form.role || '');
 
-    navigate('/');
+    navigate('/home');
   };
 
   const simulateDniReader = () => {

@@ -17,7 +17,9 @@ import ProfessionalVerification from './pages/ProfessionalVerification';
 
 function TokenProtected({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem('ame_token');
+
   if (!token) return <Navigate to="/login" replace />;
+
   return <>{children}</>;
 }
 
@@ -31,6 +33,10 @@ function ClinicalProtected({ children }: { children: JSX.Element }) {
   return <>{children}</>;
 }
 
+function RootRedirect() {
+  return <Navigate to="/login" replace />;
+}
+
 function Navbar() {
   const location = useLocation();
 
@@ -42,7 +48,7 @@ function Navbar() {
   const professionalCmp = localStorage.getItem('hcelm_professional_cmp');
 
   const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
+    if (path === '/home') return location.pathname === '/home';
     return location.pathname.startsWith(path);
   };
 
@@ -72,8 +78,10 @@ function Navbar() {
     localStorage.removeItem('hcelm_professional_verified');
     localStorage.removeItem('hcelm_professional_name');
     localStorage.removeItem('hcelm_professional_dni');
+    localStorage.removeItem('hcelm_professional_type');
     localStorage.removeItem('hcelm_professional_cmp');
     localStorage.removeItem('hcelm_professional_rne');
+    localStorage.removeItem('hcelm_professional_license');
     localStorage.removeItem('hcelm_professional_role');
 
     window.location.href = '/login';
@@ -106,7 +114,7 @@ function Navbar() {
           AME HEALTH
         </span>
 
-        <MenuLink to="/" label="Inicio" />
+        <MenuLink to="/home" label="Inicio" />
         <MenuLink to="/patients" label="Pacientes" />
         <MenuLink to="/anamnesis" label="Anamnesis" />
         <MenuLink to="/certificates/issue" label="Certificados" />
@@ -151,6 +159,8 @@ export default function App() {
 
       <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
         <Routes>
+          <Route path="/" element={<RootRedirect />} />
+
           <Route path="/login" element={<Login />} />
 
           <Route
@@ -163,7 +173,7 @@ export default function App() {
           />
 
           <Route
-            path="/"
+            path="/home"
             element={
               <ClinicalProtected>
                 <Home />

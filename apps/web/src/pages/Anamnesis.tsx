@@ -1,10 +1,4 @@
 import { useState, useEffect } from 'react';
-import { generateRecipePdf } from '../utils/recipePdf';
-import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
-import { generateReferralPdf } from '../utils/referralPdf';
-import { generateObservationPdf } from '../utils/observationPdf';
-import { generateSinadefReferralPdf } from '../utils/sinadefReferralPdf';
-import { generateHcePdf } from '../utils/hcePdf';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -45,41 +39,11 @@ export default function Anamnesis() {
     indications: '',
   });
 
-  const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis>({
-    codigo: '',
-    descripcion: '',
-    tipo: 'presuntivo',
-  });
-
-  const [destinationDetails, setDestinationDetails] = useState({
-    altaIndicaciones: '',
-    altaSignosAlarma: '',
-    altaControl: '',
-    voluntariaMotivo: '',
-    voluntariaRiesgos: '',
-    voluntariaResumenClinico: '',
-    voluntariaResponsable: '',
-    voluntariaDniResponsable: '',
-    voluntariaParentesco: '',
-    voluntariaTelefono: '',
-    referenciaDestino: '',
-    referenciaMotivo: '',
-    referenciaEspecialidad: '',
-    referenciaMedicoReceptor: '',
-    referenciaTransporte: '',
-    referenciaServicioOrigen: '',
-    referenciaServicioDestino: '',
-    referenciaCondicion: '',
-    referenciaAcompanante: '',
-    referenciaResumenClinico: '',
-    observacionMotivo: '',
-    observacionTiempoEstimado: '',
-    observacionPlan: '',
-    observacionIndicaciones: '',
-    fallecidoFechaHora: '',
-    fallecidoCausaProbable: '',
-    fallecidoObservaciones: '',
-    fallecidoGenerarCertificado: false,
+  const [labOrder, setLabOrder] = useState({
+    priority: 'Rutina',
+    clinicalInfo: '',
+    tests: '',
+    observations: '',
   });
 
   const [formData, setFormData] = useState({
@@ -222,14 +186,319 @@ export default function Anamnesis() {
   };
 
   const printRecipe = () => {
+    if (recipeItems.length === 0) {
+      alert('No hay medicamentos en la receta.');
+      return;
+    }
+
+    if (!formData.patientId) {
+      alert('Seleccione un paciente antes de imprimir la receta.');
+      return;
+    }
+
     const patient = patients.find((p) => p.id === formData.patientId);
 
-    generateRecipePdf({
-      institution,
-      patient,
-      formData,
-      recipeItems,
+    const professionalName = localStorage.getItem('hcelm_professional_name') || institution?.directorName || '';
+    const professionalDni = localStorage.getItem('hcelm_professional_dni') || '';
+    const professionalCmp = localStorage.getItem('hcelm_professional_cmp') || institution?.directorCmp || '';
+    const professionalRne = localStorage.getItem('hcelm_professional_rne') || institution?.directorRne || '';
+
+    const today = new Date();
+    const fechaHora = today.toLocaleString('es-PE', {
+      dateStyle: 'short',
+      timeStyle: 'short',
     });
+
+    const primaryColor = institution?.primaryColor || '#0f766e';
+    const secondaryColor = institution?.secondaryColor || '#14b8a6';
+
+    const html = `
+      <html>
+        <head>
+          <title>Receta Médica</title>
+          <style>
+            @page {
+              size: A5;
+              margin: 12mm;
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+              color: #111827;
+              margin: 0;
+              padding: 0;
+              font-size: 12px;
+            }
+
+            .container {
+              width: 100%;
+            }
+
+            .header {
+              border-bottom: 3px solid ${primaryColor};
+              padding-bottom: 10px;
+              margin-bottom: 12px;
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+
+            .logo {
+              width: 70px;
+              height: 70px;
+              object-fit: contain;
+              border: 1px solid #e5e7eb;
+              padding: 3px;
+            }
+
+            .header-text {
+              flex: 1;
+            }
+
+            .institution-name {
+              font-size: 17px;
+              font-weight: bold;
+              color: ${primaryColor};
+              margin: 0 0 3px 0;
+              text-transform: uppercase;
+            }
+
+            .legal-name {
+              font-size: 12px;
+              margin: 0;
+              font-weight: bold;
+            }
+
+            .small {
+              font-size: 10.5px;
+              margin: 2px 0;
+              color: #374151;
+            }
+
+            .title {
+              text-align: center;
+              font-size: 18px;
+              font-weight: bold;
+              color: ${primaryColor};
+              margin: 8px 0 12px 0;
+              letter-spacing: 1px;
+            }
+
+            .section {
+              border: 1px solid #d1d5db;
+              border-radius: 6px;
+              padding: 8px;
+              margin-bottom: 10px;
+            }
+
+            .section-title {
+              font-weight: bold;
+              color: ${primaryColor};
+              margin-bottom: 6px;
+              font-size: 12px;
+              border-bottom: 1px solid #e5e7eb;
+              padding-bottom: 3px;
+            }
+
+            .grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 4px 10px;
+            }
+
+            .field {
+              margin: 2px 0;
+            }
+
+            .label {
+              font-weight: bold;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 6px;
+            }
+
+            th {
+              background: ${secondaryColor};
+              color: white;
+              border: 1px solid #0f766e;
+              padding: 5px;
+              font-size: 10.5px;
+              text-align: left;
+            }
+
+            td {
+              border: 1px solid #d1d5db;
+              padding: 5px;
+              font-size: 10.5px;
+              vertical-align: top;
+            }
+
+            .medicine-name {
+              font-weight: bold;
+            }
+
+            .footer {
+              margin-top: 28px;
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 20px;
+              align-items: end;
+            }
+
+            .signature-box {
+              text-align: center;
+              padding-top: 35px;
+            }
+
+            .signature-line {
+              border-top: 1px solid #111827;
+              padding-top: 4px;
+              font-size: 11px;
+            }
+
+            .note {
+              font-size: 10px;
+              color: #4b5563;
+              border-left: 3px solid ${primaryColor};
+              padding-left: 6px;
+            }
+
+            .print-actions {
+              margin-top: 20px;
+              text-align: center;
+            }
+
+            @media print {
+              .print-actions {
+                display: none;
+              }
+            }
+          </style>
+        </head>
+
+        <body>
+          <div class="container">
+            <div class="header">
+              ${
+                institution?.logoUrl
+                  ? `<img class="logo" src="${institution.logoUrl}" />`
+                  : `<div class="logo" style="display:flex;align-items:center;justify-content:center;color:#6b7280;font-size:10px;">LOGO</div>`
+              }
+
+              <div class="header-text">
+                <p class="institution-name">${institution?.name || 'CONSULTORIO MÉDICO'}</p>
+                <p class="legal-name">${institution?.legalName || 'AME HEALTH SAC'}</p>
+                <p class="small"><b>RUC:</b> ${institution?.ruc || '-'}</p>
+                <p class="small"><b>Dirección:</b> ${institution?.address || '-'}</p>
+                <p class="small"><b>Teléfono:</b> ${institution?.phone || '-'} ${institution?.email ? `| <b>Email:</b> ${institution.email}` : ''}</p>
+                <p class="small"><b>Ciudad:</b> ${institution?.city || ''} ${institution?.country || ''}</p>
+              </div>
+            </div>
+
+            <div class="title">RECETA MÉDICA</div>
+
+            <div class="section">
+              <div class="section-title">Datos del paciente</div>
+              <div class="grid">
+                <p class="field"><span class="label">Paciente:</span> ${patient?.fullName || ''}</p>
+                <p class="field"><span class="label">Documento:</span> ${patient?.documentNumber || ''}</p>
+                <p class="field"><span class="label">Fecha:</span> ${fechaHora}</p>
+                <p class="field"><span class="label">Tipo doc.:</span> ${patient?.documentType || 'DNI'}</p>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Diagnóstico</div>
+              <p class="field">
+                <span class="label">${formData.diagnosticoPrincipal.codigo || ''}</span>
+                ${formData.diagnosticoPrincipal.descripcion ? ` - ${formData.diagnosticoPrincipal.descripcion}` : ''}
+                ${formData.diagnosticoPrincipal.tipo ? ` (${formData.diagnosticoPrincipal.tipo})` : ''}
+              </p>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Prescripción farmacológica</div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width: 28%;">Medicamento</th>
+                    <th style="width: 12%;">Cantidad</th>
+                    <th style="width: 14%;">Vía</th>
+                    <th style="width: 14%;">Dosis</th>
+                    <th style="width: 14%;">Frecuencia</th>
+                    <th style="width: 8%;">Días</th>
+                    <th style="width: 18%;">Indicaciones</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  ${recipeItems
+                    .map(
+                      (m) => `
+                    <tr>
+                      <td>
+                        <div class="medicine-name">${m.medicationName}</div>
+                        <div>${m.concentration || ''}</div>
+                        <div>${m.presentation || ''}</div>
+                      </td>
+                      <td>${m.quantity || ''}</td>
+                      <td>${m.route || ''}</td>
+                      <td>${m.dose || ''}</td>
+                      <td>${m.frequency || ''}</td>
+                      <td>${m.durationDays || ''}</td>
+                      <td>${m.indications || ''}</td>
+                    </tr>
+                  `,
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Profesional responsable</div>
+              <div class="grid">
+                <p class="field"><span class="label">Nombre:</span> ${professionalName}</p>
+                <p class="field"><span class="label">DNI:</span> ${professionalDni || '-'}</p>
+                <p class="field"><span class="label">CMP:</span> ${professionalCmp || '-'}</p>
+                <p class="field"><span class="label">RNE:</span> ${professionalRne || '-'}</p>
+              </div>
+            </div>
+
+            <div class="footer">
+              <div class="note">
+                Esta receta forma parte de la Historia Clínica Electrónica HCELM.
+                La dispensación debe realizarse conforme a criterio farmacéutico y normativa vigente.
+              </div>
+
+              <div class="signature-box">
+                <div class="signature-line">
+                  ${professionalName || 'Médico tratante'}<br/>
+                  CMP ${professionalCmp || '-'} ${professionalRne ? `| RNE ${professionalRne}` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="print-actions">
+              <button onclick="window.print()" style="padding:8px 18px;background:${primaryColor};color:white;border:none;border-radius:6px;cursor:pointer;">
+                Imprimir / Guardar PDF
+              </button>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const win = window.open('', '_blank');
+
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
   };
 
   const handleChange = (
@@ -248,108 +517,84 @@ export default function Anamnesis() {
     }
   };
 
-  const updateSelectedDiagnosisByCode = (value: string) => {
-    const found = CIE10_CODES.find((c) => c.code.toLowerCase() === value.toLowerCase());
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>, id: number | null) => {
+    const val = e.target.value;
+    const found = CIE10_CODES.find((c) => c.code.toLowerCase() === val.toLowerCase());
 
-    setSelectedDiagnosis((prev) => ({
-      ...prev,
-      codigo: value,
-      descripcion: found ? found.desc : prev.descripcion,
-    }));
+    if (id === null) {
+      setFormData((prev) => ({
+        ...prev,
+        diagnosticoPrincipal: {
+          ...prev.diagnosticoPrincipal,
+          codigo: val,
+          descripcion: found ? found.desc : prev.diagnosticoPrincipal.descripcion,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        diagnosticosSecundarios: prev.diagnosticosSecundarios.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                codigo: val,
+                descripcion: found ? found.desc : d.descripcion,
+              }
+            : d,
+        ),
+      }));
+    }
   };
 
-  const updateSelectedDiagnosisByDescription = (value: string) => {
-    const found = CIE10_CODES.find((c) => c.desc.toLowerCase() === value.toLowerCase());
+  const handleDescChange = (e: React.ChangeEvent<HTMLInputElement>, id: number | null) => {
+    const val = e.target.value;
+    const found = CIE10_CODES.find((c) => c.desc.toLowerCase() === val.toLowerCase());
 
-    setSelectedDiagnosis((prev) => ({
-      ...prev,
-      descripcion: value,
-      codigo: found ? found.code : prev.codigo,
-    }));
+    if (id === null) {
+      setFormData((prev) => ({
+        ...prev,
+        diagnosticoPrincipal: {
+          ...prev.diagnosticoPrincipal,
+          descripcion: val,
+          codigo: found ? found.code : prev.diagnosticoPrincipal.codigo,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        diagnosticosSecundarios: prev.diagnosticosSecundarios.map((d) =>
+          d.id === id
+            ? {
+                ...d,
+                descripcion: val,
+                codigo: found ? found.code : d.codigo,
+              }
+            : d,
+        ),
+      }));
+    }
   };
 
-  const addDiagnosisAsPrincipal = () => {
-    if (!selectedDiagnosis.codigo.trim()) {
-      alert('Seleccione o ingrese el código CIE-10.');
-      return;
-    }
-
-    if (!selectedDiagnosis.descripcion.trim()) {
-      alert('Ingrese la descripción del diagnóstico.');
-      return;
-    }
-
+  const addSecondaryDiag = () => {
     setFormData((prev) => ({
       ...prev,
-      diagnosticoPrincipal: {
-        codigo: selectedDiagnosis.codigo,
-        descripcion: selectedDiagnosis.descripcion,
-        tipo: selectedDiagnosis.tipo || 'presuntivo',
-      },
+      diagnosticosSecundarios: [
+        ...prev.diagnosticosSecundarios,
+        {
+          id: nextDiagId,
+          codigo: '',
+          descripcion: '',
+          tipo: 'presuntivo',
+        },
+      ],
     }));
-
-    setSelectedDiagnosis({
-      codigo: '',
-      descripcion: '',
-      tipo: 'presuntivo',
-    });
-  };
-
-  const addDiagnosisAsSecondary = () => {
-    if (!selectedDiagnosis.codigo.trim()) {
-      alert('Seleccione o ingrese el código CIE-10.');
-      return;
-    }
-
-    if (!selectedDiagnosis.descripcion.trim()) {
-      alert('Ingrese la descripción del diagnóstico.');
-      return;
-    }
-
-    const newDiag = {
-      id: nextDiagId,
-      codigo: selectedDiagnosis.codigo,
-      descripcion: selectedDiagnosis.descripcion,
-      tipo: selectedDiagnosis.tipo || 'presuntivo',
-    };
-
-    setFormData((prev) => ({
-      ...prev,
-      diagnosticosSecundarios: [...prev.diagnosticosSecundarios, newDiag],
-    }));
-
     setNextDiagId((prev) => prev + 1);
-
-    setSelectedDiagnosis({
-      codigo: '',
-      descripcion: '',
-      tipo: 'presuntivo',
-    });
-  };
-
-  const clearSelectedDiagnosis = () => {
-    setSelectedDiagnosis({
-      codigo: '',
-      descripcion: '',
-      tipo: 'presuntivo',
-    });
   };
 
   const removeSecondaryDiag = (id: number) => {
     setFormData((prev) => ({
       ...prev,
       diagnosticosSecundarios: prev.diagnosticosSecundarios.filter((d) => d.id !== id),
-    }));
-  };
-
-  const handleDestinationDetailChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
-  ) => {
-    const { name, value, type } = e.target;
-
-    setDestinationDetails((prev) => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -370,7 +615,7 @@ export default function Anamnesis() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...formData, destinationDetails, recipeItems }),
+        body: JSON.stringify(formData),
       });
 
       if (res.ok) {
@@ -469,145 +714,75 @@ export default function Anamnesis() {
         </div>
 
         <div className="border rounded-lg p-4 bg-yellow-50">
-          <div className="flex justify-between items-start gap-4 mb-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-700">Diagnósticos CIE-10</h2>
-              <p className="text-sm text-slate-600">
-                Busque o ingrese un diagnóstico y luego agréguelo como principal o secundario.
-              </p>
-            </div>
+          <label className="block font-bold text-slate-700 mb-3">Diagnóstico principal</label>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              list="cie-codes"
+              placeholder="Código"
+              value={formData.diagnosticoPrincipal.codigo}
+              onChange={(e) => handleCodeChange(e, null)}
+              className="border p-2 rounded"
+            />
+
+            <input
+              list="cie-descs"
+              placeholder="Descripción"
+              value={formData.diagnosticoPrincipal.descripcion}
+              onChange={(e) => handleDescChange(e, null)}
+              className="md:col-span-2 border p-2 rounded"
+            />
+
+            <select
+              value={formData.diagnosticoPrincipal.tipo}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  diagnosticoPrincipal: {
+                    ...prev.diagnosticoPrincipal,
+                    tipo: e.target.value,
+                  },
+                }))
+              }
+              className="border p-2 rounded"
+            >
+              <option value="presuntivo">Presuntivo</option>
+              <option value="definitivo">Definitivo</option>
+              <option value="repetitivo">Repetitivo</option>
+            </select>
           </div>
 
-          <div className="border rounded-lg p-3 bg-white mb-4">
-            <label className="block font-semibold text-slate-700 mb-2">
-              Diagnóstico seleccionado
-            </label>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          {formData.diagnosticosSecundarios.map((diag) => (
+            <div key={diag.id} className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
               <input
                 list="cie-codes"
-                placeholder="Código CIE-10"
-                value={selectedDiagnosis.codigo}
-                onChange={(e) => updateSelectedDiagnosisByCode(e.target.value)}
+                placeholder="Código"
+                value={diag.codigo}
+                onChange={(e) => handleCodeChange(e, diag.id)}
                 className="border p-2 rounded"
               />
 
               <input
                 list="cie-descs"
-                placeholder="Descripción del diagnóstico"
-                value={selectedDiagnosis.descripcion}
-                onChange={(e) => updateSelectedDiagnosisByDescription(e.target.value)}
+                placeholder="Descripción"
+                value={diag.descripcion}
+                onChange={(e) => handleDescChange(e, diag.id)}
                 className="md:col-span-2 border p-2 rounded"
               />
 
-              <select
-                value={selectedDiagnosis.tipo}
-                onChange={(e) =>
-                  setSelectedDiagnosis((prev) => ({ ...prev, tipo: e.target.value }))
-                }
-                className="border p-2 rounded"
-              >
-                <option value="presuntivo">Presuntivo</option>
-                <option value="definitivo">Definitivo</option>
-                <option value="repetitivo">Repetitivo</option>
-              </select>
-            </div>
-
-            <div className="flex flex-wrap gap-2 mt-3">
               <button
                 type="button"
-                onClick={addDiagnosisAsPrincipal}
-                className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
+                onClick={() => removeSecondaryDiag(diag.id)}
+                className="text-red-600 font-bold"
               >
-                Agregar como diagnóstico principal
-              </button>
-
-              <button
-                type="button"
-                onClick={addDiagnosisAsSecondary}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Agregar como diagnóstico secundario
-              </button>
-
-              <button
-                type="button"
-                onClick={clearSelectedDiagnosis}
-                className="bg-gray-100 text-slate-700 px-4 py-2 rounded hover:bg-gray-200"
-              >
-                Limpiar selección
+                Quitar
               </button>
             </div>
-          </div>
+          ))}
 
-          <div className="border rounded-lg p-3 bg-white mb-4">
-            <h3 className="font-bold text-slate-700 mb-2">Diagnóstico principal</h3>
-
-            {formData.diagnosticoPrincipal.codigo ? (
-              <div className="flex justify-between gap-3 items-start">
-                <div>
-                  <p className="font-semibold text-slate-800">
-                    {formData.diagnosticoPrincipal.codigo} - {formData.diagnosticoPrincipal.descripcion}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    Tipo: {formData.diagnosticoPrincipal.tipo}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      diagnosticoPrincipal: {
-                        codigo: '',
-                        descripcion: '',
-                        tipo: 'presuntivo',
-                      },
-                    }))
-                  }
-                  className="text-red-600 font-bold"
-                >
-                  Quitar
-                </button>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">
-                Aún no se ha agregado diagnóstico principal.
-              </p>
-            )}
-          </div>
-
-          <div className="border rounded-lg p-3 bg-white">
-            <h3 className="font-bold text-slate-700 mb-2">Diagnósticos secundarios</h3>
-
-            {formData.diagnosticosSecundarios.length > 0 ? (
-              <div className="space-y-2">
-                {formData.diagnosticosSecundarios.map((diag) => (
-                  <div key={diag.id} className="border rounded p-2 flex justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-800">
-                        {diag.codigo} - {diag.descripcion}
-                      </p>
-                      <p className="text-sm text-slate-500">Tipo: {diag.tipo}</p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeSecondaryDiag(diag.id)}
-                      className="text-red-600 font-bold"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">
-                No hay diagnósticos secundarios agregados.
-              </p>
-            )}
-          </div>
+          <button type="button" onClick={addSecondaryDiag} className="text-blue-600 mt-3">
+            + Agregar diagnóstico secundario
+          </button>
 
           <datalist id="cie-codes">
             {CIE10_CODES.map((c) => (
@@ -774,9 +949,105 @@ export default function Anamnesis() {
           )}
         </div>
 
-        <div className="border rounded-lg p-4 bg-slate-50">
-          <label className="block font-bold text-slate-700 mb-2">Destino final del paciente</label>
 
+        <div className="border rounded-lg p-4 bg-blue-50">
+          <h2 className="text-lg font-bold text-blue-700 mb-3">Exámenes auxiliares</h2>
+
+          <div className="mb-4">
+            <label className="block font-medium text-slate-700 mb-1">
+              Exámenes auxiliares / plan diagnóstico general
+            </label>
+            <textarea
+              name="examenesAuxiliares"
+              value={formData.examenesAuxiliares}
+              onChange={handleChange}
+              className="w-full border p-2 rounded h-24"
+              placeholder="Ejemplo: hemograma, glucosa, urea, creatinina, examen de orina, ecografía, radiografía, etc."
+            />
+          </div>
+
+          <div className="border rounded-lg p-4 bg-white">
+            <h3 className="font-bold text-blue-700 mb-3">Orden de laboratorio</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">Prioridad</label>
+                <select
+                  value={labOrder.priority}
+                  onChange={(e) => setLabOrder({ ...labOrder, priority: e.target.value })}
+                  className="w-full border p-2 rounded"
+                >
+                  <option value="Rutina">Rutina</option>
+                  <option value="Urgente">Urgente</option>
+                  <option value="Emergencia">Emergencia</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block font-medium text-slate-700 mb-1">
+                  Información clínica relevante
+                </label>
+                <textarea
+                  value={labOrder.clinicalInfo}
+                  onChange={(e) => setLabOrder({ ...labOrder, clinicalInfo: e.target.value })}
+                  className="w-full border p-2 rounded h-24"
+                  placeholder="Resumen clínico que justifica la solicitud."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block font-medium text-slate-700 mb-1">
+                  Exámenes solicitados
+                </label>
+                <textarea
+                  value={labOrder.tests}
+                  onChange={(e) => setLabOrder({ ...labOrder, tests: e.target.value })}
+                  className="w-full border p-2 rounded h-28"
+                  placeholder="Ejemplo:
+Hemograma completo
+Glucosa
+Urea
+Creatinina
+Examen completo de orina"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block font-medium text-slate-700 mb-1">
+                  Observaciones / indicaciones para laboratorio
+                </label>
+                <textarea
+                  value={labOrder.observations}
+                  onChange={(e) => setLabOrder({ ...labOrder, observations: e.target.value })}
+                  className="w-full border p-2 rounded h-24"
+                  placeholder="Ejemplo: paciente en ayunas, tomar muestra prioritaria, etc."
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const patient = patients.find((p) => p.id === formData.patientId);
+
+                  generateLabOrderPdf({
+                    institution,
+                    patient,
+                    formData,
+                    labOrder,
+                  });
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Generar orden de laboratorio PDF
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-medium text-slate-700 mb-1">Destino final</label>
           <select
             name="destinoFinal"
             value={formData.destinoFinal}
@@ -789,435 +1060,16 @@ export default function Anamnesis() {
             <option value="observacion">Observación</option>
             <option value="fallecido">Fallecido</option>
           </select>
-
-          {formData.destinoFinal === 'alta_medica' && (
-            <div className="mt-4 border rounded-lg p-4 bg-white">
-              <h3 className="font-bold text-emerald-700 mb-3">Alta médica</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <TextArea
-                  label="Indicaciones finales"
-                  name="altaIndicaciones"
-                  value={destinationDetails.altaIndicaciones}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Signos de alarma"
-                  name="altaSignosAlarma"
-                  value={destinationDetails.altaSignosAlarma}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Control / seguimiento"
-                  name="altaControl"
-                  value={destinationDetails.altaControl}
-                  onChange={handleDestinationDetailChange}
-                />
-              </div>
-            </div>
-          )}
-
-          {formData.destinoFinal === 'alta_voluntaria' && (
-            <div className="mt-4 border rounded-lg p-4 bg-white">
-              <h3 className="font-bold text-orange-700 mb-3">Alta voluntaria</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <TextArea
-                  label="Motivo de alta voluntaria"
-                  name="voluntariaMotivo"
-                  value={destinationDetails.voluntariaMotivo}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Riesgos explicados al paciente/familiar"
-                  name="voluntariaRiesgos"
-                  value={destinationDetails.voluntariaRiesgos}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Resumen clínico para alta voluntaria"
-                  name="voluntariaResumenClinico"
-                  value={destinationDetails.voluntariaResumenClinico}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Responsable / familiar"
-                  name="voluntariaResponsable"
-                  value={destinationDetails.voluntariaResponsable}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="DNI del responsable"
-                  name="voluntariaDniResponsable"
-                  value={destinationDetails.voluntariaDniResponsable}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Parentesco"
-                  name="voluntariaParentesco"
-                  value={destinationDetails.voluntariaParentesco}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Teléfono"
-                  name="voluntariaTelefono"
-                  value={destinationDetails.voluntariaTelefono}
-                  onChange={handleDestinationDetailChange}
-                />
-              </div>
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const patient = patients.find((p) => p.id === formData.patientId);
-
-                    generateVoluntaryDischargePdf({
-                      institution,
-                      patient,
-                      formData,
-                      destinationDetails,
-                    });
-                  }}
-                  className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
-                >
-                  Generar PDF de alta voluntaria
-                </button>
-              </div>
-            </div>
-          )}
-
-          {formData.destinoFinal === 'referencia' && (
-            <div className="mt-4 border rounded-lg p-4 bg-white">
-              <h3 className="font-bold text-blue-700 mb-3">Referencia</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <InputText
-                  label="Establecimiento destino"
-                  name="referenciaDestino"
-                  value={destinationDetails.referenciaDestino}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Especialidad receptora"
-                  name="referenciaEspecialidad"
-                  value={destinationDetails.referenciaEspecialidad}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Médico receptor"
-                  name="referenciaMedicoReceptor"
-                  value={destinationDetails.referenciaMedicoReceptor}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Medio de transporte"
-                  name="referenciaTransporte"
-                  value={destinationDetails.referenciaTransporte}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Servicio origen"
-                  name="referenciaServicioOrigen"
-                  value={destinationDetails.referenciaServicioOrigen}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Servicio destino"
-                  name="referenciaServicioDestino"
-                  value={destinationDetails.referenciaServicioDestino}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Condición actual del paciente"
-                  name="referenciaCondicion"
-                  value={destinationDetails.referenciaCondicion}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Acompañante"
-                  name="referenciaAcompanante"
-                  value={destinationDetails.referenciaAcompanante}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Motivo de referencia"
-                  name="referenciaMotivo"
-                  value={destinationDetails.referenciaMotivo}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Resumen clínico para referencia"
-                  name="referenciaResumenClinico"
-                  value={destinationDetails.referenciaResumenClinico}
-                  onChange={handleDestinationDetailChange}
-                />
-              </div>
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const patient = patients.find((p) => p.id === formData.patientId);
-
-                    generateReferralPdf({
-                      institution,
-                      patient,
-                      formData,
-                      destinationDetails,
-                    });
-                  }}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                >
-                  Generar hoja de referencia PDF
-                </button>
-              </div>
-            </div>
-          )}
-
-          {formData.destinoFinal === 'observacion' && (
-            <div className="mt-4 border rounded-lg p-4 bg-white">
-              <h3 className="font-bold text-purple-700 mb-3">Observación</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <TextArea
-                  label="Motivo de observación"
-                  name="observacionMotivo"
-                  value={destinationDetails.observacionMotivo}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Tiempo estimado"
-                  name="observacionTiempoEstimado"
-                  value={destinationDetails.observacionTiempoEstimado}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Plan de monitoreo"
-                  name="observacionPlan"
-                  value={destinationDetails.observacionPlan}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Indicaciones"
-                  name="observacionIndicaciones"
-                  value={destinationDetails.observacionIndicaciones}
-                  onChange={handleDestinationDetailChange}
-                />
-              </div>
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const patient = patients.find((p) => p.id === formData.patientId);
-
-                    generateObservationPdf({
-                      institution,
-                      patient,
-                      formData,
-                      destinationDetails,
-                    });
-                  }}
-                  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-                >
-                  Generar orden de observación PDF
-                </button>
-              </div>
-            </div>
-          )}
-
-          {formData.destinoFinal === 'fallecido' && (
-            <div className="mt-4 border rounded-lg p-4 bg-white">
-              <h3 className="font-bold text-red-700 mb-3">
-                Fallecido / pase clínico para SINADEF
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <InputText
-                  label="Fecha y hora de fallecimiento"
-                  name="fallecidoFechaHora"
-                  value={destinationDetails.fallecidoFechaHora}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Lugar de fallecimiento"
-                  name="fallecidoLugar"
-                  value={destinationDetails.fallecidoLugar}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <InputText
-                  label="Causa probable"
-                  name="fallecidoCausaProbable"
-                  value={destinationDetails.fallecidoCausaProbable}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Resumen clínico relevante"
-                  name="fallecidoResumenClinico"
-                  value={destinationDetails.fallecidoResumenClinico}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <TextArea
-                  label="Observaciones clínicas"
-                  name="fallecidoObservaciones"
-                  value={destinationDetails.fallecidoObservaciones}
-                  onChange={handleDestinationDetailChange}
-                />
-
-                <label className="flex items-center gap-2 border rounded p-3 bg-red-50">
-                  <input
-                    type="checkbox"
-                    name="fallecidoGenerarCertificado"
-                    checked={destinationDetails.fallecidoGenerarCertificado}
-                    onChange={handleDestinationDetailChange}
-                  />
-                  <span className="text-red-700 font-medium">
-                    Registrar pase clínico para certificación SINADEF
-                  </span>
-                </label>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const patient = patients.find((p) => p.id === formData.patientId);
-
-                    generateSinadefReferralPdf({
-                      institution,
-                      patient,
-                      formData,
-                      destinationDetails,
-                    });
-                  }}
-                  className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                >
-                  Generar pase clínico PDF
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.open('https://www.minsa.gob.pe/defunciones/', '_blank');
-                  }}
-                  className="bg-slate-700 text-white px-4 py-2 rounded hover:bg-slate-800"
-                >
-                  Abrir plataforma SINADEF
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    alert('Próxima fase: adjuntar PDF oficial emitido por SINADEF a la historia clínica.');
-                  }}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200"
-                >
-                  Adjuntar certificado SINADEF
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            const patient = patients.find((p) => p.id === formData.patientId);
 
-            generateHcePdf({
-              institution,
-              patient,
-              formData,
-              destinationDetails,
-              recipeItems,
-            });
-          }}
-          className="bg-slate-700 text-white px-6 py-3 rounded-lg hover:bg-slate-800 font-medium"
-        >
-          Generar HCE PDF completa
-        </button>
         <button
           type="submit"
           disabled={saving}
           className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
         >
-        
           {saving ? 'Guardando...' : 'Guardar y finalizar atención'}
         </button>
       </form>
     </div>
   );
 }
-
-function InputText({
-  label,
-  name,
-  value,
-  onChange,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div>
-      <label className="block font-medium text-slate-700 mb-1">{label}</label>
-      <input
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        className="w-full border p-2 rounded"
-      />
-    </div>
-  );
-}
-
-function TextArea({
-  label,
-  name,
-  value,
-  onChange,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-}) {
-  return (
-    <div className="md:col-span-2">
-      <label className="block font-medium text-slate-700 mb-1">{label}</label>
-      <textarea
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        className="w-full border p-2 rounded h-24"
-      />
-    </div>
-  );
-}
-

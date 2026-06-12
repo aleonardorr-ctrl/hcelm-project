@@ -6,6 +6,7 @@ import { generateObservationPdf } from '../utils/observationPdf';
 import { generateSinadefReferralPdf } from '../utils/sinadefReferralPdf';
 import { generateHcePdf } from '../utils/hcePdf';
 import { generateLabOrderPdf } from '../utils/labOrderPdf';
+import LaboratorySelector from '../components/LaboratorySelector';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -780,26 +781,19 @@ export default function Anamnesis() {
           )}
         </div>
 
+
         <div className="border rounded-lg p-4 bg-blue-50">
           <h2 className="text-lg font-bold text-blue-700 mb-3">Exámenes auxiliares</h2>
 
-          <div className="mb-4">
-            <label className="block font-medium text-slate-700 mb-1">
-              Exámenes auxiliares / plan de ayuda diagnóstica
-            </label>
-            <textarea
-              name="examenesAuxiliares"
-              value={formData.examenesAuxiliares}
-              onChange={handleChange}
-              className="w-full border p-2 rounded h-24"
-              placeholder="Ejemplo: Hemograma, PCR, glucosa, urea, creatinina, examen de orina, radiografía, ecografía, etc."
-            />
-          </div>
+          <p className="text-sm text-slate-600 mb-4">
+            Seleccione los exámenes de laboratorio desde el catálogo. Los exámenes seleccionados
+            se copiarán automáticamente a la orden imprimible y al plan de ayuda diagnóstica de la HCE.
+          </p>
 
           <div className="border rounded-lg p-4 bg-white">
             <h3 className="font-bold text-blue-700 mb-3">Orden de laboratorio</h3>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               <div>
                 <label className="block font-medium text-slate-700 mb-1">Prioridad</label>
                 <select
@@ -830,42 +824,60 @@ export default function Anamnesis() {
                   placeholder="Resumen clínico o sospecha diagnóstica para laboratorio"
                 />
               </div>
+            </div>
 
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Exámenes solicitados
-                </label>
-                <textarea
-                  value={labOrder.tests}
-                  onChange={(e) =>
-                    setLabOrder({
-                      ...labOrder,
-                      tests: e.target.value,
-                    })
-                  }
-                  className="w-full border p-2 rounded"
-                  rows={5}
-                  placeholder="Ejemplo: Hemograma completo, PCR, glucosa, urea, creatinina, TGO, TGP, examen completo de orina..."
-                />
-              </div>
+            <LaboratorySelector
+              selectedExams={labOrder.tests
+                .split('\n')
+                .map((exam) => exam.trim())
+                .filter(Boolean)}
+              onChange={(exams) => {
+                const examsText = exams.join('\n');
 
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">
-                  Observaciones / indicaciones para laboratorio
-                </label>
-                <textarea
-                  value={labOrder.observations}
-                  onChange={(e) =>
-                    setLabOrder({
-                      ...labOrder,
-                      observations: e.target.value,
-                    })
-                  }
-                  className="w-full border p-2 rounded"
-                  rows={5}
-                  placeholder="Ejemplo: paciente en ayunas, muestra urgente, tomar antes de antibiótico, etc."
-                />
-              </div>
+                setLabOrder({
+                  ...labOrder,
+                  tests: examsText,
+                });
+
+                setFormData({
+                  ...formData,
+                  examenesAuxiliares: examsText,
+                });
+              }}
+            />
+
+            <div className="mt-4">
+              <label className="block font-medium text-slate-700 mb-1">
+                Exámenes solicitados para la orden PDF
+              </label>
+              <textarea
+                value={labOrder.tests}
+                readOnly
+                className="w-full border p-2 rounded bg-slate-100 text-slate-700"
+                rows={5}
+                placeholder="Aquí aparecerán automáticamente los exámenes seleccionados."
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Este campo se llena automáticamente desde el selector. Para exámenes no listados use la categoría “Otros Exámenes”.
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <label className="block font-medium text-slate-700 mb-1">
+                Observaciones / indicaciones para laboratorio
+              </label>
+              <textarea
+                value={labOrder.observations}
+                onChange={(e) =>
+                  setLabOrder({
+                    ...labOrder,
+                    observations: e.target.value,
+                  })
+                }
+                className="w-full border p-2 rounded"
+                rows={4}
+                placeholder="Ejemplo: paciente en ayunas, muestra urgente, tomar antes de antibiótico, etc."
+              />
             </div>
 
             <div className="mt-4">
@@ -887,9 +899,21 @@ export default function Anamnesis() {
               </button>
             </div>
           </div>
+
+          <div className="mt-4 border rounded-lg p-4 bg-white">
+            <h3 className="font-bold text-slate-700 mb-2">Plan de ayuda diagnóstica en HCE</h3>
+            <textarea
+              name="examenesAuxiliares"
+              value={formData.examenesAuxiliares}
+              onChange={handleChange}
+              className="w-full border p-2 rounded h-24 bg-slate-50"
+              placeholder="Se llenará automáticamente con los exámenes seleccionados. También puede agregar comentarios clínicos adicionales."
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Este campo queda registrado dentro de la Historia Clínica completa. La orden PDF toma la lista de “Exámenes solicitados”.
+            </p>
+          </div>
         </div>
-
-
 
         <div className="border rounded-lg p-4 bg-slate-50">
           <label className="block font-bold text-slate-700 mb-2">Destino final del paciente</label>

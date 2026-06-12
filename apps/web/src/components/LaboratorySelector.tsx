@@ -23,9 +23,7 @@ export default function LaboratorySelector({
   const filteredExams = useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    if (!term) {
-      return activeCatalog?.exams || [];
-    }
+    if (!term) return activeCatalog?.exams || [];
 
     return laboratoryCatalog.flatMap((category) =>
       category.exams
@@ -49,26 +47,15 @@ export default function LaboratorySelector({
     onChange([...selectedExams, cleanExam]);
   };
 
-  const removeExam = (exam: string) => {
-    onChange(selectedExams.filter((item) => item !== exam));
-  };
-
   const addCustomExam = () => {
     const exam = customExam.trim();
-
     if (!exam) return;
 
-    if (selectedExams.includes(exam)) {
-      setCustomExam('');
-      return;
+    if (!selectedExams.includes(exam)) {
+      onChange([...selectedExams, exam]);
     }
 
-    onChange([...selectedExams, exam]);
     setCustomExam('');
-  };
-
-  const clearAll = () => {
-    onChange([]);
   };
 
   return (
@@ -181,49 +168,6 @@ export default function LaboratorySelector({
             </div>
           )}
         </div>
-      </div>
-
-      <div className="mt-4 border rounded-lg p-3 bg-blue-50">
-        <div className="flex flex-wrap justify-between gap-2 items-center mb-2">
-          <p className="font-semibold text-blue-800">
-            Exámenes seleccionados ({selectedExams.length})
-          </p>
-
-          {selectedExams.length > 0 && (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-red-600 text-sm hover:underline"
-            >
-              Quitar todos
-            </button>
-          )}
-        </div>
-
-        {selectedExams.length === 0 ? (
-          <p className="text-sm text-slate-500">
-            Aún no se han seleccionado exámenes.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {selectedExams.map((exam) => (
-              <span
-                key={exam}
-                className="inline-flex items-center gap-2 bg-white border border-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm"
-              >
-                {exam}
-                <button
-                  type="button"
-                  onClick={() => removeExam(exam)}
-                  className="text-red-600 font-bold"
-                  title="Quitar"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

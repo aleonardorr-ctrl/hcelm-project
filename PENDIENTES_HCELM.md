@@ -285,3 +285,26 @@ Se acuerda:
 3. Mantener checkpoints frecuentes mediante Git.
 4. Desarrollar módulos completos y luego integrarlos.
 5. Utilizar esta bitácora como documento obligatorio de referencia antes de iniciar nuevos desarrollos.
+
+🔴 HCELM v0.41
+
+Catálogo estructurado de exámenes auxiliares
+
+Estado:
+EN DESARROLLO
+
+Fases:
+
+✓ Diseño de categorías
+🔴 Construcción de laboratoryCatalog.ts
+🔴 Construcción de LaboratorySelector.tsx
+🔴 Integración con Anamnesis
+🔴 Integración con PDF de laboratorio
+🔴 Integración con futuro módulo de imágenes
+
+Observaciones:
+Se elimina duplicidad entre:
+- Exámenes auxiliares
+- Exámenes solicitados
+
+Los exámenes seleccionados generarán automáticamente la orden PDF.

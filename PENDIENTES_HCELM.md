@@ -308,3 +308,5 @@ Se elimina duplicidad entre:
 - Exámenes solicitados
 
 Los exámenes seleccionados generarán automáticamente la orden PDF.
+
+🟡 EN TRABAJO | HCE | Separar Guardar cambios y Finalizar atención | Alta | Guardar mantiene edición; Finalizar cierra atención y redirige a Pacientes

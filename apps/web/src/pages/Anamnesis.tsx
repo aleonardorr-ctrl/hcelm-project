@@ -360,11 +360,16 @@ export default function Anamnesis() {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    const saveAnamnesis = async () => {
+    if (!formData.patientId) {
+      alert('Seleccione un paciente');
+      return false;
+    }
 
-    if (!formData.patientId) return alert('Seleccione un paciente');
-    if (!formData.diagnosticoPrincipal.codigo.trim()) return alert('Ingrese diagnóstico principal');
+    if (!formData.diagnosticoPrincipal.codigo.trim()) {
+      alert('Ingrese diagnóstico principal');
+      return false;
+    }
 
     setSaving(true);
 
@@ -381,16 +386,46 @@ export default function Anamnesis() {
       });
 
       if (res.ok) {
-        alert('Historia clínica guardada exitosamente');
-      } else {
-        const err = await res.json();
-        alert(`Error: ${err.message || 'No se pudo guardar'}`);
+        return true;
       }
+
+      const err = await res.json();
+      alert(`Error: ${err.message || 'No se pudo guardar'}`);
+      return false;
     } catch {
       alert('Error de conexión con el servidor');
+      return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSaveChanges = async () => {
+    const ok = await saveAnamnesis();
+
+    if (ok) {
+      alert('Cambios guardados. Puede continuar editando la atención.');
+    }
+  };
+
+  const handleFinishAttention = async () => {
+    const confirmFinish = window.confirm(
+      '¿Desea finalizar esta atención? Se guardará la historia clínica y volverá a Pacientes.',
+    );
+
+    if (!confirmFinish) return;
+
+    const ok = await saveAnamnesis();
+
+    if (ok) {
+      alert('Atención finalizada correctamente.');
+      window.location.href = '/patients';
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleSaveChanges();
   };
 
   return (
@@ -1301,14 +1336,25 @@ export default function Anamnesis() {
         >
           Generar HCE PDF completa
         </button>
+
         <button
-          type="submit"
+          type="button"
+          onClick={handleSaveChanges}
+          disabled={saving}
+          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
+        >
+          {saving ? 'Guardando...' : 'Guardar cambios'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleFinishAttention}
           disabled={saving}
           className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
         >
-        
-          {saving ? 'Guardando...' : 'Guardar y finalizar atención'}
+          {saving ? 'Guardando...' : 'Finalizar atención'}
         </button>
+
       </form>
     </div>
   );

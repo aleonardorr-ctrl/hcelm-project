@@ -7,6 +7,8 @@ import { generateSinadefReferralPdf } from '../utils/sinadefReferralPdf';
 import { generateHcePdf } from '../utils/hcePdf';
 import { generateLabOrderPdf } from '../utils/labOrderPdf';
 import LaboratorySelector from '../components/LaboratorySelector';
+import ImagingSelector from '../components/ImagingSelector';
+import { generateImagingOrderPdf } from '../utils/imagingOrderPdf';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -52,6 +54,12 @@ export default function Anamnesis() {
     tests: '',
     observations: '',
   });
+  const [imagingOrder, setImagingOrder] = useState({
+  priority: 'Rutina',
+  clinicalInfo: '',
+  studies: '',
+  observations: '',
+});
   const [selectedDiagnosis, setSelectedDiagnosis] = useState<Diagnosis>({
     codigo: '',
     descripcion: '',
@@ -946,6 +954,113 @@ export default function Anamnesis() {
           </div>
         </div>
 
+        <div className="mt-6 border rounded-lg p-4 bg-white">
+          <h3 className="font-bold text-purple-700 mb-4">
+            Orden de imágenes y estudios auxiliares
+          </h3>
+
+          <ImagingSelector
+            selectedStudies={imagingOrder.studies
+              .split('\n')
+              .map((study) => study.trim())
+              .filter(Boolean)}
+            onChange={(studies) => {
+              setImagingOrder({
+                ...imagingOrder,
+                studies: studies.join('\n'),
+              });
+            }}
+          />
+
+          <div className="mt-4 border rounded-lg p-3 bg-purple-50">
+  <p className="font-semibold text-purple-800 mb-2">
+    Imágenes y estudios que se imprimirán en la orden
+  </p>
+
+  {imagingOrder.studies
+    .split('\n')
+    .map((study) => study.trim())
+    .filter(Boolean).length === 0 ? (
+    <p className="text-sm text-slate-500">
+      Aún no se han seleccionado estudios.
+    </p>
+  ) : (
+    <ol className="list-decimal pl-5 text-sm text-slate-700 space-y-1">
+      {imagingOrder.studies
+        .split('\n')
+        .map((study) => study.trim())
+        .filter(Boolean)
+        .map((study, index) => (
+          <li key={`${study}-${index}`}>{study}</li>
+        ))}
+    </ol>
+  )}
+          </div>
+
+          <div className="mt-4">
+            <label className="block font-medium mb-1">
+              Información clínica relevante
+            </label>
+
+            <textarea
+              value={imagingOrder.clinicalInfo}
+              onChange={(e) =>
+                setImagingOrder({
+                  ...imagingOrder,
+                  clinicalInfo: e.target.value,
+                })
+              }
+              className="w-full border p-2 rounded"
+              rows={4}
+              placeholder="Información clínica para el radiólogo"
+            />
+          </div>
+
+          <div className="mt-4">
+            <label className="block font-medium mb-1">
+              Observaciones
+            </label>
+
+            <textarea
+              value={imagingOrder.observations}
+              onChange={(e) =>
+                setImagingOrder({
+                  ...imagingOrder,
+                  observations: e.target.value,
+                })
+              }
+              className="w-full border p-2 rounded"
+              rows={3}
+              placeholder="Indicaciones especiales"
+            />
+          </div>
+
+          <button
+            type="button"
+            className="mt-4 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700"
+            onClick={() => {
+              const patient = patients.find(
+                (p) => String(p.id) === String(formData.patientId),
+              );
+
+              generateImagingOrderPdf({
+                institution,
+                patient,
+                formData,
+                imagingOrder: {
+                  ...imagingOrder,
+                  studies: imagingOrder.studies
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                },
+              });
+            }}
+          >
+            Generar orden de imágenes PDF
+          </button>
+        </div>
+
         <div className="border rounded-lg p-4 bg-slate-50">
           <label className="block font-bold text-slate-700 mb-2">Destino final del paciente</label>
 
@@ -1339,73 +1454,73 @@ export default function Anamnesis() {
         >
         
           <button
-  type="button"
-  onClick={handleSaveChanges}
-  disabled={saving}
-  className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
->
-  {saving ? 'Guardando...' : 'Guardar cambios'}
-</button>
+            type="button"
+            onClick={handleSaveChanges}
+            disabled={saving}
+            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
+          >
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
 
-<button
-  type="button"
-  onClick={handleFinishAttention}
-  disabled={saving}
-  className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
->
-  {saving ? 'Guardando...' : 'Finalizar atención'}
-</button>
-        </button>
-      </form>
-    </div>
-  );
-}
+          <button
+            type="button"
+            onClick={handleFinishAttention}
+            disabled={saving}
+            className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
+          >
+            {saving ? 'Guardando...' : 'Finalizar atención'}
+          </button>
+                  </button>
+                </form>
+              </div>
+            );
+          }
 
-function InputText({
-  label,
-  name,
-  value,
-  onChange,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-}) {
-  return (
-    <div>
-      <label className="block font-medium text-slate-700 mb-1">{label}</label>
-      <input
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        className="w-full border p-2 rounded"
-      />
-    </div>
-  );
-}
+          function InputText({
+            label,
+            name,
+            value,
+            onChange,
+          }: {
+            label: string;
+            name: string;
+            value: string;
+            onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+          }) {
+            return (
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">{label}</label>
+                <input
+                  name={name}
+                  value={value || ''}
+                  onChange={onChange}
+                  className="w-full border p-2 rounded"
+                />
+              </div>
+            );
+          }
 
-function TextArea({
-  label,
-  name,
-  value,
-  onChange,
-}: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-}) {
-  return (
-    <div className="md:col-span-2">
-      <label className="block font-medium text-slate-700 mb-1">{label}</label>
-      <textarea
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        className="w-full border p-2 rounded h-24"
-      />
-    </div>
+          function TextArea({
+            label,
+            name,
+            value,
+            onChange,
+          }: {
+            label: string;
+            name: string;
+            value: string;
+            onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+          }) {
+            return (
+              <div className="md:col-span-2">
+                <label className="block font-medium text-slate-700 mb-1">{label}</label>
+                <textarea
+                  name={name}
+                  value={value || ''}
+                  onChange={onChange}
+                  className="w-full border p-2 rounded h-24"
+                />
+              </div>
   );
 }
 

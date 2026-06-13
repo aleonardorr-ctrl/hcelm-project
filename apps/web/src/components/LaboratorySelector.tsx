@@ -1,50 +1,71 @@
 import { useMemo, useState } from 'react';
 import { laboratoryCatalog } from '../data/laboratoryCatalog';
+import type { LaboratoryExamItem } from '../data/laboratoryCatalog';
 
 type LaboratorySelectorProps = {
   selectedExams: string[];
   onChange: (exams: string[]) => void;
 };
 
-export default function LaboratorySelector({
-  selectedExams,
-  onChange,
-}: LaboratorySelectorProps) {
+function isProfile(item: LaboratoryExamItem): item is { name: string; components: string[] } {
+  return typeof item !== 'string';
+}
+
+function getItemName(item: LaboratoryExamItem) {
+  return typeof item === 'string' ? item : item.name;
+}
+
+export default function LaboratorySelector({ selectedExams, onChange }: LaboratorySelectorProps) {
   const [search, setSearch] = useState('');
-  const [activeCategory, setActiveCategory] = useState(
-    laboratoryCatalog[0]?.category || '',
-  );
+  const [activeCategory, setActiveCategory] = useState(laboratoryCatalog[0]?.category || '');
   const [customExam, setCustomExam] = useState('');
 
-  const activeCatalog = laboratoryCatalog.find(
-    (item) => item.category === activeCategory,
-  );
+  const activeCatalog = laboratoryCatalog.find((item) => item.category === activeCategory);
 
   const filteredExams = useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    if (!term) return activeCatalog?.exams || [];
+    const source = search.trim()
+      ? laboratoryCatalog.flatMap((category) => category.exams)
+      : activeCatalog?.exams || [];
 
-    return laboratoryCatalog.flatMap((category) =>
-      category.exams
-        .filter((exam) => exam.toLowerCase().includes(term))
-        .map((exam) => `${exam} (${category.category})`),
-    );
+    return source.filter((item) => getItemName(item).toLowerCase().includes(term));
   }, [search, activeCatalog]);
 
-  const normalizeExamName = (exam: string) => {
-    return exam.replace(/\s+\([^)]+\)$/, '').trim();
+  const addUnique = (items: string[]) => {
+    const merged = [...selectedExams];
+
+    items.forEach((item) => {
+      if (!merged.includes(item)) merged.push(item);
+    });
+
+    onChange(merged);
   };
 
-  const toggleExam = (exam: string) => {
-    const cleanExam = normalizeExamName(exam);
+  const removeItems = (items: string[]) => {
+    onChange(selectedExams.filter((exam) => !items.includes(exam)));
+  };
 
-    if (selectedExams.includes(cleanExam)) {
-      onChange(selectedExams.filter((item) => item !== cleanExam));
+  const toggleItem = (item: LaboratoryExamItem) => {
+    if (isProfile(item)) {
+      const allSelected = item.components.every((component) =>
+        selectedExams.includes(component),
+      );
+
+      if (allSelected) {
+        removeItems(item.components);
+      } else {
+        addUnique(item.components);
+      }
+
       return;
     }
 
-    onChange([...selectedExams, cleanExam]);
+    if (selectedExams.includes(item)) {
+      onChange(selectedExams.filter((exam) => exam !== item));
+    } else {
+      onChange([...selectedExams, item]);
+    }
   };
 
   const addCustomExam = () => {
@@ -65,8 +86,8 @@ export default function LaboratorySelector({
           Selector de exámenes de laboratorio
         </h3>
         <p className="text-sm text-slate-500">
-          Busque por nombre o seleccione exámenes por categoría. La orden PDF se
-          generará con los exámenes seleccionados.
+          Los perfiles agregan automáticamente sus exámenes componentes para facilitar la
+          orden y el cobro individual posterior.
         </p>
       </div>
 
@@ -98,12 +119,12 @@ export default function LaboratorySelector({
         <div className="lg:col-span-2 border rounded-lg p-3 bg-slate-50">
           <div className="mb-3">
             <label className="block font-medium text-slate-700 mb-1">
-              Buscar examen
+              Buscar examen o perfil
             </label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Ejemplo: glucosa, hemograma, TSH..."
+              placeholder="Ejemplo: glucosa, perfil hepático, TSH..."
               className="w-full border p-2 rounded"
             />
           </div>
@@ -130,38 +151,55 @@ export default function LaboratorySelector({
                   Agregar
                 </button>
               </div>
-
-              <p className="text-xs text-slate-500 mt-2">
-                Use este campo para exámenes no incluidos en el catálogo.
-              </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-              {filteredExams.map((exam) => {
-                const cleanExam = normalizeExamName(exam);
-                const checked = selectedExams.includes(cleanExam);
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {filteredExams.map((item) => {
+                const label = getItemName(item);
+                const checked = isProfile(item)
+                  ? item.components.every((component) => selectedExams.includes(component))
+                  : selectedExams.includes(item);
 
                 return (
-                  <label
-                    key={exam}
-                    className={`flex items-center gap-2 border rounded p-2 cursor-pointer ${
-                      checked
-                        ? 'bg-blue-100 border-blue-400'
-                        : 'bg-white hover:bg-blue-50 border-slate-200'
+                  <div
+                    key={label}
+                    className={`border rounded p-3 ${
+                      checked ? 'bg-blue-100 border-blue-400' : 'bg-white border-slate-200'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleExam(exam)}
-                    />
-                    <span className="text-sm text-slate-700">{exam}</span>
-                  </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleItem(item)}
+                        className="mt-1"
+                      />
+
+                      <div>
+                        <p className="text-sm font-semibold text-slate-700">
+                          {label}
+                        </p>
+
+                        {isProfile(item) && (
+                          <div className="mt-2 text-xs text-slate-600">
+                            <p className="font-medium text-blue-700 mb-1">
+                              Incluye:
+                            </p>
+                            <ul className="list-disc pl-5 space-y-1">
+                              {item.components.map((component) => (
+                                <li key={component}>{component}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
                 );
               })}
 
               {filteredExams.length === 0 && (
-                <div className="text-sm text-slate-500 bg-white border rounded p-3 md:col-span-2">
+                <div className="text-sm text-slate-500 bg-white border rounded p-3">
                   No se encontraron exámenes con ese criterio.
                 </div>
               )}

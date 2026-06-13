@@ -1,172 +1,207 @@
-export const laboratoryCatalog = [
-{
-category: 'Perfiles',
-exams: [
-'Perfil Hepático',
-'Perfil Lipídico',
-'Perfil Tiroideo',
-'Perfil Preoperatorio',
-'Perfil Reumatológico',
-'Perfil Hormonal',
-'Perfil Diabético',
-],
-},
+export type LaboratoryExamItem =
+  | string
+  | {
+      name: string;
+      components: string[];
+    };
 
-{
-category: 'Hematología',
-exams: [
-'Hemograma Completo',
-'Hemoglobina',
-'Hematocrito',
-'Plaquetas',
-'Reticulocitos',
-'Grupo Sanguíneo',
-'Factor Rh',
-],
-},
+export type LaboratoryCategory = {
+  category: string;
+  exams: LaboratoryExamItem[];
+  allowCustom?: boolean;
+};
 
-{
-category: 'Hemostasia y Trombosis',
-exams: [
-'Tiempo de Protrombina (TP)',
-'Tiempo Parcial de Tromboplastina (TTPA)',
-'INR',
-'Fibrinógeno',
-'Dímero D',
-'Proteína C',
-'Proteína S',
-],
-},
+export const laboratoryCatalog: LaboratoryCategory[] = [
+  {
+    category: 'Perfiles',
+    exams: [
+      {
+        name: 'Perfil Hepático',
+        components: [
+          'Bilirrubina total y fraccionada',
+          'Proteínas totales y albúmina',
+          'Globulinas',
+          'Relación albúmina/globulina (A/G)',
+          'ALT / TGP',
+          'AST / TGO',
+          'Fosfatasa alcalina',
+          'GGT',
+          'Tiempo de protrombina (TP) / INR',
+          'Colinesterasa',
+          'Amonio',
+        ],
+      },
+      {
+        name: 'Perfil Lipídico',
+        components: [
+          'Colesterol total',
+          'Colesterol HDL',
+          'Colesterol LDL',
+          'Triglicéridos',
+          'Colesterol no-HDL',
+          'Relación colesterol total/HDL',
+          'Apolipoproteína A1',
+          'Apolipoproteína B',
+          'Lipoproteína(a) - Lp(a)',
+        ],
+      },
+      {
+        name: 'Perfil Tiroideo',
+        components: [
+          'TSH',
+          'T4 libre',
+          'T3 libre',
+          'T4 total',
+          'T3 total',
+          'Anticuerpos antitiroglobulina',
+          'Anticuerpos antiperoxidasa tiroidea',
+          'Anticuerpos anti-receptor de TSH',
+          'Calcitonina',
+          'Tiroglobulina',
+        ],
+      },
+      {
+        name: 'Perfil Preoperatorio',
+        components: [
+          'Hemograma completo',
+          'Tiempo de protrombina (TP) / INR',
+          'Tiempo parcial de tromboplastina (TTPa)',
+          'Grupo sanguíneo y factor Rh',
+          'Glucosa en ayunas',
+          'Urea',
+          'Creatinina',
+          'Electrolitos séricos',
+          'ALT / TGP',
+          'AST / TGO',
+          'Bilirrubina total y fraccionada',
+          'Examen completo de orina',
+          'VIH',
+          'Hepatitis B',
+          'Hepatitis C',
+          'VDRL/RPR',
+          'Electrocardiograma',
+          'Radiografía de tórax',
+        ],
+      },
+      {
+        name: 'Perfil Reumatológico',
+        components: [
+          'Factor reumatoide',
+          'Proteína C reactiva',
+          'Velocidad de sedimentación globular',
+          'Ácido úrico',
+          'Anticuerpos antinucleares',
+          'Anti-DNA nativo',
+          'Anti-Sm',
+          'Anti-RNP',
+          'Anti-SSA/Ro',
+          'Anti-SSB/La',
+          'Anti-CCP',
+          'Complemento C3',
+          'Complemento C4',
+          'Factor antinuclear con patrón y título',
+          'HLA-B27',
+        ],
+      },
+      {
+        name: 'Perfil Hormonal',
+        components: [
+          'FSH',
+          'LH',
+          'Estradiol',
+          'Progesterona',
+          'Testosterona total y libre',
+          'Prolactina',
+          'SHBG',
+          'DHEA-S',
+          '17-hidroxiprogesterona',
+          'Hormona del crecimiento',
+          'IGF-1',
+          'Cortisol',
+          'ACTH',
+          'Hormona paratiroidea',
+          'Vitamina D',
+          'Aldosterona y renina',
+          'Catecolaminas y metanefrinas',
+        ],
+      },
+      {
+        name: 'Perfil Diabético',
+        components: [
+          'Glucosa en ayunas',
+          'Hemoglobina glicosilada (HbA1c)',
+          'Glucosa postprandial',
+          'Prueba de tolerancia oral a la glucosa',
+          'Insulina basal',
+          'Péptido C',
+          'Índice HOMA-IR',
+          'Microalbuminuria',
+          'Perfil lipídico completo',
+          'Creatinina',
+          'Tasa de filtración glomerular',
+          'Ácido úrico',
+          'Electrolitos séricos',
+        ],
+      },
+    ],
+  },
 
-{
-category: 'Bioquímica',
-exams: [
-'Glucosa',
-'Urea',
-'Creatinina',
-'Ácido Úrico',
-'Calcio',
-'Magnesio',
-'Fósforo',
-'Proteínas Totales',
-'Albúmina',
-'PCR',
-],
-},
+  {
+    category: 'Hematología',
+    exams: [
+      'Hemograma completo',
+      'Hemoglobina',
+      'Hematocrito',
+      'Plaquetas',
+      'Reticulocitos',
+      'Grupo sanguíneo',
+      'Factor Rh',
+    ],
+  },
 
-{
-category: 'Enzimas',
-exams: [
-'TGO',
-'TGP',
-'Fosfatasa Alcalina',
-'GGT',
-'CPK',
-'CPK-MB',
-'LDH',
-'Amilasa',
-'Lipasa',
-],
-},
+  {
+    category: 'Hemostasia y Trombosis',
+    exams: [
+      'Tiempo de protrombina (TP)',
+      'Tiempo parcial de tromboplastina (TTPa)',
+      'INR',
+      'Fibrinógeno',
+      'Dímero D',
+      'Proteína C',
+      'Proteína S',
+    ],
+  },
 
-{
-category: 'Diabetes',
-exams: [
-'HbA1c',
-'Glucosa Basal',
-'Glucosa Postprandial',
-'Curva de Tolerancia a la Glucosa',
-'Insulina Basal',
-],
-},
+  {
+    category: 'Bioquímica',
+    exams: [
+      'Glucosa',
+      'Urea',
+      'Creatinina',
+      'Ácido úrico',
+      'Calcio',
+      'Magnesio',
+      'Fósforo',
+      'Proteínas totales',
+      'Albúmina',
+      'PCR',
+    ],
+  },
 
-{
-category: 'Hormonas',
-exams: [
-'TSH',
-'T3',
-'T4',
-'Prolactina',
-'Cortisol',
-'Testosterona',
-'Estradiol',
-'FSH',
-'LH',
-'Beta HCG',
-],
-},
+  {
+    category: 'Heces',
+    exams: [
+      'Examen directo de heces',
+      'Parasitológico seriado',
+      'Reacción inflamatoria fecal',
+      'Sangre oculta en heces',
+      'Coprocultivo',
+    ],
+  },
 
-{
-category: 'Marcadores Tumorales',
-exams: [
-'PSA',
-'CEA',
-'CA 125',
-'CA 19-9',
-'AFP',
-],
-},
-
-{
-category: 'Inmunología',
-exams: [
-'ANA',
-'Anti DNA',
-'Factor Reumatoide',
-'PCR Ultrasensible',
-'Complemento C3',
-'Complemento C4',
-],
-},
-
-{
-category: 'Serología',
-exams: [
-'VIH',
-'VDRL',
-'RPR',
-'HBsAg',
-'Anti HCV',
-'Dengue',
-'COVID-19',
-],
-},
-
-{
-category: 'Orina',
-exams: [
-'Examen Completo de Orina',
-'Microalbuminuria',
-'Proteínas en Orina 24 Horas',
-'Depuración de Creatinina',
-],
-},
-
-{
-category: 'Heces',
-exams: [
-'Examen Directo de Heces',
-'Parasitológico Seriado',
-'Reacción Inflamatoria Fecal',
-'Sangre Oculta en Heces',
-'Coprocultivo',
-],
-},
-
-{
-category: 'Microbiología',
-exams: [
-'Urocultivo',
-'Hemocultivo',
-'Coprocultivo',
-'Cultivo de Secreciones',
-'Antibiograma',
-],
-},
-
-{
-category: 'Otros Exámenes',
-exams: [],
-allowCustom: true,
-},
+  {
+    category: 'Otros Exámenes',
+    exams: [],
+    allowCustom: true,
+  },
 ];

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
 import { generateReferralPdf } from '../utils/referralPdf';
@@ -29,6 +30,8 @@ const CIE10_CODES = [
 ];
 
 export default function Anamnesis() {
+  const navigate = useNavigate();
+
   const [patients, setPatients] = useState<any[]>([]);
   const [institution, setInstitution] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -132,21 +135,36 @@ export default function Anamnesis() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+  const token = localStorage.getItem('ame_token');
 
-    fetch(`${API_URL}/patients`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setPatients(Array.isArray(data) ? data : []))
-      .catch(() => setPatients([]));
+  const selectedPatientRaw = localStorage.getItem('selectedPatient');
+  const selectedPatient = selectedPatientRaw
+    ? JSON.parse(selectedPatientRaw)
+    : null;
 
-    fetch(`${API_URL}/institution`, {
-      headers: { Authorization: `Bearer ${token}` },
+  fetch(`${API_URL}/patients`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      const patientList = Array.isArray(data) ? data : [];
+      setPatients(patientList);
+
+      if (selectedPatient?.id) {
+        setFormData((prev) => ({
+          ...prev,
+          patientId: selectedPatient.id,
+        }));
+      }
     })
-      .then((res) => res.json())
-      .then((data) => setInstitution(data))
-      .catch(() => setInstitution(null));
+    .catch(() => setPatients([]));
+
+  fetch(`${API_URL}/institution`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((res) => res.json())
+    .then((data) => setInstitution(data))
+    .catch(() => setInstitution(null));
   }, []);
 
   const updatePrescriptionText = (items: any[]) => {
@@ -357,6 +375,17 @@ export default function Anamnesis() {
     }));
   };
 
+const handleChangePatient = () => {
+  localStorage.removeItem('selectedPatient');
+
+  setFormData((prev) => ({
+    ...prev,
+    patientId: '',
+  }));
+
+  navigate('/patients');
+};
+
   const handleDestinationDetailChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
@@ -436,13 +465,23 @@ export default function Anamnesis() {
     await handleSaveChanges();
   };
 
-  return (
-    <div className="p-6 max-w-5xl mx-auto bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-bold mb-6 text-slate-800">
+return (
+  <div className="p-6 max-w-5xl mx-auto bg-gray-50 min-h-screen">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+      <h1 className="text-2xl font-bold text-slate-800">
         Anamnesis y Historia Clínica Electrónica
       </h1>
 
-      <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
+      <button
+        type="button"
+        onClick={handleChangePatient}
+        className="px-4 py-2 rounded bg-gray-700 text-white font-semibold hover:bg-gray-800"
+      >
+        ← Cambiar paciente
+      </button>
+    </div>
+
+    <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block font-medium text-slate-700 mb-1">Paciente *</label>

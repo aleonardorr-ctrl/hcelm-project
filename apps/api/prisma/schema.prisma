@@ -1,77 +1,68 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
-model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  ruc       String   @unique
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+datasource db {
+  provider = "postgresql"
+}
 
-  users          User[]
-  patients       Patient[]
-  establishments Establishment[]
-  institutions   Institution[]
-  hceConfigs     HceConfig[]
+model Tenant {
+  id             String         @id @default(uuid()) @db.Uuid
+  name           String
+  ruc            String         @unique
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   anamnesis      Anamnesis[]
   certificates   Certificate[]
+  establishments Establishment?
+  hceConfigs     HceConfig?
+  institutions   Institution?
   medications    Medication[]
+  patients       Patient[]
   prescriptions  Prescription[]
+  users          User[]
 }
 
 model User {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  email    String
-  password String
-  fullName String?
-  role     String  @default("medico")
-  cmp      String?
-  rne      String?
-  active   Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @db.Uuid
+  email         String
+  password      String
+  fullName      String?
+  role          String         @default("medico")
+  cmp           String?
+  rne           String?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   certificates  Certificate[]
   prescriptions Prescription[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Patient {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
+  id             String         @id @default(uuid()) @db.Uuid
+  tenantId       String         @db.Uuid
   fullName       String
   documentNumber String
-  documentType   String    @default("DNI")
+  documentType   String         @default("DNI")
   birthDate      DateTime?
   gender         String?
   phone          String?
   email          String?
   address        String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  anamnesis     Anamnesis[]
-  certificates  Certificate[]
-  prescriptions Prescription[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  anamnesis      Anamnesis[]
+  certificates   Certificate[]
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prescriptions  Prescription[]
 }
 
 model Establishment {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @unique @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @unique @db.Uuid
   name         String
   address      String?
   phone        String?
@@ -80,22 +71,16 @@ model Establishment {
   directorName String?
   directorCmp  String?
   directorRne  String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Certificate {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  patientId String  @db.Uuid
-  patient   Patient @relation(fields: [patientId], references: [id])
-
-  issuedBy     String @db.Uuid
-  issuedByUser User   @relation(fields: [issuedBy], references: [id])
-
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  patientId       String   @db.Uuid
+  issuedBy        String   @db.Uuid
   certificateType String   @default("REST_CERTIFICATE")
   diagnoses       String[]
   restDays        Int?
@@ -103,19 +88,17 @@ model Certificate {
   place           String?
   issueDate       DateTime
   pdfUrl          String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  issuedByUser    User     @relation(fields: [issuedBy], references: [id])
+  patient         Patient  @relation(fields: [patientId], references: [id])
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Anamnesis {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  patientId String  @db.Uuid
-  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
+  id                      String         @id @default(uuid()) @db.Uuid
+  tenantId                String         @db.Uuid
+  patientId               String         @db.Uuid
   fechaAtencion           DateTime
   motivoConsulta          String
   tiempoEnfermedad        String?
@@ -129,128 +112,106 @@ model Anamnesis {
   diagnosticosSecundarios Json?
   examenesAuxiliares      String?
   prescripcionesFarmacia  String?
-  destinoFinal            String   @default("alta_medica")
-  issuedBy                String?  @default("admin@amehealth.pe")
-
-  prescriptions Prescription[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  destinoFinal            String         @default("alta_medica")
+  issuedBy                String?        @default("admin@amehealth.pe")
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  patient                 Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenant                  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prescriptions           Prescription[]
 }
 
 model Institution {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @unique @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  name      String?
-  legalName String?
-  ruc       String?
-  address   String?
-  phone     String?
-  email     String?
-  city      String? @default("Arequipa")
-  country   String? @default("Perú")
-
-  logoUrl      String?
-  signatureUrl String?
-  sealUrl      String?
-  logoWidth    Int?    @default(70)
-  logoHeight   Int?    @default(70)
-
-  signatureWidth  Int? @default(180)
-  signatureHeight Int? @default(70)
-
-  sealWidth      Int?    @default(120)
-  sealHeight     Int?    @default(70)
-  primaryColor   String? @default("#0f766e")
-  secondaryColor String? @default("#14b8a6")
-
-  directorName String?
-  directorCmp  String?
-  directorRne  String?
-
-  timezone String? @default("America/Lima")
-  language String? @default("es")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @unique @db.Uuid
+  name            String?
+  legalName       String?
+  ruc             String?
+  address         String?
+  phone           String?
+  email           String?
+  city            String?  @default("Arequipa")
+  country         String?  @default("Perú")
+  logoUrl         String?
+  primaryColor    String?  @default("#0f766e")
+  secondaryColor  String?  @default("#14b8a6")
+  directorName    String?
+  directorCmp     String?
+  directorRne     String?
+  timezone        String?  @default("America/Lima")
+  language        String?  @default("es")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sealUrl         String?
+  signatureUrl    String?
+  logoHeight      Int?     @default(70)
+  logoWidth       Int?     @default(70)
+  sealHeight      Int?     @default(70)
+  sealWidth       Int?     @default(120)
+  signatureHeight Int?     @default(70)
+  signatureWidth  Int?     @default(180)
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model HceConfig {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @unique @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  requireCie10           Boolean @default(true)
-  allowMultipleDiagnoses Boolean @default(true)
-  defaultRestDays        Int     @default(1)
-  requireVitalSigns      Boolean @default(true)
-  autoSaveDrafts         Boolean @default(true)
-  signatureRequired      Boolean @default(true)
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenantId               String   @unique @db.Uuid
+  requireCie10           Boolean  @default(true)
+  allowMultipleDiagnoses Boolean  @default(true)
+  defaultRestDays        Int      @default(1)
+  requireVitalSigns      Boolean  @default(true)
+  autoSaveDrafts         Boolean  @default(true)
+  signatureRequired      Boolean  @default(true)
   customFields           Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model Medication {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  genericName    String
-  commercialName String?
-  concentration  String?
-  presentation   String
-  route          String?
-  active         Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id                String             @id @default(uuid()) @db.Uuid
+  tenantId          String             @db.Uuid
+  genericName       String
+  commercialName    String?
+  concentration     String?
+  presentation      String
+  route             String?
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   prescriptionItems PrescriptionItem[]
 }
 
 model Prescription {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @db.Uuid
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  patientId String  @db.Uuid
-  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  anamnesisId String?    @db.Uuid
-  anamnesis   Anamnesis? @relation(fields: [anamnesisId], references: [id], onDelete: SetNull)
-
-  issuedBy String @db.Uuid
-  doctor   User   @relation(fields: [issuedBy], references: [id])
-
-  issueDate DateTime @default(now())
-  notes     String?
-  pdfUrl    String?
-
-  items PrescriptionItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String             @id @default(uuid()) @db.Uuid
+  tenantId    String             @db.Uuid
+  patientId   String             @db.Uuid
+  anamnesisId String?            @db.Uuid
+  issuedBy    String             @db.Uuid
+  issueDate   DateTime           @default(now())
+  notes       String?
+  pdfUrl      String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  anamnesis   Anamnesis?         @relation(fields: [anamnesisId], references: [id])
+  doctor      User               @relation(fields: [issuedBy], references: [id])
+  patient     Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items       PrescriptionItem[]
 }
 
 model PrescriptionItem {
-  id String @id @default(uuid()) @db.Uuid
-
+  id             String       @id @default(uuid()) @db.Uuid
   prescriptionId String       @db.Uuid
+  medicationId   String       @db.Uuid
+  quantity       Int
+  route          String?
+  dose           String?
+  frequency      String?
+  durationDays   Int?
+  indications    String?
+  createdAt      DateTime     @default(now())
+  medication     Medication   @relation(fields: [medicationId], references: [id])
   prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
-
-  medicationId String     @db.Uuid
-  medication   Medication @relation(fields: [medicationId], references: [id])
-
-  quantity     Int
-  route        String?
-  dose         String?
-  frequency    String?
-  durationDays Int?
-  indications  String?
-
-  createdAt DateTime @default(now())
 }

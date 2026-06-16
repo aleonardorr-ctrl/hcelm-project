@@ -467,13 +467,46 @@ if (!form.birthDate) {
           Buscar paciente
         </label>
 
-        <input
-          type="text"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Buscar por DNI, apellidos, nombres o celular"
-          className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+              }
+            }}
+            placeholder="Buscar por DNI, apellidos, nombres o celular"
+            className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearch(search.trim());
+            }}
+            className="px-4 py-2 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800"
+          >
+            Buscar
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+            }}
+            className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
+          >
+            Limpiar
+          </button>
+        </div>
+
+        {search.trim() && (
+          <p className="text-sm text-gray-500 mt-2">
+            Resultados encontrados: {filteredPatients.length}
+          </p>
+        )}
       </div>
 
       {showForm && (

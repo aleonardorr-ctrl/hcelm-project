@@ -432,10 +432,10 @@ if (!form.birthDate) {
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => navigate('/anamnesis')}
+                onClick={() => navigate('/new-encounter')}
                 className="px-3 py-2 rounded bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
               >
-                Iniciar atención / Anamnesis
+                Nueva atención / Funciones vitales
               </button>
 
               <button

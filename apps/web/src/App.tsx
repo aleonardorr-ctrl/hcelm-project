@@ -14,6 +14,7 @@ import Patients from './pages/Patients';
 import Anamnesis from './pages/Anamnesis';
 import InstitutionSettings from './pages/InstitutionSettings';
 import ProfessionalVerification from './pages/ProfessionalVerification';
+import NewEncounter from './pages/NewEncounter';
 
 function TokenProtected({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem('ame_token');
@@ -186,6 +187,15 @@ export default function App() {
             element={
               <ClinicalProtected>
                 <Patients />
+              </ClinicalProtected>
+            }
+          />
+
+          <Route
+            path="/new-encounter"
+            element={
+              <ClinicalProtected>
+                <NewEncounter />
               </ClinicalProtected>
             }
           />

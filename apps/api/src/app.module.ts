@@ -15,6 +15,7 @@ import { InstitutionModule } from './institution/institution.module';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { EncountersModule } from './encounters/encounters.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { AppService } from './app.service';
     PrismaModule,
     AuthModule,
     PatientsModule,
+    EncountersModule,
 
     // ✅ Módulos de Farmacia y Recetas
     MedicationsModule,

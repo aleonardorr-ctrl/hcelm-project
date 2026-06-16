@@ -15,6 +15,7 @@ model Tenant {
   updatedAt      DateTime       @updatedAt
   anamnesis      Anamnesis[]
   certificates   Certificate[]
+  encounters     Encounter[]
   establishments Establishment?
   hceConfigs     HceConfig?
   institutions   Institution?
@@ -56,8 +57,62 @@ model Patient {
   updatedAt      DateTime       @updatedAt
   anamnesis      Anamnesis[]
   certificates   Certificate[]
+  encounters     Encounter[]
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   prescriptions  Prescription[]
+}
+
+model Encounter {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @db.Uuid
+  patientId String @db.Uuid
+
+  type   String? @default("consulta")
+  reason String?
+  status String  @default("open")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  anamnesis  Anamnesis[]
+  vitalSigns VitalSigns?
+}
+
+model VitalSigns {
+  id          String @id @default(uuid()) @db.Uuid
+  encounterId String @unique @db.Uuid
+
+  systolicBP      Int?
+  diastolicBP     Int?
+  heartRate       Int?
+  respiratoryRate Int?
+  temperature     Float?
+  oxygenSat       Int?
+
+  weightKg Float?
+  heightCm Float?
+  bmi      Float?
+
+  capillaryGlucose Int?
+  painScale        Int?
+
+  consciousness String?
+  glasgowEye    Int?
+  glasgowVerbal Int?
+  glasgowMotor  Int?
+  glasgowTotal  Int?
+
+  oxygenSupport String?
+  fio2          Int?
+  nursingNotes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  encounter Encounter @relation(fields: [encounterId], references: [id], onDelete: Cascade)
 }
 
 model Establishment {
@@ -99,6 +154,7 @@ model Anamnesis {
   id                      String         @id @default(uuid()) @db.Uuid
   tenantId                String         @db.Uuid
   patientId               String         @db.Uuid
+  encounterId             String?        @db.Uuid
   fechaAtencion           DateTime
   motivoConsulta          String
   tiempoEnfermedad        String?
@@ -116,6 +172,7 @@ model Anamnesis {
   issuedBy                String?        @default("admin@amehealth.pe")
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
+  encounter               Encounter?     @relation(fields: [encounterId], references: [id])
   patient                 Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   tenant                  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   prescriptions           Prescription[]

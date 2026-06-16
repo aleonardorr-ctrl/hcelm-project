@@ -12,6 +12,17 @@ import ImagingSelector from '../components/ImagingSelector';
 import { generateImagingOrderPdf } from '../utils/imagingOrderPdf';
 
 const API_URL = 'http://localhost:3000/api';
+function getSelectedEncounter() {
+  const raw = localStorage.getItem('selectedEncounter');
+
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 const CIE10_CODES = [
   { code: 'J06.9', desc: 'Infección aguda de vías respiratorias' },
@@ -138,6 +149,7 @@ export default function Anamnesis() {
   const token = localStorage.getItem('ame_token');
 
   const selectedPatientRaw = localStorage.getItem('selectedPatient');
+    const selectedEncounter = getSelectedEncounter();
   const selectedPatient = selectedPatientRaw
     ? JSON.parse(selectedPatientRaw)
     : null;
@@ -151,11 +163,25 @@ export default function Anamnesis() {
       setPatients(patientList);
 
       if (selectedPatient?.id) {
-        setFormData((prev) => ({
-          ...prev,
-          patientId: selectedPatient.id,
-        }));
-      }
+  setFormData((prev) => ({
+    ...prev,
+    patientId: selectedPatient.id,
+    motivoConsulta: selectedEncounter?.reason || prev.motivoConsulta,
+    signosVitales: selectedEncounter?.vitalSigns
+      ? {
+          ...prev.signosVitales,
+          ta:
+            selectedEncounter.vitalSigns.systolicBP && selectedEncounter.vitalSigns.diastolicBP
+              ? `${selectedEncounter.vitalSigns.systolicBP}/${selectedEncounter.vitalSigns.diastolicBP}`
+              : prev.signosVitales.ta,
+          fc: selectedEncounter.vitalSigns.heartRate || prev.signosVitales.fc,
+          fr: selectedEncounter.vitalSigns.respiratoryRate || prev.signosVitales.fr,
+          temp: selectedEncounter.vitalSigns.temperature || prev.signosVitales.temp,
+          spo2: selectedEncounter.vitalSigns.oxygenSat || prev.signosVitales.spo2,
+        }
+      : prev.signosVitales,
+  }));
+}
     })
     .catch(() => setPatients([]));
 
@@ -466,19 +492,43 @@ const handleChangePatient = () => {
   };
 
 return (
-  <div className="p-6 max-w-5xl mx-auto bg-gray-50 min-h-screen">
+  <div className="...">
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
       <h1 className="text-2xl font-bold text-slate-800">
         Anamnesis y Historia Clínica Electrónica
       </h1>
 
-      <button
-        type="button"
-        onClick={handleChangePatient}
-        className="px-4 py-2 rounded bg-gray-700 text-white font-semibold hover:bg-gray-800"
-      >
-        ← Cambiar paciente
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => navigate('/new-encounter')}
+          className="px-4 py-2 rounded bg-amber-600 text-white font-semibold hover:bg-amber-700"
+        >
+          ← Corregir funciones vitales
+        </button>
+
+        <button
+          type="button"
+          onClick={handleChangePatient}
+          className="px-4 py-2 rounded bg-gray-700 text-white font-semibold hover:bg-gray-800"
+        >
+          ← Cambiar paciente
+        </button>
+      </div>
+    </div>
+
+    <div className="mb-4 border rounded-lg p-4 bg-green-50 border-green-200">
+      <h2 className="font-bold text-green-800 mb-2">
+        Funciones vitales registradas
+      </h2>
+
+      <p className="text-sm text-green-900">
+        PA: {formData.signosVitales.ta || '—'} mmHg | 
+        FC: {formData.signosVitales.fc || '—'} lpm | 
+        FR: {formData.signosVitales.fr || '—'} rpm | 
+        T°: {formData.signosVitales.temp || '—'} °C | 
+        SpO₂: {formData.signosVitales.spo2 || '—'}%
+      </p>
     </div>
 
     <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow">
@@ -546,6 +596,40 @@ return (
             className="w-full border p-2 rounded h-24"
           />
         </div>
+
+        <div className="md:col-span-2 border rounded-lg p-4 bg-slate-50">
+        <h2 className="text-lg font-bold text-slate-700 mb-4">
+          Antecedentes
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">
+              Antecedentes personales
+            </label>
+            <textarea
+              name="antecedentesPersonales"
+              value={formData.antecedentesPersonales}
+              onChange={handleChange}
+              className="w-full border p-2 rounded h-28"
+              placeholder="Ej. HTA, diabetes, asma, alergias, cirugías, hospitalizaciones, medicación habitual..."
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium text-slate-700 mb-1">
+              Antecedentes familiares
+            </label>
+            <textarea
+              name="antecedentesFamiliares"
+              value={formData.antecedentesFamiliares}
+              onChange={handleChange}
+              className="w-full border p-2 rounded h-28"
+              placeholder="Ej. diabetes, hipertensión, cardiopatía, cáncer, enfermedad renal, tuberculosis..."
+            />
+          </div>
+        </div>
+      </div>
 
         <div>
           <label className="block font-medium text-slate-700 mb-1">Examen físico</label>

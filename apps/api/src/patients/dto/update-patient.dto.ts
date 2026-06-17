@@ -9,7 +9,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdatePatientDto {
   @ApiPropertyOptional({
-    description: 'Tipo de documento (DNI, CE, Pasaporte)',
+    description: 'Tipo de documento',
     example: 'DNI',
   })
   @IsOptional()
@@ -21,7 +21,7 @@ export class UpdatePatientDto {
     example: '12345678',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'El número de documento debe ser texto' })
   @Matches(/^[0-9]+$/, {
     message: 'El número de documento solo puede contener números',
   })
@@ -39,7 +39,7 @@ export class UpdatePatientDto {
   fullName?: string;
 
   @ApiPropertyOptional({
-    description: 'Fecha de nacimiento (formato AAAA-MM-DD)',
+    description: 'Fecha de nacimiento',
     example: '1985-05-15',
   })
   @IsOptional()

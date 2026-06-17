@@ -1,0 +1,51 @@
+import {
+  IsDateString,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+} from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
+
+export class UpdatePatientDto {
+  @ApiPropertyOptional({
+    description: 'Tipo de documento (DNI, CE, Pasaporte)',
+    example: 'DNI',
+  })
+  @IsOptional()
+  @IsString({ message: 'El tipo de documento debe ser texto' })
+  documentType?: string;
+
+  @ApiPropertyOptional({
+    description: 'Número de documento',
+    example: '12345678',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[0-9]+$/, {
+    message: 'El número de documento solo puede contener números',
+  })
+  @Length(8, 12, {
+    message: 'El número de documento debe tener entre 8 y 12 dígitos',
+  })
+  documentNumber?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nombres y apellidos completos del paciente',
+    example: 'Juan Pérez García',
+  })
+  @IsOptional()
+  @IsString({ message: 'El nombre debe ser texto' })
+  fullName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Fecha de nacimiento (formato AAAA-MM-DD)',
+    example: '1985-05-15',
+  })
+  @IsOptional()
+  @IsDateString(
+    {},
+    { message: 'La fecha de nacimiento debe tener el formato AAAA-MM-DD' },
+  )
+  birthDate?: string;
+}

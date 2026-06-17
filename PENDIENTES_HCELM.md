@@ -310,3 +310,29 @@ Se elimina duplicidad entre:
 Los exámenes seleccionados generarán automáticamente la orden PDF.
 
 🟡 EN TRABAJO | HCE | Separar Guardar cambios y Finalizar atención | Alta | Guardar mantiene edición; Finalizar cierra atención y redirige a Pacientes
+BITÁCORA HCELM
+
+Módulo Pacientes - avance estable:
+
+- Backend /api/patients activo.
+- GET /api/patients funcional con JWT.
+- POST /api/patients funcional con JWT.
+- Frontend Patients.tsx corregido para usar /api.
+- Frontend Patients.tsx corregido para usar ame_token.
+- Registro inicial de pacientes funcional.
+- Campo fullName corregido según CreatePatientDto.
+- Búsqueda local de pacientes funcional.
+- Se identificó que el backend actual acepta:
+  documentType
+  documentNumber
+  fullName
+  birthDate
+
+Pendientes:
+1. Agregar botón visual Buscar y Limpiar en módulo Pacientes.
+2. Confirmar que paciente registrado aparece correctamente en tabla.
+3. Mejorar visualización de nombre completo si backend devuelve fullName.
+4. Conectar paciente seleccionado con Anamnesis.
+5. Conectar paciente seleccionado con Certificados.
+6. Revisar si existe PATCH /api/patients/:id para edición.
+7. Preparar estructura Paciente → Atención → Funciones vitales.

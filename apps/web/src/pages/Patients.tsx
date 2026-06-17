@@ -148,11 +148,13 @@ export default function Patients() {
       const fullName = getFullName(patient).toLowerCase();
       const documentNumber = patient.documentNumber?.toLowerCase() || '';
       const phone = patient.phone?.toLowerCase() || '';
+      const documentType = patient.documentType?.toLowerCase() || '';
 
       return (
         fullName.includes(term) ||
         documentNumber.includes(term) ||
-        phone.includes(term)
+        phone.includes(term) ||
+        documentType.includes(term)
       );
     });
   }, [patients, search]);
@@ -237,12 +239,12 @@ export default function Patients() {
     if (!form.documentType.trim()) return 'Seleccione el tipo de documento.';
 
     if (form.documentType !== 'SIN_DOCUMENTO' && !form.documentNumber.trim()) {
-  return 'Ingrese el número de documento.';
-}
+      return 'Ingrese el número de documento.';
+    }
 
-if (!form.birthDate) {
-  return 'Ingrese la fecha de nacimiento.';
-}
+    if (!form.birthDate) {
+      return 'Ingrese la fecha de nacimiento.';
+    }
 
     if (form.birthDate) {
       const birth = new Date(form.birthDate);
@@ -310,7 +312,8 @@ if (!form.birthDate) {
           : backendError?.message || backendError?.error;
 
         throw new Error(
-          message || 'No se pudo guardar el paciente. Revise los datos ingresados.',
+          message ||
+            'No se pudo guardar el paciente. Revise los datos ingresados.',
         );
       }
 
@@ -347,7 +350,9 @@ if (!form.birthDate) {
     setSelectedPatient(patient);
     setEditingPatientId(patient.id);
 
-  const fullNameParts = (patient.fullName || patient.name || '').trim().split(' ');
+    const fullNameParts = (patient.fullName || patient.name || '')
+      .trim()
+      .split(' ');
 
     setForm({
       documentType: patient.documentType || 'DNI',
@@ -369,8 +374,10 @@ if (!form.birthDate) {
   }
 
   function handleSelectPatient(patient: Patient) {
+    const patientFullName = getFullName(patient);
+
     setSelectedPatient(patient);
-    setSuccess(`Paciente seleccionado: ${getFullName(patient)}`);
+    setSuccess(`Paciente seleccionado: ${patientFullName}`);
     setError('');
 
     localStorage.setItem(
@@ -378,10 +385,9 @@ if (!form.birthDate) {
       JSON.stringify({
         id: patient.id,
         name: patient.name,
-        fullName: patient.fullName,
+        fullName: patientFullName,
         documentType: patient.documentType,
         documentNumber: patient.documentNumber,
-        fullName: getFullName(patient),
         firstName: patient.firstName,
         paternalLastName: patient.paternalLastName,
         maternalLastName: patient.maternalLastName,
@@ -391,6 +397,16 @@ if (!form.birthDate) {
         phone: patient.phone,
       }),
     );
+  }
+
+  function handleSearch() {
+    setSearch(search.trim());
+    setError('');
+  }
+
+  function handleClearSearch() {
+    setSearch('');
+    setError('');
   }
 
   return (
@@ -440,7 +456,9 @@ if (!form.birthDate) {
 
               <button
                 type="button"
-                onClick={() => setError('Historial de paciente pendiente de implementación.')}
+                onClick={() =>
+                  setError('Historial de paciente pendiente de implementación.')
+                }
                 className="px-3 py-2 rounded bg-gray-700 text-white text-sm font-semibold hover:bg-gray-800"
               >
                 Ver historial
@@ -475,6 +493,7 @@ if (!form.birthDate) {
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
+                handleSearch();
               }
             }}
             placeholder="Buscar por DNI, apellidos, nombres o celular"
@@ -483,9 +502,7 @@ if (!form.birthDate) {
 
           <button
             type="button"
-            onClick={() => {
-              setSearch(search.trim());
-            }}
+            onClick={handleSearch}
             className="px-4 py-2 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800"
           >
             Buscar
@@ -493,9 +510,7 @@ if (!form.birthDate) {
 
           <button
             type="button"
-            onClick={() => {
-              setSearch('');
-            }}
+            onClick={handleClearSearch}
             className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
           >
             Limpiar

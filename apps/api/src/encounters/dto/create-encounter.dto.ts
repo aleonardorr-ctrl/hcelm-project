@@ -14,8 +14,8 @@ export class CreateEncounterDto {
     description: 'ID del paciente',
     example: '28e4b8ad-49eb-49e6-aad7-614e38e400cb',
   })
-  @IsUUID('4', { message: 'El ID del paciente no es válido' })
-  patientId: string;
+  @IsUUID('all', { message: 'El ID del paciente no es válido' })
+patientId: string;
 
   @ApiPropertyOptional({
     description: 'Tipo de atención',

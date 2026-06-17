@@ -83,6 +83,14 @@ function getSelectedPatient(): SelectedPatient | null {
   }
 }
 
+function isValidUuid(value?: string | null): boolean {
+  if (!value) return false;
+
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
 function toNumberOrUndefined(value: string): number | undefined {
   if (value.trim() === '') return undefined;
 
@@ -170,16 +178,20 @@ export default function NewEncounter() {
   }
 
   function validateForm(): string | null {
-    if (!patient?.id) {
-      return 'No hay paciente seleccionado. Regrese al módulo Pacientes y seleccione uno.';
-    }
-
-    if (!form.reason.trim()) {
-      return 'Ingrese el motivo de consulta o atención.';
-    }
-
-    return null;
+  if (!patient?.id) {
+    return 'No hay paciente seleccionado. Regrese a Pacientes, seleccione uno y vuelva a iniciar la atención.';
   }
+
+  if (!isValidUuid(patient.id)) {
+    return 'El paciente seleccionado no tiene un ID válido. Regrese a Pacientes, presione Actualizar y seleccione nuevamente al paciente.';
+  }
+
+  if (!form.reason.trim()) {
+    return 'Ingrese el motivo de consulta o atención.';
+  }
+
+  return null;
+}
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -206,7 +218,7 @@ export default function NewEncounter() {
       }
 
       const payload = {
-        patientId: patient!.id,
+        patientId: String(patient!.id),
         type: form.type || 'consulta',
         reason: form.reason.trim(),
 

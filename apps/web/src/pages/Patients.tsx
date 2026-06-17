@@ -1,3 +1,6 @@
+// HCELM - pages/Patients.tsx
+// Módulo de pacientes: registro, búsqueda, edición, selección y acceso a nueva atención.
+
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,6 +17,7 @@ type Patient = {
   gender?: string | null;
   birthDate?: string | null;
   phone?: string | null;
+  email?: string | null;
   address?: string | null;
   allergies?: string | null;
   chronicDiseases?: string | null;
@@ -31,6 +35,7 @@ type PatientFormState = {
   sex: string;
   birthDate: string;
   phone: string;
+  email: string;
   address: string;
   allergies: string;
   chronicDiseases: string;
@@ -47,6 +52,7 @@ const emptyForm: PatientFormState = {
   sex: '',
   birthDate: '',
   phone: '',
+  email: '',
   address: '',
   allergies: '',
   chronicDiseases: '',
@@ -88,6 +94,11 @@ function calculateAge(birthDate?: string | null): string {
   return `${years} años`;
 }
 
+function normalizeDateForInput(date?: string | null): string {
+  if (!date) return '';
+  return date.slice(0, 10);
+}
+
 function buildFullNameFromForm(form: PatientFormState): string {
   return [
     form.paternalLastName.trim(),
@@ -108,25 +119,28 @@ function getFullName(patient: Patient): string {
     .join(' ')
     .trim();
 
-  return (
-    separatedName ||
-    patient.fullName ||
-    patient.name ||
-    'Paciente sin nombre'
-  );
+  return separatedName || patient.fullName || patient.name || 'Paciente sin nombre';
 }
 
-function normalizeDateForInput(date?: string | null): string {
-  if (!date) return '';
-  return date.slice(0, 10);
+function splitFullName(fullName?: string | null) {
+  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+
+  return {
+    paternalLastName: parts[0] || '',
+    maternalLastName: parts[1] || '',
+    firstName: parts.slice(2).join(' ') || '',
+  };
 }
 
 export default function Patients() {
   console.log('👥 Patients.tsx cargado');
 
+  const navigate = useNavigate();
+
   const [patients, setPatients] = useState<Patient[]>([]);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<PatientFormState>(emptyForm);
+
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -138,7 +152,6 @@ export default function Patients() {
   const [success, setSuccess] = useState('');
 
   const token = getAuthToken();
-  const navigate = useNavigate();
 
   const filteredPatients = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -149,12 +162,14 @@ export default function Patients() {
       const fullName = getFullName(patient).toLowerCase();
       const documentNumber = patient.documentNumber?.toLowerCase() || '';
       const phone = patient.phone?.toLowerCase() || '';
+      const email = patient.email?.toLowerCase() || '';
       const documentType = patient.documentType?.toLowerCase() || '';
 
       return (
         fullName.includes(term) ||
         documentNumber.includes(term) ||
         phone.includes(term) ||
+        email.includes(term) ||
         documentType.includes(term)
       );
     });
@@ -202,9 +217,7 @@ export default function Patients() {
       }
     } catch (err) {
       console.error(err);
-      setError(
-        err instanceof Error ? err.message : 'Error al cargar pacientes.',
-      );
+      setError(err instanceof Error ? err.message : 'Error al cargar pacientes.');
     } finally {
       setLoading(false);
     }
@@ -291,6 +304,7 @@ export default function Patients() {
 
         gender: form.sex || null,
         phone: form.phone.trim() || null,
+        email: form.email.trim() || null,
         address: form.address.trim() || null,
         allergies: form.allergies.trim() || null,
         chronicDiseases: form.chronicDiseases.trim() || null,
@@ -328,14 +342,43 @@ export default function Patients() {
 
       const savedPatient = await response.json();
 
-      setSuccess(
-        editingPatientId
-          ? 'Paciente actualizado correctamente.'
-          : 'Paciente registrado correctamente.',
-      );
-      setSelectedPatient(savedPatient);
-      resetForm();
-      await loadPatients();
+    setSuccess(
+      editingPatientId
+        ? 'Paciente actualizado correctamente.'
+        : 'Paciente registrado correctamente.',
+    );
+
+    const savedPatientFullName = getFullName(savedPatient);
+
+    setSelectedPatient(savedPatient);
+
+    localStorage.setItem(
+      'selectedPatient',
+      JSON.stringify({
+        id: savedPatient.id,
+        name: savedPatient.name,
+        fullName: savedPatientFullName,
+        documentType: savedPatient.documentType,
+        documentNumber: savedPatient.documentNumber,
+        firstName: savedPatient.firstName,
+        paternalLastName: savedPatient.paternalLastName,
+        maternalLastName: savedPatient.maternalLastName,
+        gender: savedPatient.gender || savedPatient.sex,
+        sex: savedPatient.gender || savedPatient.sex,
+        birthDate: savedPatient.birthDate,
+        age: calculateAge(savedPatient.birthDate),
+        phone: savedPatient.phone,
+        email: savedPatient.email,
+        address: savedPatient.address,
+        allergies: savedPatient.allergies,
+        chronicDiseases: savedPatient.chronicDiseases,
+        usualMedication: savedPatient.usualMedication,
+        observations: savedPatient.observations,
+      }),
+    );
+
+    resetForm();
+    await loadPatients();
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'Error al guardar paciente.');
@@ -359,19 +402,18 @@ export default function Patients() {
     setSelectedPatient(patient);
     setEditingPatientId(patient.id);
 
-    const fullNameParts = (patient.fullName || patient.name || '')
-      .trim()
-      .split(' ');
+    const splitName = splitFullName(patient.fullName || patient.name);
 
     setForm({
       documentType: patient.documentType || 'DNI',
       documentNumber: patient.documentNumber || '',
-      firstName: patient.firstName || fullNameParts.slice(2).join(' ') || '',
-      paternalLastName: patient.paternalLastName || fullNameParts[0] || '',
-      maternalLastName: patient.maternalLastName || fullNameParts[1] || '',
+      firstName: patient.firstName || splitName.firstName || '',
+      paternalLastName: patient.paternalLastName || splitName.paternalLastName || '',
+      maternalLastName: patient.maternalLastName || splitName.maternalLastName || '',
       sex: patient.gender || patient.sex || '',
       birthDate: normalizeDateForInput(patient.birthDate),
       phone: patient.phone || '',
+      email: patient.email || '',
       address: patient.address || '',
       allergies: patient.allergies || '',
       chronicDiseases: patient.chronicDiseases || '',
@@ -400,11 +442,17 @@ export default function Patients() {
         firstName: patient.firstName,
         paternalLastName: patient.paternalLastName,
         maternalLastName: patient.maternalLastName,
+        gender: patient.gender || patient.sex,
         sex: patient.gender || patient.sex,
-        gender: patient.gender,     
         birthDate: patient.birthDate,
         age: calculateAge(patient.birthDate),
         phone: patient.phone,
+        email: patient.email,
+        address: patient.address,
+        allergies: patient.allergies,
+        chronicDiseases: patient.chronicDiseases,
+        usualMedication: patient.usualMedication,
+        observations: patient.observations,
       }),
     );
   }
@@ -417,6 +465,24 @@ export default function Patients() {
   function handleClearSearch() {
     setSearch('');
     setError('');
+  }
+
+  function goToNewEncounter() {
+    if (!selectedPatient) {
+      setError('Primero seleccione un paciente.');
+      return;
+    }
+
+    navigate('/new-encounter');
+  }
+
+  function goToAnamnesis() {
+    if (!selectedPatient) {
+      setError('Primero seleccione un paciente.');
+      return;
+    }
+
+    navigate('/anamnesis');
   }
 
   return (
@@ -447,7 +513,9 @@ export default function Patients() {
               <span className="font-bold">Paciente seleccionado:</span>{' '}
               {getFullName(selectedPatient)}
               {selectedPatient.documentNumber
-                ? ` | DNI: ${selectedPatient.documentNumber}`
+                ? ` | ${selectedPatient.documentType || 'DNI'}: ${
+                    selectedPatient.documentNumber
+                  }`
                 : ''}
               {selectedPatient.birthDate
                 ? ` | ${calculateAge(selectedPatient.birthDate)}`
@@ -455,15 +523,24 @@ export default function Patients() {
               {selectedPatient.gender || selectedPatient.sex
                 ? ` | ${selectedPatient.gender || selectedPatient.sex}`
                 : ''}
+              {selectedPatient.phone ? ` | Cel: ${selectedPatient.phone}` : ''}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => navigate('/new-encounter')}
+                onClick={goToNewEncounter}
                 className="px-3 py-2 rounded bg-green-700 text-white text-sm font-semibold hover:bg-green-800"
               >
                 Nueva atención / Funciones vitales
+              </button>
+
+              <button
+                type="button"
+                onClick={goToAnamnesis}
+                className="px-3 py-2 rounded bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800"
+              >
+                Ir a anamnesis
               </button>
 
               <button
@@ -508,7 +585,7 @@ export default function Patients() {
                 handleSearch();
               }
             }}
-            placeholder="Buscar por DNI, apellidos, nombres o celular"
+            placeholder="Buscar por DNI, apellidos, nombres, celular o correo"
             className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
@@ -537,267 +614,298 @@ export default function Patients() {
       </div>
 
       {showForm && (
-        <div className="p-6 bg-white rounded shadow border border-gray-200">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">
-            {editingPatientId ? 'Editar paciente' : 'Nuevo paciente'}
-          </h3>
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Tipo de documento
-                </label>
-                <select
-                  name="documentType"
-                  value={form.documentType}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                >
-                  <option value="DNI">DNI</option>
-                  <option value="CE">Carnet de extranjería</option>
-                  <option value="PASAPORTE">Pasaporte</option>
-                  <option value="SIN_DOCUMENTO">Sin documento</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Número de documento
-                </label>
-                <input
-                  name="documentNumber"
-                  value={form.documentNumber}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  placeholder="Ej. 12345678"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Sexo
-                </label>
-                <select
-                  name="sex"
-                  value={form.sex}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                >
-                  <option value="">Seleccione</option>
-                  <option value="Masculino">Masculino</option>
-                  <option value="Femenino">Femenino</option>
-                </select>
-              </div>
+        <form
+          onSubmit={handleSubmit}
+          className="p-6 bg-white rounded shadow border border-gray-200 space-y-5"
+        >
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">
+                {editingPatientId ? 'Editar paciente' : 'Registrar nuevo paciente'}
+              </h3>
+              <p className="text-sm text-gray-500">
+                Complete los datos administrativos y clínicos relevantes.
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Apellido paterno
-                </label>
-                <input
-                  name="paternalLastName"
-                  value={form.paternalLastName}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  placeholder="Apellido paterno"
-                />
-              </div>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
+            >
+              Cancelar
+            </button>
+          </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Apellido materno
-                </label>
-                <input
-                  name="maternalLastName"
-                  value={form.maternalLastName}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  placeholder="Apellido materno"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Nombres
-                </label>
-                <input
-                  name="firstName"
-                  value={form.firstName}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  placeholder="Nombres"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Fecha de nacimiento
-                </label>
-                <input
-                  type="date"
-                  name="birthDate"
-                  value={form.birthDate}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Edad
-                </label>
-                <input
-                  value={calculateAge(form.birthDate)}
-                  readOnly
-                  className="w-full border border-gray-200 bg-gray-100 rounded px-3 py-2"
-                  placeholder="Automático"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Celular
-                </label>
-                <input
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  placeholder="Celular"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Dirección
-                </label>
-                <input
-                  name="address"
-                  value={form.address}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  placeholder="Dirección"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Alergias
-                </label>
-                <textarea
-                  name="allergies"
-                  value={form.allergies}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  rows={2}
-                  placeholder="Ej. Penicilina, AINES, niega alergias..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Antecedentes / enfermedades crónicas
-                </label>
-                <textarea
-                  name="chronicDiseases"
-                  value={form.chronicDiseases}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  rows={2}
-                  placeholder="Ej. HTA, DM2, asma, ERC..."
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Medicación habitual
-                </label>
-                <textarea
-                  name="usualMedication"
-                  value={form.usualMedication}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  rows={2}
-                  placeholder="Medicamentos que usa habitualmente"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Observaciones
-                </label>
-                <textarea
-                  name="observations"
-                  value={form.observations}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded px-3 py-2"
-                  rows={2}
-                  placeholder="Observaciones importantes"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800 disabled:opacity-60"
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Tipo documento
+              </label>
+              <select
+                name="documentType"
+                value={form.documentType}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
               >
-                {saving
-                  ? 'Guardando...'
-                  : editingPatientId
-                    ? 'Guardar cambios'
-                    : 'Registrar paciente'}
-              </button>
-
-              <button
-                type="button"
-                onClick={resetForm}
-                className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
-              >
-                Volver al módulo Pacientes
-              </button>
+                <option value="DNI">DNI</option>
+                <option value="CE">Carné de extranjería</option>
+                <option value="PASAPORTE">Pasaporte</option>
+                <option value="SIN_DOCUMENTO">Sin documento</option>
+              </select>
             </div>
-          </form>
-        </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Número documento
+              </label>
+              <input
+                type="text"
+                name="documentNumber"
+                value={form.documentNumber}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="Ejemplo: 12345678"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Fecha nacimiento
+              </label>
+              <input
+                type="date"
+                name="birthDate"
+                value={form.birthDate}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Edad
+              </label>
+              <input
+                type="text"
+                value={calculateAge(form.birthDate)}
+                readOnly
+                className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Apellido paterno
+              </label>
+              <input
+                type="text"
+                name="paternalLastName"
+                value={form.paternalLastName}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Apellido materno
+              </label>
+              <input
+                type="text"
+                name="maternalLastName"
+                value={form.maternalLastName}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Nombres
+              </label>
+              <input
+                type="text"
+                name="firstName"
+                value={form.firstName}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Género
+              </label>
+              <select
+                name="sex"
+                value={form.sex}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">Seleccione</option>
+                <option value="Masculino">Masculino</option>
+                <option value="Femenino">Femenino</option>
+                <option value="No especificado">No especificado</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Celular
+              </label>
+              <input
+                type="text"
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="999888777"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Correo
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="correo@ejemplo.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Dirección
+              </label>
+              <input
+                type="text"
+                name="address"
+                value={form.address}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Alergias
+              </label>
+              <textarea
+                name="allergies"
+                value={form.allergies}
+                onChange={handleChange}
+                rows={3}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="Ejemplo: penicilina, AINES, alimentos, etc."
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Antecedentes / enfermedades crónicas
+              </label>
+              <textarea
+                name="chronicDiseases"
+                value={form.chronicDiseases}
+                onChange={handleChange}
+                rows={3}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="Ejemplo: HTA, DM2, asma, ERC, cardiopatía, etc."
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Medicación habitual
+              </label>
+              <textarea
+                name="usualMedication"
+                value={form.usualMedication}
+                onChange={handleChange}
+                rows={3}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="Ejemplo: losartán 50 mg cada 24 h"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Observaciones
+              </label>
+              <textarea
+                name="observations"
+                value={form.observations}
+                onChange={handleChange}
+                rows={3}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+                placeholder="Observaciones administrativas o clínicas relevantes"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-3 md:justify-end pt-4 border-t">
+            <button
+              type="button"
+              onClick={resetForm}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800 disabled:opacity-60"
+            >
+              {saving
+                ? 'Guardando...'
+                : editingPatientId
+                  ? 'Guardar cambios'
+                  : 'Registrar paciente'}
+            </button>
+          </div>
+        </form>
       )}
 
       <div className="p-6 bg-white rounded shadow border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-800">
-            Pacientes registrados
-          </h3>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">Lista de pacientes</h3>
+            <p className="text-sm text-gray-500">
+              Total: {patients.length} paciente(s)
+            </p>
+          </div>
 
           <button
             type="button"
             onClick={loadPatients}
-            className="px-3 py-2 rounded bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200"
+            disabled={loading}
+            className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 disabled:opacity-60"
           >
-            Actualizar
+            {loading ? 'Actualizando...' : 'Actualizar'}
           </button>
         </div>
 
         {loading ? (
-          <p className="text-gray-500">Cargando pacientes...</p>
+          <div className="text-gray-500 text-sm">Cargando pacientes...</div>
         ) : filteredPatients.length === 0 ? (
-          <p className="text-gray-500">No hay pacientes para mostrar.</p>
+          <div className="text-gray-500 text-sm">
+            No se encontraron pacientes.
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border border-gray-200 text-sm">
+            <table className="w-full border border-gray-200 text-sm">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border px-3 py-2 text-left">Documento</th>
                   <th className="border px-3 py-2 text-left">Paciente</th>
                   <th className="border px-3 py-2 text-left">Edad</th>
-                  <th className="border px-3 py-2 text-left">Sexo</th>
+                  <th className="border px-3 py-2 text-left">Género</th>
                   <th className="border px-3 py-2 text-left">Celular</th>
                   <th className="border px-3 py-2 text-left">Acciones</th>
                 </tr>
@@ -807,6 +915,7 @@ export default function Patients() {
                 {filteredPatients.map((patient) => (
                   <tr key={patient.id} className="hover:bg-gray-50">
                     <td className="border px-3 py-2">
+                      {patient.documentType || 'DNI'}{' '}
                       {patient.documentNumber || '—'}
                     </td>
 
@@ -842,6 +951,17 @@ export default function Patients() {
                           className="px-3 py-1 rounded bg-blue-700 text-white text-xs font-semibold hover:bg-blue-800"
                         >
                           Editar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectPatient(patient);
+                            navigate('/new-encounter');
+                          }}
+                          className="px-3 py-1 rounded bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800"
+                        >
+                          Nueva atención
                         </button>
                       </div>
                     </td>

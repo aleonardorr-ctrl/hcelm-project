@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
 import { generateReferralPdf } from '../utils/referralPdf';
@@ -41,6 +41,10 @@ const CIE10_CODES = [
 ];
 
 export default function Anamnesis() {
+  const [searchParams] = useSearchParams();
+
+  const encounterIdFromUrl = searchParams.get('encounterId');
+  const sectionFromUrl = searchParams.get('section');
   const navigate = useNavigate();
 
   const [patients, setPatients] = useState<any[]>([]);

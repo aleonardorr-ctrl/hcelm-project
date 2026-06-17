@@ -20,8 +20,12 @@ export class PatientsService {
           documentType: data.documentType,
           documentNumber: data.documentNumber,
           fullName: data.fullName,
-          birthDate: new Date(data.birthDate),
-        },
+          birthDate: data.birthDate ? new Date(data.birthDate) : null,
+
+          gender: data.gender || null,
+          phone: data.phone || null,
+          address: data.address || null,
+    },
       });
     } catch (error) {
       if (
@@ -69,6 +73,10 @@ export class PatientsService {
           birthDate: data.birthDate
             ? new Date(data.birthDate)
             : existingPatient.birthDate,
+
+          gender: data.gender ?? existingPatient.gender,
+          phone: data.phone ?? existingPatient.phone,
+          address: data.address ?? existingPatient.address,
         },
       });
     } catch (error) {

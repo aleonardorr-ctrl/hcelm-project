@@ -11,6 +11,7 @@ type Patient = {
   paternalLastName?: string | null;
   maternalLastName?: string | null;
   sex?: string | null;
+  gender?: string | null;
   birthDate?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -287,6 +288,10 @@ export default function Patients() {
         documentNumber: form.documentNumber.trim(),
         fullName,
         birthDate: form.birthDate,
+
+        gender: form.sex || null,
+        phone: form.phone.trim() || null,
+        address: form.address.trim() || null,
       };
 
       const url = editingPatientId
@@ -360,7 +365,7 @@ export default function Patients() {
       firstName: patient.firstName || fullNameParts.slice(2).join(' ') || '',
       paternalLastName: patient.paternalLastName || fullNameParts[0] || '',
       maternalLastName: patient.maternalLastName || fullNameParts[1] || '',
-      sex: patient.sex || '',
+      sex: patient.gender || patient.sex || '',
       birthDate: normalizeDateForInput(patient.birthDate),
       phone: patient.phone || '',
       address: patient.address || '',
@@ -391,7 +396,8 @@ export default function Patients() {
         firstName: patient.firstName,
         paternalLastName: patient.paternalLastName,
         maternalLastName: patient.maternalLastName,
-        sex: patient.sex,
+        sex: patient.gender || patient.sex,
+        gender: patient.gender,     
         birthDate: patient.birthDate,
         age: calculateAge(patient.birthDate),
         phone: patient.phone,
@@ -442,7 +448,9 @@ export default function Patients() {
               {selectedPatient.birthDate
                 ? ` | ${calculateAge(selectedPatient.birthDate)}`
                 : ''}
-              {selectedPatient.sex ? ` | ${selectedPatient.sex}` : ''}
+              {selectedPatient.gender || selectedPatient.sex
+                ? ` | ${selectedPatient.gender || selectedPatient.sex}`
+                : ''}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -807,7 +815,7 @@ export default function Patients() {
                     </td>
 
                     <td className="border px-3 py-2">
-                      {patient.sex || '—'}
+                      {patient.gender || patient.sex || '—'}
                     </td>
 
                     <td className="border px-3 py-2">

@@ -48,4 +48,28 @@ export class UpdatePatientDto {
     { message: 'La fecha de nacimiento debe tener el formato AAAA-MM-DD' },
   )
   birthDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Género del paciente',
+    example: 'Masculino',
+  })
+  @IsOptional()
+  @IsString({ message: 'El género debe ser texto' })
+  gender?: string;
+
+  @ApiPropertyOptional({
+    description: 'Celular del paciente',
+    example: '999888777',
+  })
+  @IsOptional()
+  @IsString({ message: 'El celular debe ser texto' })
+  phone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Dirección del paciente',
+    example: 'Av. Ejemplo 123',
+  })
+  @IsOptional()
+  @IsString({ message: 'La dirección debe ser texto' })
+  address?: string;
 }

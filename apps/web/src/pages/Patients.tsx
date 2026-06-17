@@ -292,6 +292,10 @@ export default function Patients() {
         gender: form.sex || null,
         phone: form.phone.trim() || null,
         address: form.address.trim() || null,
+        allergies: form.allergies.trim() || null,
+        chronicDiseases: form.chronicDiseases.trim() || null,
+        usualMedication: form.usualMedication.trim() || null,
+        observations: form.observations.trim() || null,
       };
 
       const url = editingPatientId

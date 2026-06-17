@@ -53,6 +53,12 @@ model Patient {
   phone          String?
   email          String?
   address        String?
+
+  allergies       String?
+  chronicDiseases String?
+  usualMedication String?
+  observations    String?
+
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   anamnesis      Anamnesis[]
@@ -60,6 +66,10 @@ model Patient {
   encounters     Encounter[]
   tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   prescriptions  Prescription[]
+
+  @@index([tenantId])
+  @@index([documentNumber])
+  @@index([fullName])
 }
 
 model Encounter {

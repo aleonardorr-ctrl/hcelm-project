@@ -73,4 +73,36 @@ export class CreatePatientDto {
   @IsOptional()
   @IsString({ message: 'La dirección debe ser texto' })
   address?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alergias del paciente',
+    example: 'Penicilina, AINES',
+  })
+  @IsOptional()
+  @IsString({ message: 'Las alergias deben ser texto' })
+  allergies?: string;
+
+  @ApiPropertyOptional({
+    description: 'Antecedentes o enfermedades crónicas',
+    example: 'Hipertensión arterial, diabetes mellitus tipo 2',
+  })
+  @IsOptional()
+  @IsString({ message: 'Los antecedentes deben ser texto' })
+  chronicDiseases?: string;
+
+  @ApiPropertyOptional({
+    description: 'Medicación habitual',
+    example: 'Losartán 50 mg cada 24 horas',
+  })
+  @IsOptional()
+  @IsString({ message: 'La medicación habitual debe ser texto' })
+  usualMedication?: string;
+
+  @ApiPropertyOptional({
+    description: 'Observaciones importantes del paciente',
+    example: 'Paciente anticoagulado. Riesgo de caída.',
+  })
+  @IsOptional()
+  @IsString({ message: 'Las observaciones deben ser texto' })
+  observations?: string;
 }

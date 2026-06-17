@@ -6,13 +6,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 
 @Injectable()
 export class PatientsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(tenantId: string, data: any) {
+  async create(tenantId: string, data: CreatePatientDto) {
     try {
       return await this.prisma.patient.create({
         data: {
@@ -25,7 +26,11 @@ export class PatientsService {
           gender: data.gender || null,
           phone: data.phone || null,
           address: data.address || null,
-    },
+          allergies: data.allergies || null,
+          chronicDiseases: data.chronicDiseases || null,
+          usualMedication: data.usualMedication || null,
+          observations: data.observations || null,
+        },
       });
     } catch (error) {
       if (
@@ -77,6 +82,12 @@ export class PatientsService {
           gender: data.gender ?? existingPatient.gender,
           phone: data.phone ?? existingPatient.phone,
           address: data.address ?? existingPatient.address,
+          allergies: data.allergies ?? existingPatient.allergies,
+          chronicDiseases:
+            data.chronicDiseases ?? existingPatient.chronicDiseases,
+          usualMedication:
+            data.usualMedication ?? existingPatient.usualMedication,
+          observations: data.observations ?? existingPatient.observations,
         },
       });
     } catch (error) {

@@ -24,6 +24,10 @@ type Patient = {
   usualMedication?: string | null;
   observations?: string | null;
   isActive?: boolean;
+  encountersCount?: number | null;
+  lastEncounterDate?: string | null;
+  lastEncounterStatus?: string | null;
+  lastDiagnosis?: string | null;
 };
 
 type PatientFormState = {
@@ -99,6 +103,43 @@ function normalizeDateForInput(date?: string | null): string {
   return date.slice(0, 10);
 }
 
+function formatDateTime(date?: string | null): string {
+  if (!date) return '—';
+
+  const parsedDate = new Date(date);
+
+  if (Number.isNaN(parsedDate.getTime())) return '—';
+
+  return parsedDate.toLocaleString('es-PE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatEncounterStatus(status?: string | null): string {
+  if (!status) return 'Sin atención';
+
+  const normalizedStatus = status.toLowerCase();
+
+  const statusMap: Record<string, string> = {
+    open: 'En atención',
+    opened: 'En atención',
+    active: 'En atención',
+    in_progress: 'En atención',
+    pending: 'Pendiente',
+    completed: 'Finalizada',
+    closed: 'Finalizada',
+    finished: 'Finalizada',
+    cancelled: 'Cancelada',
+    canceled: 'Cancelada',
+  };
+
+  return statusMap[normalizedStatus] || status;
+}
+
 function buildFullNameFromForm(form: PatientFormState): string {
   return [
     form.paternalLastName.trim(),
@@ -164,13 +205,17 @@ export default function Patients() {
       const phone = patient.phone?.toLowerCase() || '';
       const email = patient.email?.toLowerCase() || '';
       const documentType = patient.documentType?.toLowerCase() || '';
+      const lastDiagnosis = patient.lastDiagnosis?.toLowerCase() || '';
+      const lastEncounterStatus = patient.lastEncounterStatus?.toLowerCase() || '';
 
       return (
         fullName.includes(term) ||
         documentNumber.includes(term) ||
         phone.includes(term) ||
         email.includes(term) ||
-        documentType.includes(term)
+        documentType.includes(term) ||
+        lastDiagnosis.includes(term) ||
+        lastEncounterStatus.includes(term)
       );
     });
   }, [patients, search]);
@@ -453,6 +498,10 @@ export default function Patients() {
         chronicDiseases: patient.chronicDiseases,
         usualMedication: patient.usualMedication,
         observations: patient.observations,
+        encountersCount: patient.encountersCount,
+        lastEncounterDate: patient.lastEncounterDate,
+        lastEncounterStatus: patient.lastEncounterStatus,
+        lastDiagnosis: patient.lastDiagnosis,
       }),
     );
   }
@@ -907,6 +956,10 @@ export default function Patients() {
                   <th className="border px-3 py-2 text-left">Edad</th>
                   <th className="border px-3 py-2 text-left">Género</th>
                   <th className="border px-3 py-2 text-left">Celular</th>
+                  <th className="border px-3 py-2 text-left">Última atención</th>
+                  <th className="border px-3 py-2 text-left">N° atenciones</th>
+                  <th className="border px-3 py-2 text-left">Último diagnóstico</th>
+                  <th className="border px-3 py-2 text-left">Estado</th>
                   <th className="border px-3 py-2 text-left">Acciones</th>
                 </tr>
               </thead>
@@ -933,6 +986,32 @@ export default function Patients() {
 
                     <td className="border px-3 py-2">
                       {patient.phone || '—'}
+                    </td>
+
+                    <td className="border px-3 py-2">
+                      {formatDateTime(patient.lastEncounterDate)}
+                    </td>
+
+                    <td className="border px-3 py-2 text-center">
+                      {patient.encountersCount ?? 0}
+                    </td>
+
+                    <td className="border px-3 py-2 max-w-xs">
+                      <span className="line-clamp-2">
+                        {patient.lastDiagnosis || '—'}
+                      </span>
+                    </td>
+
+                    <td className="border px-3 py-2">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                          patient.lastEncounterStatus
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {formatEncounterStatus(patient.lastEncounterStatus)}
+                      </span>
                     </td>
 
                     <td className="border px-3 py-2">
@@ -968,8 +1047,7 @@ export default function Patients() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </table>          </div>
         )}
       </div>
     </div>

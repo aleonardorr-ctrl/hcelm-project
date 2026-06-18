@@ -7,18 +7,39 @@ export class AnamnesisService {
 
   async create(tenantId: string, data: any) {
     try {
-      // ✅ Validar fecha
       const fechaAtencion = new Date(data.fechaAtencion);
+
       if (isNaN(fechaAtencion.getTime())) {
-        throw new HttpException('Fecha de atención inválida', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'Fecha de atención inválida',
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
-      // ✅ Guardar en BD (ahora `prisma.anamnesis` existe gracias al generate)
+      if (data.encounterId) {
+        const encounter = await this.prisma.encounter.findFirst({
+          where: {
+            id: data.encounterId,
+            tenantId,
+            patientId: data.patientId,
+          },
+        });
+
+        if (!encounter) {
+          throw new HttpException(
+            'La atención seleccionada no existe o no pertenece al paciente.',
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+
       const created = await this.prisma.anamnesis.create({
         data: {
           tenantId,
           patientId: data.patientId,
-          fechaAtencion: fechaAtencion,
+          encounterId: data.encounterId || null,
+
+          fechaAtencion,
           motivoConsulta: data.motivoConsulta,
           tiempoEnfermedad: data.tiempoEnfermedad || null,
           anamnesisActual: data.anamnesisActual || null,
@@ -37,21 +58,33 @@ export class AnamnesisService {
       });
 
       console.log('✅ Anamnesis guardada con ID:', created.id);
+      console.log('🔗 Encounter vinculado:', created.encounterId || 'Sin encounterId');
+
       return created;
     } catch (error: any) {
       console.error('❌ Error en Prisma (Anamnesis.create):', error);
-      
-      // Manejo específico de errores de Prisma
-      if (error.code === 'P2002') {
-        throw new HttpException('Ya existe una atención con estos datos únicos', HttpStatus.CONFLICT);
+
+      if (error instanceof HttpException) {
+        throw error;
       }
+
+      if (error.code === 'P2002') {
+        throw new HttpException(
+          'Ya existe una atención con estos datos únicos',
+          HttpStatus.CONFLICT,
+        );
+      }
+
       if (error.code === 'P2003') {
-        throw new HttpException('El paciente seleccionado no existe en la base de datos', HttpStatus.BAD_REQUEST);
+        throw new HttpException(
+          'El paciente o la atención seleccionada no existe en la base de datos',
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       throw new HttpException(
         `Error al guardar: ${error.message || 'Fallo inesperado'}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }

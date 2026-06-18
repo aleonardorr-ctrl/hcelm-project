@@ -169,22 +169,33 @@ export default function Anamnesis() {
       const patientList = Array.isArray(data) ? data : [];
       setPatients(patientList);
 
-      if (selectedPatient?.id) {
+if (selectedPatient?.id) {
   setFormData((prev) => ({
     ...prev,
     patientId: selectedPatient.id,
+    encounterId:
+      encounterIdFromUrl ||
+      selectedEncounter?.id ||
+      prev.encounterId,
     motivoConsulta: selectedEncounter?.reason || prev.motivoConsulta,
     signosVitales: selectedEncounter?.vitalSigns
       ? {
           ...prev.signosVitales,
           ta:
-            selectedEncounter.vitalSigns.systolicBP && selectedEncounter.vitalSigns.diastolicBP
+            selectedEncounter.vitalSigns.systolicBP &&
+            selectedEncounter.vitalSigns.diastolicBP
               ? `${selectedEncounter.vitalSigns.systolicBP}/${selectedEncounter.vitalSigns.diastolicBP}`
               : prev.signosVitales.ta,
           fc: selectedEncounter.vitalSigns.heartRate || prev.signosVitales.fc,
-          fr: selectedEncounter.vitalSigns.respiratoryRate || prev.signosVitales.fr,
-          temp: selectedEncounter.vitalSigns.temperature || prev.signosVitales.temp,
-          spo2: selectedEncounter.vitalSigns.oxygenSat || prev.signosVitales.spo2,
+          fr:
+            selectedEncounter.vitalSigns.respiratoryRate ||
+            prev.signosVitales.fr,
+          temp:
+            selectedEncounter.vitalSigns.temperature ||
+            prev.signosVitales.temp,
+          spo2:
+            selectedEncounter.vitalSigns.oxygenSat ||
+            prev.signosVitales.spo2,
         }
       : prev.signosVitales,
   }));
@@ -199,6 +210,23 @@ export default function Anamnesis() {
     .then((data) => setInstitution(data))
     .catch(() => setInstitution(null));
   }, [encounterIdFromUrl]);
+
+  useEffect(() => {
+    if (sectionFromUrl !== 'diagnosticos') return;
+
+    const timeout = window.setTimeout(() => {
+      const diagnosticsSection = document.getElementById('diagnosticos-section');
+
+      if (diagnosticsSection) {
+        diagnosticsSection.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [sectionFromUrl]);
 
   const updatePrescriptionText = (items: any[]) => {
     setFormData((prev) => ({
@@ -452,7 +480,12 @@ const handleChangePatient = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...formData, destinationDetails, recipeItems }),
+        body: JSON.stringify({
+          ...formData,
+          encounterId: formData.encounterId || encounterIdFromUrl || null,
+          destinationDetails,
+          recipeItems,
+        }),
       });
 
       if (res.ok) {
@@ -648,7 +681,7 @@ return (
           />
         </div>
 
-        <div className="border rounded-lg p-4 bg-yellow-50">
+        <div id="diagnosticos-section" className="border rounded-lg p-4 bg-yellow-50">
           <div className="flex justify-between items-start gap-4 mb-3">
             <div>
               <h2 className="text-lg font-bold text-slate-700">Diagnósticos CIE-10</h2>

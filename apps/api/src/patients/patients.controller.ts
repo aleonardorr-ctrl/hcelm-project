@@ -48,9 +48,30 @@ export class PatientsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Listar pacientes de la clínica (Multi-tenant)' })
+  @ApiOperation({
+    summary: 'Listar pacientes de la clínica con resumen clínico',
+  })
   findAll(@CurrentUser() user: any) {
     return this.patientsService.findAll(user.tenantId);
+  }
+
+  @Get(':id/encounters')
+  @ApiOperation({
+    summary: 'Listar todas las atenciones registradas de un paciente',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Historial de atenciones del paciente',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Paciente no encontrado',
+  })
+  findPatientEncounters(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+  ) {
+    return this.patientsService.findPatientEncounters(user.tenantId, id);
   }
 
   @Patch(':id')

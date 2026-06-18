@@ -1,7 +1,8 @@
 // HCELM - pages/Patients.tsx
-// Módulo de pacientes: registro, búsqueda, edición, selección y acceso a nueva atención.
+// Módulo de pacientes: registro, búsqueda, edición, selección, nueva atención e historial de atenciones.
 
 import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 type Patient = {
@@ -28,6 +29,43 @@ type Patient = {
   lastEncounterDate?: string | null;
   lastEncounterStatus?: string | null;
   lastDiagnosis?: string | null;
+};
+
+type VitalSigns = {
+  systolicBP?: number | string | null;
+  diastolicBP?: number | string | null;
+  heartRate?: number | string | null;
+  respiratoryRate?: number | string | null;
+  temperature?: number | string | null;
+  oxygenSat?: number | string | null;
+  weightKg?: number | string | null;
+  heightCm?: number | string | null;
+  bmi?: number | string | null;
+  capillaryGlucose?: number | string | null;
+  painScale?: number | string | null;
+  consciousness?: string | null;
+  glasgowEye?: number | string | null;
+  glasgowVerbal?: number | string | null;
+  glasgowMotor?: number | string | null;
+  glasgowTotal?: number | string | null;
+  oxygenSupport?: string | null;
+  fio2?: number | string | null;
+  nursingNotes?: string | null;
+};
+
+type PatientEncounter = {
+  id: string;
+  patientId: string;
+  type?: string | null;
+  reason?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  vitalSigns?: VitalSigns | null;
+  anamnesisId?: string | null;
+  diagnosticoPrincipal?: any;
+  diagnosticosSecundarios?: any[];
+  motivoConsulta?: string | null;
 };
 
 type PatientFormState = {
@@ -140,6 +178,42 @@ function formatEncounterStatus(status?: string | null): string {
   return statusMap[normalizedStatus] || status;
 }
 
+function formatEncounterType(type?: string | null): string {
+  if (!type) return 'Atención';
+
+  const typeMap: Record<string, string> = {
+    outpatient: 'Consulta externa',
+    emergency: 'Emergencia',
+    procedure: 'Procedimiento',
+    triage: 'Triaje',
+    control: 'Control',
+    consultation: 'Consulta',
+  };
+
+  return typeMap[type.toLowerCase()] || type;
+}
+
+function formatDiagnosis(diagnosis: any): string {
+  if (!diagnosis) return 'Sin diagnóstico registrado';
+
+  if (typeof diagnosis === 'string') {
+    return diagnosis.trim() || 'Sin diagnóstico registrado';
+  }
+
+  if (typeof diagnosis === 'object') {
+    const codigo = diagnosis.codigo || diagnosis.code || '';
+    const descripcion =
+      diagnosis.descripcion || diagnosis.description || diagnosis.desc || '';
+    const tipo = diagnosis.tipo || diagnosis.type || '';
+
+    const base = [codigo, descripcion].filter(Boolean).join(' - ');
+    return [base, tipo ? `(${tipo})` : ''].filter(Boolean).join(' ') ||
+      'Sin diagnóstico registrado';
+  }
+
+  return 'Sin diagnóstico registrado';
+}
+
 function buildFullNameFromForm(form: PatientFormState): string {
   return [
     form.paternalLastName.trim(),
@@ -164,7 +238,17 @@ function getFullName(patient: Patient): string {
 }
 
 function splitFullName(fullName?: string | null) {
-  const parts = (fullName || '').trim().split(/\s+/).filter(Boolean);
+  const cleanedName = (fullName || '').trim();
+
+  if (!cleanedName) {
+    return {
+      paternalLastName: '',
+      maternalLastName: '',
+      firstName: '',
+    };
+  }
+
+  const parts = cleanedName.split(/\s+/);
 
   return {
     paternalLastName: parts[0] || '',
@@ -173,26 +257,69 @@ function splitFullName(fullName?: string | null) {
   };
 }
 
-export default function Patients() {
-  console.log('👥 Patients.tsx cargado');
+function buildSelectedPatientForStorage(patient: Patient) {
+  const patientFullName = getFullName(patient);
 
+  return {
+    id: patient.id,
+    name: patient.name,
+    fullName: patientFullName,
+    documentType: patient.documentType,
+    documentNumber: patient.documentNumber,
+    firstName: patient.firstName,
+    paternalLastName: patient.paternalLastName,
+    maternalLastName: patient.maternalLastName,
+    gender: patient.gender || patient.sex,
+    sex: patient.gender || patient.sex,
+    birthDate: patient.birthDate,
+    age: calculateAge(patient.birthDate),
+    phone: patient.phone,
+    email: patient.email,
+    address: patient.address,
+    allergies: patient.allergies,
+    chronicDiseases: patient.chronicDiseases,
+    usualMedication: patient.usualMedication,
+    observations: patient.observations,
+  };
+}
+
+function formatVitalSigns(vitalSigns?: VitalSigns | null): string {
+  if (!vitalSigns) return 'Sin funciones vitales registradas';
+
+  const ta =
+    vitalSigns.systolicBP && vitalSigns.diastolicBP
+      ? `PA ${vitalSigns.systolicBP}/${vitalSigns.diastolicBP}`
+      : '';
+  const fc = vitalSigns.heartRate ? `FC ${vitalSigns.heartRate}` : '';
+  const fr = vitalSigns.respiratoryRate ? `FR ${vitalSigns.respiratoryRate}` : '';
+  const temp = vitalSigns.temperature ? `T° ${vitalSigns.temperature}` : '';
+  const spo2 = vitalSigns.oxygenSat ? `SpO₂ ${vitalSigns.oxygenSat}%` : '';
+  const glasgow = vitalSigns.glasgowTotal ? `Glasgow ${vitalSigns.glasgowTotal}` : '';
+
+  return [ta, fc, fr, temp, spo2, glasgow].filter(Boolean).join(' | ') ||
+    'Sin funciones vitales registradas';
+}
+
+export default function Patients() {
   const navigate = useNavigate();
+  const token = getAuthToken();
 
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<PatientFormState>(emptyForm);
-
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const token = getAuthToken();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
+  const [historyEncounters, setHistoryEncounters] = useState<PatientEncounter[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const filteredPatients = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -206,7 +333,7 @@ export default function Patients() {
       const email = patient.email?.toLowerCase() || '';
       const documentType = patient.documentType?.toLowerCase() || '';
       const lastDiagnosis = patient.lastDiagnosis?.toLowerCase() || '';
-      const lastEncounterStatus = patient.lastEncounterStatus?.toLowerCase() || '';
+      const lastStatus = formatEncounterStatus(patient.lastEncounterStatus).toLowerCase();
 
       return (
         fullName.includes(term) ||
@@ -215,7 +342,7 @@ export default function Patients() {
         email.includes(term) ||
         documentType.includes(term) ||
         lastDiagnosis.includes(term) ||
-        lastEncounterStatus.includes(term)
+        lastStatus.includes(term)
       );
     });
   }, [patients, search]);
@@ -274,9 +401,7 @@ export default function Patients() {
   }, []);
 
   function handleChange(
-    event: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-    >,
+    event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
   ) {
     const { name, value } = event.target;
 
@@ -317,7 +442,7 @@ export default function Patients() {
     return null;
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const validationError = validateForm();
@@ -387,43 +512,20 @@ export default function Patients() {
 
       const savedPatient = await response.json();
 
-    setSuccess(
-      editingPatientId
-        ? 'Paciente actualizado correctamente.'
-        : 'Paciente registrado correctamente.',
-    );
+      setSuccess(
+        editingPatientId
+          ? 'Paciente actualizado correctamente.'
+          : 'Paciente registrado correctamente.',
+      );
 
-    const savedPatientFullName = getFullName(savedPatient);
+      setSelectedPatient(savedPatient);
+      localStorage.setItem(
+        'selectedPatient',
+        JSON.stringify(buildSelectedPatientForStorage(savedPatient)),
+      );
 
-    setSelectedPatient(savedPatient);
-
-    localStorage.setItem(
-      'selectedPatient',
-      JSON.stringify({
-        id: savedPatient.id,
-        name: savedPatient.name,
-        fullName: savedPatientFullName,
-        documentType: savedPatient.documentType,
-        documentNumber: savedPatient.documentNumber,
-        firstName: savedPatient.firstName,
-        paternalLastName: savedPatient.paternalLastName,
-        maternalLastName: savedPatient.maternalLastName,
-        gender: savedPatient.gender || savedPatient.sex,
-        sex: savedPatient.gender || savedPatient.sex,
-        birthDate: savedPatient.birthDate,
-        age: calculateAge(savedPatient.birthDate),
-        phone: savedPatient.phone,
-        email: savedPatient.email,
-        address: savedPatient.address,
-        allergies: savedPatient.allergies,
-        chronicDiseases: savedPatient.chronicDiseases,
-        usualMedication: savedPatient.usualMedication,
-        observations: savedPatient.observations,
-      }),
-    );
-
-    resetForm();
-    await loadPatients();
+      resetForm();
+      await loadPatients();
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'Error al guardar paciente.');
@@ -478,32 +580,84 @@ export default function Patients() {
 
     localStorage.setItem(
       'selectedPatient',
+      JSON.stringify(buildSelectedPatientForStorage(patient)),
+    );
+  }
+
+  async function handleViewEncounters(patient: Patient) {
+    try {
+      handleSelectPatient(patient);
+      setHistoryPatient(patient);
+      setHistoryOpen(true);
+      setHistoryEncounters([]);
+      setHistoryLoading(true);
+      setError('');
+      setSuccess('');
+
+      if (!token) {
+        throw new Error(
+          'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+        );
+      }
+
+      const response = await fetch(`${API_URL}/patients/${patient.id}/encounters`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const backendError = await response.json().catch(() => null);
+
+        const message = Array.isArray(backendError?.message)
+          ? backendError.message.join(' | ')
+          : backendError?.message || backendError?.error;
+
+        throw new Error(
+          `Error ${response.status}: ${
+            message || 'No se pudo cargar el historial de atenciones.'
+          }`,
+        );
+      }
+
+      const data = await response.json();
+      setHistoryEncounters(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Error al cargar historial de atenciones.',
+      );
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function handleOpenEncounter(encounter: PatientEncounter) {
+    const patient = historyPatient || selectedPatient;
+
+    if (patient) {
+      localStorage.setItem(
+        'selectedPatient',
+        JSON.stringify(buildSelectedPatientForStorage(patient)),
+      );
+    }
+
+    localStorage.setItem(
+      'selectedEncounter',
       JSON.stringify({
-        id: patient.id,
-        name: patient.name,
-        fullName: patientFullName,
-        documentType: patient.documentType,
-        documentNumber: patient.documentNumber,
-        firstName: patient.firstName,
-        paternalLastName: patient.paternalLastName,
-        maternalLastName: patient.maternalLastName,
-        gender: patient.gender || patient.sex,
-        sex: patient.gender || patient.sex,
-        birthDate: patient.birthDate,
-        age: calculateAge(patient.birthDate),
-        phone: patient.phone,
-        email: patient.email,
-        address: patient.address,
-        allergies: patient.allergies,
-        chronicDiseases: patient.chronicDiseases,
-        usualMedication: patient.usualMedication,
-        observations: patient.observations,
-        encountersCount: patient.encountersCount,
-        lastEncounterDate: patient.lastEncounterDate,
-        lastEncounterStatus: patient.lastEncounterStatus,
-        lastDiagnosis: patient.lastDiagnosis,
+        id: encounter.id,
+        patientId: encounter.patientId,
+        type: encounter.type,
+        reason: encounter.reason || encounter.motivoConsulta,
+        status: encounter.status,
+        createdAt: encounter.createdAt,
+        vitalSigns: encounter.vitalSigns,
       }),
     );
+
+    navigate(`/anamnesis?encounterId=${encounter.id}&section=diagnosticos`);
   }
 
   function handleSearch() {
@@ -543,7 +697,7 @@ export default function Patients() {
               👥 Módulo de Pacientes
             </h2>
             <p className="text-sm text-gray-500 mt-1">
-              Registro, búsqueda, edición y selección de pacientes.
+              Registro, búsqueda, edición, selección e historial de atenciones.
             </p>
           </div>
 
@@ -594,12 +748,10 @@ export default function Patients() {
 
               <button
                 type="button"
-                onClick={() =>
-                  setError('Historial de paciente pendiente de implementación.')
-                }
+                onClick={() => handleViewEncounters(selectedPatient)}
                 className="px-3 py-2 rounded bg-gray-700 text-white text-sm font-semibold hover:bg-gray-800"
               >
-                Ver historial
+                Ver atenciones
               </button>
             </div>
           </div>
@@ -618,6 +770,114 @@ export default function Patients() {
         )}
       </div>
 
+      {historyOpen && (
+        <div className="p-6 bg-white rounded shadow border border-gray-200">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">
+                Historial de atenciones
+              </h3>
+              <p className="text-sm text-gray-500">
+                {historyPatient ? getFullName(historyPatient) : 'Paciente seleccionado'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryOpen(false);
+                setHistoryPatient(null);
+                setHistoryEncounters([]);
+              }}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
+            >
+              Cerrar historial
+            </button>
+          </div>
+
+          {historyLoading ? (
+            <div className="text-sm text-gray-500">Cargando atenciones...</div>
+          ) : historyEncounters.length === 0 ? (
+            <div className="border rounded p-4 bg-gray-50 text-sm text-gray-600">
+              Este paciente todavía no tiene atenciones registradas.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {historyEncounters.map((encounter, index) => (
+                <div
+                  key={encounter.id}
+                  className="border rounded-lg p-4 bg-slate-50"
+                >
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="font-bold text-slate-800">
+                        Atención #{historyEncounters.length - index} |{' '}
+                        {formatDateTime(encounter.createdAt)}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        Tipo: {formatEncounterType(encounter.type)} | Estado:{' '}
+                        {formatEncounterStatus(encounter.status)}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEncounter(encounter)}
+                      className="px-3 py-2 rounded bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800"
+                    >
+                      Abrir HCE
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="border rounded bg-white p-3">
+                      <p className="font-semibold text-gray-700">Motivo</p>
+                      <p className="text-gray-600">
+                        {encounter.motivoConsulta || encounter.reason || '—'}
+                      </p>
+                    </div>
+
+                    <div className="border rounded bg-white p-3">
+                      <p className="font-semibold text-gray-700">
+                        Diagnóstico principal
+                      </p>
+                      <p className="text-gray-600">
+                        {formatDiagnosis(encounter.diagnosticoPrincipal)}
+                      </p>
+                    </div>
+
+                    <div className="border rounded bg-white p-3 md:col-span-2">
+                      <p className="font-semibold text-gray-700">
+                        Funciones vitales
+                      </p>
+                      <p className="text-gray-600">
+                        {formatVitalSigns(encounter.vitalSigns)}
+                      </p>
+                    </div>
+
+                    {encounter.diagnosticosSecundarios &&
+                      encounter.diagnosticosSecundarios.length > 0 && (
+                        <div className="border rounded bg-white p-3 md:col-span-2">
+                          <p className="font-semibold text-gray-700">
+                            Diagnósticos secundarios
+                          </p>
+                          <ul className="list-disc pl-5 text-gray-600">
+                            {encounter.diagnosticosSecundarios.map((diag, diagIndex) => (
+                              <li key={`${encounter.id}-${diagIndex}`}>
+                                {formatDiagnosis(diag)}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="p-6 bg-white rounded shadow border border-gray-200">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
           Buscar paciente
@@ -634,7 +894,7 @@ export default function Patients() {
                 handleSearch();
               }
             }}
-            placeholder="Buscar por DNI, apellidos, nombres, celular o correo"
+            placeholder="Buscar por DNI, apellidos, nombres, celular, correo o diagnóstico"
             className="flex-1 border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
@@ -992,26 +1252,16 @@ export default function Patients() {
                       {formatDateTime(patient.lastEncounterDate)}
                     </td>
 
-                    <td className="border px-3 py-2 text-center">
+                    <td className="border px-3 py-2">
                       {patient.encountersCount ?? 0}
                     </td>
 
-                    <td className="border px-3 py-2 max-w-xs">
-                      <span className="line-clamp-2">
-                        {patient.lastDiagnosis || '—'}
-                      </span>
+                    <td className="border px-3 py-2">
+                      {patient.lastDiagnosis || '—'}
                     </td>
 
                     <td className="border px-3 py-2">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                          patient.lastEncounterStatus
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {formatEncounterStatus(patient.lastEncounterStatus)}
-                      </span>
+                      {formatEncounterStatus(patient.lastEncounterStatus)}
                     </td>
 
                     <td className="border px-3 py-2">
@@ -1042,12 +1292,21 @@ export default function Patients() {
                         >
                           Nueva atención
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleViewEncounters(patient)}
+                          className="px-3 py-1 rounded bg-gray-700 text-white text-xs font-semibold hover:bg-gray-800"
+                        >
+                          Ver atenciones
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>          </div>
+            </table>
+          </div>
         )}
       </div>
     </div>

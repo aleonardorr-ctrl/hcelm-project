@@ -1,6 +1,6 @@
 // HCELM - pages/Anamnesis.tsx
 // Módulo de anamnesis/HCE: diagnósticos, receta, órdenes, PDF y destino final.
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
@@ -42,12 +42,52 @@ const CIE10_CODES = [
   { code: 'F41.1', desc: 'Trastorno de ansiedad generalizada' },
 ];
 
+const CollapsibleSection = ({
+  id,
+  title,
+  subtitle,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) => {
+  return (
+    <section id={id} className="border rounded-lg bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-t-lg text-left"
+      >
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+          {subtitle && (
+            <p className="text-sm text-slate-600 mt-1">{subtitle}</p>
+          )}
+        </div>
+
+        <span className="text-xl font-bold text-slate-700">
+          {isOpen ? '−' : '+'}
+        </span>
+      </button>
+
+      {isOpen && <div className="p-4">{children}</div>}
+    </section>
+  );
+};
+
 export default function Anamnesis() {
   const [searchParams] = useSearchParams();
 
   const encounterIdFromUrl = searchParams.get('encounterId');
   const sectionFromUrl = searchParams.get('section');
   const navigate = useNavigate();
+  const didScrollToDiagnosticsRef = useRef(false);
 
   const [patients, setPatients] = useState<any[]>([]);
   const [institution, setInstitution] = useState<any>(null);
@@ -58,6 +98,23 @@ export default function Anamnesis() {
   const [medResults, setMedResults] = useState<any[]>([]);
   const [selectedMed, setSelectedMed] = useState<any | null>(null);
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
+
+  const [openSections, setOpenSections] = useState({
+  anamnesis: true,
+  examenFisico: true,
+  diagnosticos: true,
+  receta: false,
+  laboratorio: false,
+  imagenes: false,
+  destino: false,
+  });
+
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
 
   const [recipeForm, setRecipeForm] = useState({
     quantity: '',
@@ -213,6 +270,14 @@ if (selectedPatient?.id) {
 
   useEffect(() => {
     if (sectionFromUrl !== 'diagnosticos') return;
+
+    setOpenSections((prev) => ({
+      ...prev,
+      diagnosticos: true,
+    }));
+
+    if (didScrollToDiagnosticsRef.current) return;
+    didScrollToDiagnosticsRef.current = true;
 
     const timeout = window.setTimeout(() => {
       const diagnosticsSection = document.getElementById('diagnosticos-section');
@@ -531,8 +596,8 @@ const handleChangePatient = () => {
     await handleSaveChanges();
   };
 
-return (
-  <div className="...">
+  return (
+    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
       <h1 className="text-2xl font-bold text-slate-800">
         Anamnesis y Historia Clínica Electrónica
@@ -681,7 +746,14 @@ return (
           />
         </div>
 
-        <div id="diagnosticos-section" className="border rounded-lg p-4 bg-yellow-50">
+        <CollapsibleSection
+          id="diagnosticos-section"
+          title="Diagnósticos CIE-10"
+          subtitle="Busque o ingrese un diagnóstico y luego agréguelo como principal o secundario."
+          isOpen={openSections.diagnosticos}
+          onToggle={() => toggleSection('diagnosticos')}
+        >
+          <div className="border rounded-lg p-4 bg-yellow-50">
           <div className="flex justify-between items-start gap-4 mb-3">
             <div>
               <h2 className="text-lg font-bold text-slate-700">Diagnósticos CIE-10</h2>
@@ -835,6 +907,14 @@ return (
           </datalist>
         </div>
 
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Farmacia / Receta"
+          subtitle="Prescripción médica, indicaciones farmacológicas y generación de receta institucional."
+          isOpen={openSections.receta}
+          onToggle={() => toggleSection('receta')}
+        >
         <div className="border rounded-lg p-4 bg-emerald-50">
           <h2 className="text-lg font-bold text-slate-700 mb-3">Farmacia / Receta</h2>
 
@@ -987,6 +1067,14 @@ return (
           )}
         </div>
 
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Exámenes auxiliares / Laboratorio"
+          subtitle="Solicitud de análisis clínicos y generación de orden de laboratorio."
+          isOpen={openSections.laboratorio}
+          onToggle={() => toggleSection('laboratorio')}
+        >
         <div className="border rounded-lg p-4 bg-blue-50">
           <h2 className="text-lg font-bold text-blue-700 mb-3">Exámenes auxiliares</h2>
 
@@ -1117,6 +1205,14 @@ return (
           </div>
         </div>
 
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Imágenes y estudios auxiliares"
+          subtitle="Solicitud de ecografía, radiografía, tomografía u otros estudios."
+          isOpen={openSections.imagenes}
+          onToggle={() => toggleSection('imagenes')}
+        >
         <div className="mt-6 border rounded-lg p-4 bg-white">
           <h3 className="font-bold text-purple-700 mb-4">
             Orden de imágenes y estudios auxiliares
@@ -1200,7 +1296,7 @@ return (
 
           <button
             type="button"
-            className="mt-4 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700"
+            className="mt-4 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             onClick={() => {
               const patient = patients.find(
                 (p) => String(p.id) === String(formData.patientId),
@@ -1224,6 +1320,14 @@ return (
           </button>
         </div>
 
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Destino final del paciente"
+          subtitle="Alta, referencia, observación, fallecimiento y documentos clínicos asociados."
+          isOpen={openSections.destino}
+          onToggle={() => toggleSection('destino')}
+        >
         <div className="border rounded-lg p-4 bg-slate-50">
           <label className="block font-bold text-slate-700 mb-2">Destino final del paciente</label>
 
@@ -1593,48 +1697,47 @@ return (
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            const patient = patients.find((p) => p.id === formData.patientId);
+        </CollapsibleSection>
 
-            generateHcePdf({
-              institution,
-              patient,
-              formData,
-              destinationDetails,
-              recipeItems,
-            });
-          }}
-          className="bg-slate-700 text-white px-6 py-3 rounded-lg hover:bg-slate-800 font-medium"
-        >
-          Generar HCE PDF completa
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
-        >
-        
+        <div className="flex flex-col md:flex-row gap-3">
           <button
             type="button"
             onClick={handleSaveChanges}
             disabled={saving}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium"
+            className="md:w-1/3 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-60"
           >
             {saving ? 'Guardando...' : 'Guardar cambios'}
           </button>
 
           <button
             type="button"
+            onClick={() => {
+              const patient = patients.find((p) => p.id === formData.patientId);
+
+              generateHcePdf({
+                institution,
+                patient,
+                formData,
+                destinationDetails,
+                recipeItems,
+              });
+            }}
+            className="md:w-1/3 bg-slate-700 text-white px-6 py-3 rounded-lg hover:bg-slate-800 font-medium"
+          >
+            Generar HCE PDF completa
+          </button>
+
+          <button
+            type="button"
             onClick={handleFinishAttention}
             disabled={saving}
-            className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-medium"
+            className="md:w-1/3 bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 font-medium disabled:opacity-60"
           >
             {saving ? 'Guardando...' : 'Finalizar atención'}
           </button>
-                  </button>
-                </form>
+        </div>
+      </form>
+
               </div>
             );
           }

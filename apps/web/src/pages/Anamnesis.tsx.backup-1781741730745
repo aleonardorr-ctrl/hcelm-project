@@ -1,6 +1,5 @@
 // HCELM - pages/Anamnesis.tsx
-// Módulo de anamnesis/HCE: diagnósticos, receta, órdenes, PDF y destino final.
-import { useState, useEffect } from 'react';
+// Módulo de anamnesis/HCE: diagnósticos, receta, órdenes, PDF y destino final.import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { generateRecipePdf } from '../utils/recipePdf';
 import { generateVoluntaryDischargePdf } from '../utils/voluntaryDischargePdf';
@@ -119,7 +118,6 @@ export default function Anamnesis() {
 
   const [formData, setFormData] = useState({
     patientId: '',
-    encounterId: '',
     fechaAtencion: new Date().toISOString().split('T')[0],
     motivoConsulta: '',
     tiempoEnfermedad: '',
@@ -198,7 +196,7 @@ export default function Anamnesis() {
     .then((res) => res.json())
     .then((data) => setInstitution(data))
     .catch(() => setInstitution(null));
-  }, [encounterIdFromUrl]);
+  }, []);
 
   const updatePrescriptionText = (items: any[]) => {
     setFormData((prev) => ({

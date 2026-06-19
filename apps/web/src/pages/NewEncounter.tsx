@@ -393,7 +393,7 @@ export default function NewEncounter() {
       setSuccess('Atención y funciones vitales guardadas correctamente.');
 
       navigate(
-        `/anamnesis?encounterId=${savedEncounter.id}&section=diagnosticos`,
+        `/anamnesis?encounterId=${savedEncounter.id}`,
       );
     } catch (err) {
       console.error(err);

@@ -12,6 +12,7 @@ import { AnamnesisModule } from './anamnesis/anamnesis.module';
 import { InstitutionModule } from './institution/institution.module';
 import { EncountersModule } from './encounters/encounters.module';
 import { ClinicalAlertsModule } from './clinical-alerts/clinical-alerts.module';
+import { WaitingRoomModule } from './waiting-room/waiting-room.module';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -35,6 +36,7 @@ import { AppService } from './app.service';
     AnamnesisModule,
     InstitutionModule,
     ClinicalAlertsModule,
+    WaitingRoomModule,
   ],
 
   controllers: [AppController],

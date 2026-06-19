@@ -13,6 +13,7 @@ import LaboratorySelector from "../components/LaboratorySelector";
 import ImagingSelector from "../components/ImagingSelector";
 import { generateImagingOrderPdf } from "../utils/imagingOrderPdf";
 import ClinicalAlertsPanel from "../components/clinical-alerts/ClinicalAlertsPanel";
+import WaitingRoomPanel from "../components/WaitingRoomPanel";
 
 const API_URL = "http://localhost:3000/api";
 function getSelectedEncounter() {
@@ -430,7 +431,7 @@ export default function Anamnesis() {
           (m, i) =>
             `${i + 1}. ${m.medicationName} ${m.concentration} ${m.presentation} - Cantidad: ${m.quantity} - Vía: ${m.route} - Dosis: ${m.dose} - Frecuencia: ${m.frequency} - Duración: ${m.durationDays || ""} días. ${m.indications}`,
         )
-        .join("\n")
+        .join("\n"),
     }));
   };
 
@@ -855,6 +856,13 @@ export default function Anamnesis() {
                 ← Cambiar paciente
               </button>
             </div>
+          </div>
+
+          <div className="mb-4">
+            <WaitingRoomPanel
+              currentEncounterId={formData.encounterId || encounterIdFromUrl}
+              variant="compact"
+            />
           </div>
 
           <div className="mb-4 border rounded-lg p-4 bg-green-50 border-green-200">

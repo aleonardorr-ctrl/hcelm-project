@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import WaitingRoomPanel from '../components/WaitingRoomPanel';
 
 type Patient = {
   id: string;
@@ -668,7 +669,7 @@ export default function Patients() {
       }),
     );
 
-    navigate(`/anamnesis?encounterId=${encounter.id}&section=diagnosticos`);
+    navigate(`/anamnesis?encounterId=${encounter.id}`);
   }
 
   function handleSearch() {
@@ -805,6 +806,8 @@ export default function Patients() {
           </div>
         )}
       </div>
+
+      <WaitingRoomPanel variant="compact" title="Lista de espera / Triaje de hoy" />
 
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">

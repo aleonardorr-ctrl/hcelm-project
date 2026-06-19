@@ -99,6 +99,8 @@ export default function Anamnesis() {
   const [medResults, setMedResults] = useState<any[]>([]);
   const [selectedMed, setSelectedMed] = useState<any | null>(null);
   const [recipeItems, setRecipeItems] = useState<any[]>([]);
+  const [medSearchLoading, setMedSearchLoading] = useState(false);
+  const [showMedDropdown, setShowMedDropdown] = useState(false);
 
   const [openSections, setOpenSections] = useState({
     anamnesis: true,
@@ -370,6 +372,56 @@ export default function Anamnesis() {
     return () => window.clearTimeout(timeout);
   }, [sectionFromUrl]);
 
+  useEffect(() => {
+    const query = medSearch.trim();
+
+    if (query.length < 2) {
+      setMedResults([]);
+      setShowMedDropdown(false);
+      return;
+    }
+
+    const token = localStorage.getItem("ame_token");
+
+    if (!token) {
+      setMedResults([]);
+      setShowMedDropdown(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setMedSearchLoading(true);
+
+      fetch(`${API_URL}/medications/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error("No se pudo buscar medicamentos.");
+          }
+
+          return res.json();
+        })
+        .then((data) => {
+          const results = Array.isArray(data) ? data : [];
+          setMedResults(results);
+          setShowMedDropdown(results.length > 0);
+        })
+        .catch((error) => {
+          console.warn("Error buscando medicamentos:", error);
+          setMedResults([]);
+          setShowMedDropdown(false);
+        })
+        .finally(() => {
+          setMedSearchLoading(false);
+        });
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [medSearch]);
+
   const updatePrescriptionText = (items: any[]) => {
     setFormData((prev) => ({
       ...prev,
@@ -378,8 +430,53 @@ export default function Anamnesis() {
           (m, i) =>
             `${i + 1}. ${m.medicationName} ${m.concentration} ${m.presentation} - Cantidad: ${m.quantity} - Vía: ${m.route} - Dosis: ${m.dose} - Frecuencia: ${m.frequency} - Duración: ${m.durationDays || ""} días. ${m.indications}`,
         )
-        .join("\n"),
+        .join("\n")
     }));
+  };
+
+  const getMedicationDisplayName = (medication: any) => {
+    const genericName = medication.genericName || medication.generic || "";
+    const commercialName =
+      medication.commercialName || medication.brandName || medication.name || "";
+
+    if (genericName && commercialName && genericName !== commercialName) {
+      return `${genericName} (${commercialName})`;
+    }
+
+    return genericName || commercialName || "Medicamento sin nombre";
+  };
+
+  const getMedicationStockText = (medication: any) => {
+    const possibleStock =
+      medication.stock ??
+      medication.currentStock ??
+      medication.availableStock ??
+      medication.quantity ??
+      medication.unitsAvailable ??
+      null;
+
+    if (
+      possibleStock === null ||
+      possibleStock === undefined ||
+      possibleStock === ""
+    ) {
+      return "Stock no registrado";
+    }
+
+    return `Stock: ${possibleStock}`;
+  };
+
+  const selectMedicationFromDropdown = (medication: any) => {
+    setSelectedMed(medication);
+    setMedSearch(getMedicationDisplayName(medication));
+
+    setRecipeForm((prev) => ({
+      ...prev,
+      presentation: medication.presentation || prev.presentation || "",
+      route: medication.route || prev.route || "",
+    }));
+
+    setShowMedDropdown(false);
   };
 
   const searchMedication = async () => {
@@ -392,25 +489,36 @@ export default function Anamnesis() {
       return;
     }
 
-    const res = await fetch(
-      `${API_URL}/medications/search?q=${encodeURIComponent(medSearch)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
+    setMedSearchLoading(true);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/medications/search?q=${encodeURIComponent(medSearch)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      },
-    );
+      );
 
-    if (res.status === 401) {
-      alert("Sesión no autorizada. Ingrese nuevamente.");
-      return;
-    }
+      if (res.status === 401) {
+        alert("Sesión no autorizada. Ingrese nuevamente.");
+        return;
+      }
 
-    const data = await res.json();
-    setMedResults(Array.isArray(data) ? data : []);
+      const data = await res.json();
+      const results = Array.isArray(data) ? data : [];
 
-    if (Array.isArray(data) && data.length === 0) {
-      alert("No se encontraron medicamentos con ese nombre.");
+      setMedResults(results);
+      setShowMedDropdown(results.length > 0);
+
+      if (results.length === 0) {
+        alert("No se encontraron medicamentos con ese nombre.");
+      }
+    } catch {
+      alert("Error al buscar medicamentos.");
+    } finally {
+      setMedSearchLoading(false);
     }
   };
 
@@ -1081,58 +1189,105 @@ export default function Anamnesis() {
                   Farmacia / Receta
                 </h2>
 
-                <div className="flex gap-2 mb-3">
-                  <input
-                    value={medSearch}
-                    onChange={(e) => setMedSearch(e.target.value)}
-                    className="flex-1 border p-2 rounded"
-                    placeholder="Buscar por nombre genérico o comercial"
-                  />
+                <div className="relative mb-4">
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Buscar medicamento
+                  </label>
 
-                  <button
-                    type="button"
-                    onClick={searchMedication}
-                    className="bg-blue-600 text-white px-4 rounded"
-                  >
-                    Buscar
-                  </button>
-                </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={medSearch}
+                      onChange={(e) => {
+                        setMedSearch(e.target.value);
+                        setSelectedMed(null);
+                        setShowMedDropdown(true);
+                      }}
+                      onFocus={() => {
+                        if (medResults.length > 0) {
+                          setShowMedDropdown(true);
+                        }
+                      }}
+                      className="flex-1 border p-2 rounded"
+                      placeholder="Escriba nombre genérico, comercial o concentración"
+                      autoComplete="off"
+                    />
 
-                {medResults.length > 0 && (
-                  <div className="border rounded bg-white mb-4">
-                    {medResults.map((m) => (
-                      <button
-                        type="button"
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedMed(m);
-                          setRecipeForm((prev) => ({
-                            ...prev,
-                            presentation: m.presentation || "",
-                            route: m.route || "",
-                          }));
-                        }}
-                        className="block w-full text-left p-2 hover:bg-blue-50 border-b"
-                      >
-                        <b>{m.genericName}</b>
-                        {m.commercialName
-                          ? ` (${m.commercialName})`
-                          : ""} - {m.concentration} - {m.presentation} -{" "}
-                        {m.route}
-                      </button>
-                    ))}
+                    <button
+                      type="button"
+                      onClick={searchMedication}
+                      className="bg-blue-600 text-white px-4 rounded hover:bg-blue-700"
+                    >
+                      {medSearchLoading ? "Buscando..." : "Buscar"}
+                    </button>
                   </div>
-                )}
+
+                  {showMedDropdown && medResults.length > 0 && (
+                    <div className="absolute left-0 right-0 z-40 mt-1 max-h-80 overflow-y-auto rounded-lg border bg-white shadow-2xl">
+                      {medResults.map((m) => (
+                        <button
+                          type="button"
+                          key={m.id}
+                          onClick={() => selectMedicationFromDropdown(m)}
+                          className="block w-full border-b p-3 text-left hover:bg-blue-50"
+                        >
+                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+                            <div>
+                              <p className="font-bold text-slate-800">
+                                {getMedicationDisplayName(m)}
+                              </p>
+
+                              <p className="text-sm text-slate-600">
+                                Genérico: {m.genericName || "—"}
+                                {m.commercialName
+                                  ? ` | Comercial: ${m.commercialName}`
+                                  : ""}
+                              </p>
+
+                              <p className="text-sm text-slate-600">
+                                Concentración: {m.concentration || "—"} |
+                                Presentación: {m.presentation || "—"} | Vía:{" "}
+                                {m.route || "—"}
+                              </p>
+                            </div>
+
+                            <div className="rounded bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                              {getMedicationStockText(m)}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {medSearch.trim().length >= 2 &&
+                    !medSearchLoading &&
+                    showMedDropdown &&
+                    medResults.length === 0 && (
+                      <div className="absolute left-0 right-0 z-40 mt-1 rounded-lg border bg-white p-3 text-sm text-slate-500 shadow">
+                        No se encontraron medicamentos.
+                      </div>
+                    )}
+
+                  {selectedMed && (
+                    <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50 p-3">
+                      <p className="font-bold text-emerald-800">
+                        Medicamento seleccionado:{" "}
+                        {getMedicationDisplayName(selectedMed)}
+                      </p>
+
+                      <p className="text-sm text-emerald-900">
+                        Concentración: {selectedMed.concentration || "—"} |
+                        Presentación: {selectedMed.presentation || "—"} | Vía:{" "}
+                        {selectedMed.route || "—"} |{" "}
+                        {getMedicationStockText(selectedMed)}
+                      </p>
+                    </div>
+                  )}
+                </div>
 
                 {selectedMed && (
                   <div className="border rounded p-3 bg-white mb-4">
-                    <p className="font-semibold mb-2">
-                      Medicamento seleccionado: {selectedMed.genericName}{" "}
-                      {selectedMed.commercialName
-                        ? `(${selectedMed.commercialName})`
-                        : ""}{" "}
-                      {selectedMed.concentration}
-                    </p>
+                    <p className="font-semibold mb-2">Datos para la receta</p>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <input

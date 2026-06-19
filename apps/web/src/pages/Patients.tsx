@@ -321,6 +321,9 @@ export default function Patients() {
   const [historyEncounters, setHistoryEncounters] = useState<PatientEncounter[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryPatient, setSummaryPatient] = useState<Patient | null>(null);
+
   const filteredPatients = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -584,6 +587,14 @@ export default function Patients() {
     );
   }
 
+  function handleOpenSummary(patient: Patient) {
+    handleSelectPatient(patient);
+    setSummaryPatient(patient);
+    setSummaryOpen(true);
+    setError('');
+    setSuccess('');
+  }
+
   async function handleViewEncounters(patient: Patient) {
     try {
       handleSelectPatient(patient);
@@ -670,13 +681,30 @@ export default function Patients() {
     setError('');
   }
 
-  function goToNewEncounter() {
-    if (!selectedPatient) {
+  function handleStartNewEncounter(patient?: Patient) {
+    const targetPatient = patient || selectedPatient;
+
+    if (!targetPatient) {
       setError('Primero seleccione un paciente.');
       return;
     }
 
+    setSelectedPatient(targetPatient);
+    setError('');
+    setSuccess(`Iniciando nueva atención para ${getFullName(targetPatient)}.`);
+
+    localStorage.setItem(
+      'selectedPatient',
+      JSON.stringify(buildSelectedPatientForStorage(targetPatient)),
+    );
+
+    localStorage.removeItem('selectedEncounter');
+
     navigate('/new-encounter');
+  }
+
+  function goToNewEncounter() {
+    handleStartNewEncounter();
   }
 
   function goToAnamnesis() {
@@ -753,6 +781,14 @@ export default function Patients() {
               >
                 Ver atenciones
               </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenSummary(selectedPatient)}
+                className="px-3 py-2 rounded bg-cyan-700 text-white text-sm font-semibold hover:bg-cyan-800"
+              >
+                Resumen clínico
+              </button>
             </div>
           </div>
         )}
@@ -771,110 +807,218 @@ export default function Patients() {
       </div>
 
       {historyOpen && (
-        <div className="p-6 bg-white rounded shadow border border-gray-200">
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between mb-4">
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">
-                Historial de atenciones
-              </h3>
-              <p className="text-sm text-gray-500">
-                {historyPatient ? getFullName(historyPatient) : 'Paciente seleccionado'}
-              </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl border border-gray-200">
+            <div className="flex flex-col gap-2 border-b bg-slate-50 px-6 py-4 md:flex-row md:items-start md:justify-between rounded-t-xl">
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">
+                  📋 Historial clínico de{' '}
+                  {historyPatient ? getFullName(historyPatient) : 'paciente seleccionado'}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Revise atenciones previas, diagnósticos, funciones vitales y abra la HCE correspondiente.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryOpen(false);
+                  setHistoryPatient(null);
+                  setHistoryEncounters([]);
+                }}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
+              >
+                Cerrar ventana
+              </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setHistoryOpen(false);
-                setHistoryPatient(null);
-                setHistoryEncounters([]);
-              }}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
-            >
-              Cerrar historial
-            </button>
-          </div>
-
-          {historyLoading ? (
-            <div className="text-sm text-gray-500">Cargando atenciones...</div>
-          ) : historyEncounters.length === 0 ? (
-            <div className="border rounded p-4 bg-gray-50 text-sm text-gray-600">
-              Este paciente todavía no tiene atenciones registradas.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {historyEncounters.map((encounter, index) => (
-                <div
-                  key={encounter.id}
-                  className="border rounded-lg p-4 bg-slate-50"
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <p className="font-bold text-slate-800">
-                        Atención #{historyEncounters.length - index} |{' '}
-                        {formatDateTime(encounter.createdAt)}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        Tipo: {formatEncounterType(encounter.type)} | Estado:{' '}
-                        {formatEncounterStatus(encounter.status)}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEncounter(encounter)}
-                      className="px-3 py-2 rounded bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800"
+            <div className="max-h-[78vh] overflow-y-auto p-6">
+              {historyLoading ? (
+                <div className="text-sm text-gray-500">Cargando atenciones...</div>
+              ) : historyEncounters.length === 0 ? (
+                <div className="border rounded p-4 bg-gray-50 text-sm text-gray-600">
+                  Este paciente todavía no tiene atenciones registradas.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyEncounters.map((encounter, index) => (
+                    <div
+                      key={encounter.id}
+                      className="border rounded-lg p-4 bg-slate-50"
                     >
-                      Abrir HCE
-                    </button>
-                  </div>
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <p className="font-bold text-slate-800">
+                            Atención #{historyEncounters.length - index} |{' '}
+                            {formatDateTime(encounter.createdAt)}
+                          </p>
+                          <p className="text-sm text-slate-600">
+                            Tipo: {formatEncounterType(encounter.type)} | Estado:{' '}
+                            {formatEncounterStatus(encounter.status)}
+                          </p>
+                        </div>
 
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div className="border rounded bg-white p-3">
-                      <p className="font-semibold text-gray-700">Motivo</p>
-                      <p className="text-gray-600">
-                        {encounter.motivoConsulta || encounter.reason || '—'}
-                      </p>
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEncounter(encounter)}
+                          className="px-3 py-2 rounded bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800"
+                        >
+                          Abrir HCE
+                        </button>
+                      </div>
 
-                    <div className="border rounded bg-white p-3">
-                      <p className="font-semibold text-gray-700">
-                        Diagnóstico principal
-                      </p>
-                      <p className="text-gray-600">
-                        {formatDiagnosis(encounter.diagnosticoPrincipal)}
-                      </p>
-                    </div>
+                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div className="border rounded bg-white p-3">
+                          <p className="font-semibold text-gray-700">Motivo</p>
+                          <p className="text-gray-600">
+                            {encounter.motivoConsulta || encounter.reason || '—'}
+                          </p>
+                        </div>
 
-                    <div className="border rounded bg-white p-3 md:col-span-2">
-                      <p className="font-semibold text-gray-700">
-                        Funciones vitales
-                      </p>
-                      <p className="text-gray-600">
-                        {formatVitalSigns(encounter.vitalSigns)}
-                      </p>
-                    </div>
+                        <div className="border rounded bg-white p-3">
+                          <p className="font-semibold text-gray-700">
+                            Diagnóstico principal
+                          </p>
+                          <p className="text-gray-600">
+                            {formatDiagnosis(encounter.diagnosticoPrincipal)}
+                          </p>
+                        </div>
 
-                    {encounter.diagnosticosSecundarios &&
-                      encounter.diagnosticosSecundarios.length > 0 && (
                         <div className="border rounded bg-white p-3 md:col-span-2">
                           <p className="font-semibold text-gray-700">
-                            Diagnósticos secundarios
+                            Funciones vitales
                           </p>
-                          <ul className="list-disc pl-5 text-gray-600">
-                            {encounter.diagnosticosSecundarios.map((diag, diagIndex) => (
-                              <li key={`${encounter.id}-${diagIndex}`}>
-                                {formatDiagnosis(diag)}
-                              </li>
-                            ))}
-                          </ul>
+                          <p className="text-gray-600">
+                            {formatVitalSigns(encounter.vitalSigns)}
+                          </p>
                         </div>
-                      )}
-                  </div>
+
+                        {encounter.diagnosticosSecundarios &&
+                          encounter.diagnosticosSecundarios.length > 0 && (
+                            <div className="border rounded bg-white p-3 md:col-span-2">
+                              <p className="font-semibold text-gray-700">
+                                Diagnósticos secundarios
+                              </p>
+                              <ul className="list-disc pl-5 text-gray-600">
+                                {encounter.diagnosticosSecundarios.map((diag, diagIndex) => (
+                                  <li key={`${encounter.id}-${diagIndex}`}>
+                                    {formatDiagnosis(diag)}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </div>
+        </div>
+      )}
+
+      {summaryOpen && summaryPatient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-3xl rounded-xl bg-white shadow-2xl border border-gray-200">
+            <div className="flex flex-col gap-2 border-b bg-cyan-50 px-6 py-4 md:flex-row md:items-start md:justify-between rounded-t-xl">
+              <div>
+                <h3 className="text-xl font-bold text-cyan-900">
+                  🩺 Resumen clínico de {getFullName(summaryPatient)}
+                </h3>
+                <p className="text-sm text-cyan-800">
+                  Información rápida para orientar la atención antes de abrir la HCE.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSummaryOpen(false);
+                  setSummaryPatient(null);
+                }}
+                className="px-4 py-2 rounded bg-white text-cyan-900 font-semibold hover:bg-cyan-100"
+              >
+                Cerrar ventana
+              </button>
+            </div>
+
+            <div className="max-h-[78vh] overflow-y-auto p-6 space-y-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="border rounded bg-slate-50 p-3">
+                  <p className="font-semibold text-slate-700">Documento</p>
+                  <p className="text-slate-600">
+                    {summaryPatient.documentType || 'DNI'} {summaryPatient.documentNumber || '—'}
+                  </p>
+                </div>
+
+                <div className="border rounded bg-slate-50 p-3">
+                  <p className="font-semibold text-slate-700">Edad / género</p>
+                  <p className="text-slate-600">
+                    {calculateAge(summaryPatient.birthDate) || '—'} |{' '}
+                    {summaryPatient.gender || summaryPatient.sex || '—'}
+                  </p>
+                </div>
+
+                <div className="border rounded bg-slate-50 p-3">
+                  <p className="font-semibold text-slate-700">Celular</p>
+                  <p className="text-slate-600">{summaryPatient.phone || '—'}</p>
+                </div>
+
+                <div className="border rounded bg-slate-50 p-3">
+                  <p className="font-semibold text-slate-700">Última atención</p>
+                  <p className="text-slate-600">
+                    {formatDateTime(summaryPatient.lastEncounterDate)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border rounded bg-red-50 p-3">
+                <p className="font-semibold text-red-800">Alergias</p>
+                <p className="text-red-700">{summaryPatient.allergies || 'Sin alergias registradas.'}</p>
+              </div>
+
+              <div className="border rounded bg-amber-50 p-3">
+                <p className="font-semibold text-amber-800">
+                  Antecedentes / enfermedades crónicas
+                </p>
+                <p className="text-amber-700">
+                  {summaryPatient.chronicDiseases || 'Sin antecedentes registrados.'}
+                </p>
+              </div>
+
+              <div className="border rounded bg-blue-50 p-3">
+                <p className="font-semibold text-blue-800">Medicación habitual</p>
+                <p className="text-blue-700">
+                  {summaryPatient.usualMedication || 'Sin medicación habitual registrada.'}
+                </p>
+              </div>
+
+              <div className="border rounded bg-slate-50 p-3">
+                <p className="font-semibold text-slate-700">Último diagnóstico</p>
+                <p className="text-slate-600">{summaryPatient.lastDiagnosis || '—'}</p>
+              </div>
+
+              <div className="flex flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
+                <button
+                  type="button"
+                  onClick={() => handleViewEncounters(summaryPatient)}
+                  className="px-4 py-2 rounded bg-gray-700 text-white font-semibold hover:bg-gray-800"
+                >
+                  Ver historial
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleStartNewEncounter(summaryPatient)}
+                  className="px-4 py-2 rounded bg-green-700 text-white font-semibold hover:bg-green-800"
+                >
+                  Nueva atención
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -923,10 +1067,11 @@ export default function Patients() {
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleSubmit}
-          className="p-6 bg-white rounded shadow border border-gray-200 space-y-5"
-        >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <form
+            onSubmit={handleSubmit}
+            className="w-full max-w-5xl max-h-[88vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl border border-gray-200 space-y-5"
+          >
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-xl font-bold text-gray-800">
@@ -1178,7 +1323,8 @@ export default function Patients() {
                   : 'Registrar paciente'}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       )}
 
       <div className="p-6 bg-white rounded shadow border border-gray-200">
@@ -1284,13 +1430,18 @@ export default function Patients() {
 
                         <button
                           type="button"
-                          onClick={() => {
-                            handleSelectPatient(patient);
-                            navigate('/new-encounter');
-                          }}
+                          onClick={() => handleStartNewEncounter(patient)}
                           className="px-3 py-1 rounded bg-purple-700 text-white text-xs font-semibold hover:bg-purple-800"
                         >
                           Nueva atención
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSummary(patient)}
+                          className="px-3 py-1 rounded bg-cyan-700 text-white text-xs font-semibold hover:bg-cyan-800"
+                        >
+                          Resumen
                         </button>
 
                         <button

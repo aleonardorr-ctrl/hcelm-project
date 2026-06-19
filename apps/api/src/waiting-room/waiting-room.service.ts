@@ -2,6 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClinicalAlertsService } from '../clinical-alerts/clinical-alerts.service';
 
+const ACTIVE_STATUSES = ['triado', 'en_atencion', 'observacion'];
+const FINISHED_STATUSES = ['atendido', 'alta', 'referido', 'cancelado'];
+
 @Injectable()
 export class WaitingRoomService {
   constructor(
@@ -24,9 +27,6 @@ export class WaitingRoomService {
         createdAt: {
           gte: startOfDay,
           lte: endOfDay,
-        },
-        status: {
-          not: 'cancelado',
         },
       },
       orderBy: {
@@ -53,6 +53,7 @@ export class WaitingRoomService {
         }
 
         const latestAnamnesis = this.getLatestAnamnesis(encounter.anamnesis);
+        const status = this.normalizeStatus(encounter.status);
 
         return {
           position: index + 1,
@@ -70,10 +71,17 @@ export class WaitingRoomService {
           reason: encounter.reason || latestAnamnesis?.motivoConsulta || '',
           createdAt: encounter.createdAt,
           triageTime: encounter.createdAt,
-          status: encounter.status || 'triado',
+          status,
+          statusLabel: this.getStatusLabel(status),
+          statusGroup: ACTIVE_STATUSES.includes(status)
+            ? 'active'
+            : FINISHED_STATUSES.includes(status)
+              ? 'finished'
+              : 'other',
           globalRisk: alertsResponse?.globalRisk || 'normal',
           alerts: alertsResponse?.alerts || [],
           vitalSigns: this.formatVitalSigns(encounter.vitalSigns),
+          rawVitalSigns: encounter.vitalSigns || null,
           diagnosis: this.formatDiagnosis(
             latestAnamnesis?.diagnosticoPrincipal,
           ),
@@ -81,15 +89,44 @@ export class WaitingRoomService {
       }),
     );
 
-    const sortedRows = [...rows].sort((a, b) => {
+    const activePatients = this.sortActiveRows(
+      rows.filter((row) => row.statusGroup === 'active'),
+    ).map((row, index) => ({
+      ...row,
+      priorityPosition: index + 1,
+    }));
+
+    const finishedPatients = this.sortFinishedRows(
+      rows.filter((row) => row.statusGroup === 'finished'),
+    ).map((row, index) => ({
+      ...row,
+      finishedPosition: index + 1,
+    }));
+
+    const otherPatients = rows.filter((row) => row.statusGroup === 'other');
+
+    return {
+      date: now.toISOString().split('T')[0],
+      total: rows.length,
+      activeTotal: activePatients.length,
+      finishedTotal: finishedPatients.length,
+      otherTotal: otherPatients.length,
+
+      // Compatibilidad con versiones previas del frontend.
+      patients: activePatients,
+
+      activePatients,
+      finishedPatients,
+      otherPatients,
+    };
+  }
+
+  private sortActiveRows(rows: any[]) {
+    return [...rows].sort((a, b) => {
       const statusOrder: Record<string, number> = {
         en_atencion: 1,
         triado: 2,
-        open: 2,
         observacion: 3,
-        referido: 4,
-        alta: 5,
-        atendido: 6,
       };
 
       const riskOrder: Record<string, number> = {
@@ -99,8 +136,8 @@ export class WaitingRoomService {
         normal: 4,
       };
 
-      const statusA = statusOrder[String(a.status || '').toLowerCase()] || 9;
-      const statusB = statusOrder[String(b.status || '').toLowerCase()] || 9;
+      const statusA = statusOrder[a.status] || 9;
+      const statusB = statusOrder[b.status] || 9;
 
       if (statusA !== statusB) return statusA - statusB;
 
@@ -113,15 +150,36 @@ export class WaitingRoomService {
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
     });
+  }
 
-    return {
-      date: now.toISOString().split('T')[0],
-      total: sortedRows.length,
-      patients: sortedRows.map((row, index) => ({
-        ...row,
-        priorityPosition: index + 1,
-      })),
+  private sortFinishedRows(rows: any[]) {
+    return [...rows].sort((a, b) => {
+      return (
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    });
+  }
+
+  private normalizeStatus(status: any): string {
+    const normalized = String(status || '').trim().toLowerCase();
+
+    if (!normalized || normalized === 'open') return 'triado';
+
+    return normalized;
+  }
+
+  private getStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      triado: 'TRIADO',
+      en_atencion: 'EN ATENCIÓN',
+      atendido: 'ATENDIDO',
+      observacion: 'OBSERVACIÓN',
+      referido: 'REFERIDO',
+      alta: 'ALTA',
+      cancelado: 'CANCELADO',
     };
+
+    return labels[status] || status.toUpperCase();
   }
 
   private formatVitalSigns(vitalSigns: any) {

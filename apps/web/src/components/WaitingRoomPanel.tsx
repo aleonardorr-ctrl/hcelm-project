@@ -1,252 +1,163 @@
-// HCELM - components/WaitingRoomPanel.tsx
-// Lista de espera / triaje del día para Pacientes y Anamnesis.
-// Versión con estados clínicos: triado, en_atencion, atendido, observacion, referido, alta.
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-
-type RiskLevel = 'critical' | 'high' | 'warning' | 'normal' | string;
-
-type WaitingRoomVitalSigns = {
-  bloodPressure?: string | number | null;
-  heartRate?: string | number | null;
-  respiratoryRate?: string | number | null;
-  temperature?: string | number | null;
-  oxygenSat?: string | number | null;
-  glucose?: string | number | null;
-  painScale?: string | number | null;
-  glasgow?: string | number | null;
-};
+const API_URL = "http://localhost:3000/api";
 
 type WaitingRoomPatient = {
-  id?: string | null;
-  fullName?: string | null;
-  documentType?: string | null;
-  documentNumber?: string | null;
-  gender?: string | null;
-  birthDate?: string | null;
-  phone?: string | null;
-};
-
-type WaitingRoomRow = {
-  position: number;
-  priorityPosition: number;
+  position?: number;
+  priorityPosition?: number;
+  finishedPosition?: number;
   encounterId: string;
   patientId: string;
-  patient?: WaitingRoomPatient | null;
-  reason?: string | null;
-  createdAt?: string | null;
-  triageTime?: string | null;
-  status?: string | null;
-  globalRisk?: RiskLevel;
+  patient?: {
+    id?: string;
+    fullName?: string;
+    documentType?: string;
+    documentNumber?: string;
+    gender?: string;
+    birthDate?: string;
+    phone?: string;
+  };
+  reason?: string;
+  createdAt?: string;
+  triageTime?: string;
+  status?: string;
+  statusLabel?: string;
+  statusGroup?: "active" | "finished" | "other";
+  globalRisk?: "critical" | "high" | "warning" | "normal" | string;
   alerts?: any[];
-  vitalSigns?: WaitingRoomVitalSigns | null;
-  diagnosis?: string | null;
+  vitalSigns?: {
+    bloodPressure?: string | number;
+    heartRate?: string | number;
+    respiratoryRate?: string | number;
+    temperature?: string | number;
+    oxygenSat?: string | number;
+    glucose?: string | number;
+    painScale?: string | number;
+    glasgow?: string | number;
+  };
+  rawVitalSigns?: any;
+  diagnosis?: string;
 };
 
 type WaitingRoomResponse = {
   date?: string;
   total?: number;
-  patients?: WaitingRoomRow[];
+  activeTotal?: number;
+  finishedTotal?: number;
+  activePatients?: WaitingRoomPatient[];
+  finishedPatients?: WaitingRoomPatient[];
+  patients?: WaitingRoomPatient[];
 };
 
-type WaitingRoomPanelProps = {
+type Props = {
   currentEncounterId?: string | null;
-  variant?: 'compact' | 'full';
-  title?: string;
+  variant?: "compact" | "full";
 };
 
-function getRiskLabel(risk?: RiskLevel) {
-  if (risk === 'critical') return 'Crítico';
-  if (risk === 'high') return 'Alto riesgo';
-  if (risk === 'warning') return 'Precaución';
-  return 'Normal';
+const riskLabels: Record<string, string> = {
+  critical: "CRÍTICO",
+  high: "ALTO RIESGO",
+  warning: "PRECAUCIÓN",
+  normal: "NORMAL",
+};
+
+const riskClasses: Record<string, string> = {
+  critical: "bg-[#ff0033] text-white border-[#ff0033]",
+  high: "bg-[#ff6a00] text-white border-[#ff6a00]",
+  warning: "bg-[#fff200] text-black border-[#fff200]",
+  normal: "bg-[#00e676] text-black border-[#00e676]",
+};
+
+const statusClasses: Record<string, string> = {
+  triado: "bg-blue-100 text-blue-800 border-blue-300",
+  en_atencion: "bg-emerald-100 text-emerald-800 border-emerald-300",
+  atendido: "bg-slate-100 text-slate-700 border-slate-300",
+  observacion: "bg-purple-100 text-purple-800 border-purple-300",
+  referido: "bg-orange-100 text-orange-800 border-orange-300",
+  alta: "bg-green-100 text-green-800 border-green-300",
+  cancelado: "bg-red-100 text-red-800 border-red-300",
+};
+
+function formatTime(value?: string) {
+  if (!value) return "—";
+
+  try {
+    return new Date(value).toLocaleTimeString("es-PE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
 }
 
-function getRiskIcon(risk?: RiskLevel) {
-  if (risk === 'critical') return '🔴';
-  if (risk === 'high') return '🟠';
-  if (risk === 'warning') return '🟡';
-  return '🟢';
-}
-
-function getRiskClasses(risk?: RiskLevel) {
-  if (risk === 'critical') {
-    return 'border-[#ff0033] bg-red-50 text-red-950 shadow-[0_0_18px_rgba(255,0,51,0.55)]';
+function parseBloodPressure(bp: any) {
+  if (!bp || bp === "—") {
+    return {
+      systolicBP: "",
+      diastolicBP: "",
+    };
   }
 
-  if (risk === 'high') {
-    return 'border-[#ff6a00] bg-orange-50 text-orange-950 shadow-[0_0_16px_rgba(255,106,0,0.45)]';
-  }
-
-  if (risk === 'warning') {
-    return 'border-[#fff200] bg-yellow-50 text-yellow-950 shadow-[0_0_14px_rgba(255,242,0,0.45)]';
-  }
-
-  return 'border-emerald-300 bg-emerald-50 text-emerald-950';
-}
-
-function normalizeStatus(status?: string | null) {
-  return String(status || 'triado').trim().toLowerCase();
-}
-
-function getStatusLabel(status?: string | null) {
-  const normalized = normalizeStatus(status);
-
-  if (normalized === 'open') return 'TRIADO';
-  if (normalized === 'triado') return 'TRIADO';
-  if (normalized === 'en_atencion') return 'EN ATENCIÓN';
-  if (normalized === 'atendido') return 'ATENDIDO';
-  if (normalized === 'observacion') return 'OBSERVACIÓN';
-  if (normalized === 'referido') return 'REFERIDO';
-  if (normalized === 'alta') return 'ALTA';
-  if (normalized === 'cancelado') return 'CANCELADO';
-
-  return String(status || 'TRIADO').toUpperCase();
-}
-
-function getStatusClasses(status?: string | null) {
-  const normalized = normalizeStatus(status);
-
-  if (normalized === 'en_atencion') {
-    return 'bg-blue-700 text-white border-blue-800 shadow-[0_0_14px_rgba(29,78,216,0.55)]';
-  }
-
-  if (normalized === 'triado' || normalized === 'open') {
-    return 'bg-amber-300 text-amber-950 border-amber-500';
-  }
-
-  if (normalized === 'atendido') {
-    return 'bg-emerald-700 text-white border-emerald-800';
-  }
-
-  if (normalized === 'observacion') {
-    return 'bg-purple-700 text-white border-purple-800';
-  }
-
-  if (normalized === 'referido') {
-    return 'bg-rose-700 text-white border-rose-800';
-  }
-
-  if (normalized === 'alta') {
-    return 'bg-slate-700 text-white border-slate-800';
-  }
-
-  if (normalized === 'cancelado') {
-    return 'bg-zinc-200 text-zinc-700 border-zinc-300';
-  }
-
-  return 'bg-slate-100 text-slate-700 border-slate-200';
-}
-
-function formatTime(value?: string | null) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleTimeString('es-PE', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function calculateAge(birthDate?: string | null) {
-  if (!birthDate) return '';
-
-  const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return '';
-
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age -= 1;
-  }
-
-  return age >= 0 ? `${age} años` : '';
-}
-
-function normalizeVitalSignsForLocalStorage(vitalSigns?: WaitingRoomVitalSigns | null) {
-  if (!vitalSigns) return null;
-
-  const bloodPressure = String(vitalSigns.bloodPressure || '');
-  const [systolicRaw, diastolicRaw] = bloodPressure.includes('/')
-    ? bloodPressure.split('/')
-    : ['', ''];
-
-  const systolicBP = systolicRaw ? Number(String(systolicRaw).trim()) : null;
-  const diastolicBP = diastolicRaw ? Number(String(diastolicRaw).trim()) : null;
+  const [systolicBP, diastolicBP] = String(bp).split("/");
 
   return {
-    systolicBP: Number.isFinite(systolicBP) ? systolicBP : null,
-    diastolicBP: Number.isFinite(diastolicBP) ? diastolicBP : null,
-    heartRate: vitalSigns.heartRate ?? null,
-    respiratoryRate: vitalSigns.respiratoryRate ?? null,
-    temperature: vitalSigns.temperature ?? null,
-    oxygenSat: vitalSigns.oxygenSat ?? null,
-    capillaryGlucose: vitalSigns.glucose ?? null,
-    painScale: vitalSigns.painScale ?? null,
-    glasgowTotal: vitalSigns.glasgow ?? null,
-    bloodPressure: vitalSigns.bloodPressure ?? null,
+    systolicBP: systolicBP || "",
+    diastolicBP: diastolicBP || "",
   };
 }
 
-function formatVitals(vitalSigns?: WaitingRoomVitalSigns | null) {
-  if (!vitalSigns) return 'Funciones vitales no registradas';
+function normalizeVitalSigns(row: WaitingRoomPatient) {
+  const raw = row.rawVitalSigns || {};
+  const formatted = row.vitalSigns || {};
+  const parsedBp = parseBloodPressure(formatted.bloodPressure);
 
-  const parts = [
-    `PA ${vitalSigns.bloodPressure || '—'}`,
-    `FC ${vitalSigns.heartRate || '—'}`,
-    `FR ${vitalSigns.respiratoryRate || '—'}`,
-    `T° ${vitalSigns.temperature || '—'}`,
-    `SpO₂ ${vitalSigns.oxygenSat || '—'}%`,
-  ];
-
-  if (vitalSigns.glucose && vitalSigns.glucose !== '—') {
-    parts.push(`Glu ${vitalSigns.glucose}`);
-  }
-
-  if (vitalSigns.painScale && vitalSigns.painScale !== '—') {
-    parts.push(`EVA ${vitalSigns.painScale}`);
-  }
-
-  if (vitalSigns.glasgow && vitalSigns.glasgow !== '—') {
-    parts.push(`GCS ${vitalSigns.glasgow}`);
-  }
-
-  return parts.join(' | ');
+  return {
+    systolicBP: raw.systolicBP ?? parsedBp.systolicBP,
+    diastolicBP: raw.diastolicBP ?? parsedBp.diastolicBP,
+    heartRate: raw.heartRate ?? formatted.heartRate ?? "",
+    respiratoryRate: raw.respiratoryRate ?? formatted.respiratoryRate ?? "",
+    temperature: raw.temperature ?? formatted.temperature ?? "",
+    oxygenSat: raw.oxygenSat ?? formatted.oxygenSat ?? "",
+    weightKg: raw.weightKg ?? "",
+    heightCm: raw.heightCm ?? "",
+    bmi: raw.bmi ?? "",
+    capillaryGlucose: raw.capillaryGlucose ?? formatted.glucose ?? "",
+    painScale: raw.painScale ?? formatted.painScale ?? "",
+    consciousness: raw.consciousness ?? "",
+    glasgowEye: raw.glasgowEye ?? "",
+    glasgowVerbal: raw.glasgowVerbal ?? "",
+    glasgowMotor: raw.glasgowMotor ?? "",
+    glasgowTotal: raw.glasgowTotal ?? formatted.glasgow ?? "",
+    oxygenSupport: raw.oxygenSupport ?? "",
+    fio2: raw.fio2 ?? "",
+    nursingNotes: raw.nursingNotes ?? "",
+  };
 }
 
 export default function WaitingRoomPanel({
   currentEncounterId,
-  variant = 'full',
-  title = 'Lista de espera / Triaje de hoy',
-}: WaitingRoomPanelProps) {
+  variant = "full",
+}: Props) {
   const navigate = useNavigate();
-  const [data, setData] = useState<WaitingRoomResponse | null>(null);
+
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [open, setOpen] = useState(variant === 'full');
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [waitingRoom, setWaitingRoom] = useState<WaitingRoomResponse | null>(
+    null,
+  );
+  const [showFinished, setShowFinished] = useState(false);
+  const [error, setError] = useState("");
 
-  const patients = data?.patients || [];
-
-  const currentPatient = useMemo(() => {
-    if (!currentEncounterId) return null;
-    return patients.find((row) => String(row.encounterId) === String(currentEncounterId)) || null;
-  }, [currentEncounterId, patients]);
+  const token = localStorage.getItem("ame_token");
 
   const loadWaitingRoom = async () => {
+    if (!token) return;
+
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
-      const token = localStorage.getItem('ame_token');
-
       const response = await fetch(`${API_URL}/waiting-room/today`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -254,13 +165,14 @@ export default function WaitingRoomPanel({
       });
 
       if (!response.ok) {
-        throw new Error('No se pudo cargar la lista de espera.');
+        throw new Error("No se pudo cargar la lista de espera.");
       }
 
-      const result = await response.json();
-      setData(result);
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo cargar la lista de espera.');
+      const data = await response.json();
+      setWaitingRoom(data);
+    } catch (err) {
+      console.error("Error cargando lista de espera:", err);
+      setError("No se pudo cargar la lista de espera.");
     } finally {
       setLoading(false);
     }
@@ -268,281 +180,311 @@ export default function WaitingRoomPanel({
 
   useEffect(() => {
     loadWaitingRoom();
-  }, []);
 
-  const updateEncounterStatus = async (encounterId: string, status: string) => {
-    const token = localStorage.getItem('ame_token');
+    const handler = () => loadWaitingRoom();
+    window.addEventListener("waiting-room-refresh", handler);
 
-    const response = await fetch(`${API_URL}/encounters/${encounterId}/status`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ status }),
-    });
+    return () => {
+      window.removeEventListener("waiting-room-refresh", handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-    if (!response.ok) {
-      throw new Error('No se pudo actualizar el estado de la atención.');
+  const activePatients = useMemo(() => {
+    if (Array.isArray(waitingRoom?.activePatients)) {
+      return waitingRoom?.activePatients || [];
     }
 
-    return response.json();
-  };
+    return waitingRoom?.patients || [];
+  }, [waitingRoom]);
 
-  const markStatus = async (row: WaitingRoomRow, status: string) => {
-    setUpdatingId(row.encounterId);
-    setError('');
+  const finishedPatients = useMemo(() => {
+    return waitingRoom?.finishedPatients || [];
+  }, [waitingRoom]);
 
-    try {
-      await updateEncounterStatus(row.encounterId, status);
-      await loadWaitingRoom();
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo actualizar el estado.');
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+  const currentIndex = activePatients.findIndex(
+    (row) => String(row.encounterId) === String(currentEncounterId || ""),
+  );
 
-  const openEncounter = async (row: WaitingRoomRow) => {
-    setUpdatingId(row.encounterId);
-    setError('');
+  const openEncounter = async (row: WaitingRoomPatient) => {
+    if (!row.encounterId || !row.patientId) return;
 
-    try {
-      const currentStatus = normalizeStatus(row.status);
-
-      if (currentStatus === 'triado' || currentStatus === 'open') {
-        await updateEncounterStatus(row.encounterId, 'en_atencion');
-      }
-
-      if (row.patient) {
-        localStorage.setItem(
-          'selectedPatient',
-          JSON.stringify({
-            id: row.patientId,
-            fullName: row.patient.fullName,
-            documentType: row.patient.documentType,
-            documentNumber: row.patient.documentNumber,
-            gender: row.patient.gender,
-            birthDate: row.patient.birthDate,
-            phone: row.patient.phone,
-          }),
-        );
-      }
-
+    if (row.patient) {
       localStorage.setItem(
-        'selectedEncounter',
+        "selectedPatient",
         JSON.stringify({
-          id: row.encounterId,
-          patientId: row.patientId,
-          reason: row.reason || '',
-          vitalSigns: normalizeVitalSignsForLocalStorage(row.vitalSigns),
+          ...row.patient,
+          id: row.patient.id || row.patientId,
         }),
       );
-
-      navigate(`/anamnesis?encounterId=${row.encounterId}`);
-    } catch (err: any) {
-      setError(err?.message || 'No se pudo abrir la HCE.');
-    } finally {
-      setUpdatingId(null);
     }
-  };
 
-  const goToPrevious = () => {
-    if (!currentPatient) return;
-
-    const currentIndex = patients.findIndex(
-      (row) => String(row.encounterId) === String(currentPatient.encounterId),
+    localStorage.setItem(
+      "selectedEncounter",
+      JSON.stringify({
+        id: row.encounterId,
+        patientId: row.patientId,
+        reason: row.reason || "",
+        vitalSigns: normalizeVitalSigns(row),
+      }),
     );
 
-    if (currentIndex > 0) {
-      openEncounter(patients[currentIndex - 1]);
+    if (row.status === "triado") {
+      try {
+        await fetch(`${API_URL}/encounters/${row.encounterId}/start`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        window.dispatchEvent(new Event("waiting-room-refresh"));
+      } catch (err) {
+        console.warn("No se pudo marcar la atención como en atención:", err);
+      }
     }
+
+    navigate(`/anamnesis?encounterId=${row.encounterId}`);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const goToNext = () => {
-    if (!currentPatient) return;
+  const markAsAttended = async (row: WaitingRoomPatient) => {
+    if (!row.encounterId) return;
 
-    const currentIndex = patients.findIndex(
-      (row) => String(row.encounterId) === String(currentPatient.encounterId),
+    const confirm = window.confirm(
+      `¿Marcar como atendido a ${row.patient?.fullName || "este paciente"}?`,
     );
 
-    if (currentIndex >= 0 && currentIndex < patients.length - 1) {
-      openEncounter(patients[currentIndex + 1]);
+    if (!confirm) return;
+
+    try {
+      const response = await fetch(
+        `${API_URL}/encounters/${row.encounterId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: "atendido",
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("No se pudo actualizar el estado.");
+      }
+
+      await loadWaitingRoom();
+      window.dispatchEvent(new Event("waiting-room-refresh"));
+    } catch (err) {
+      console.error("Error actualizando estado:", err);
+      alert("No se pudo marcar la atención como atendida.");
     }
   };
 
-  const currentIndex = currentPatient
-    ? patients.findIndex((row) => String(row.encounterId) === String(currentPatient.encounterId))
-    : -1;
+  const goToRelativePatient = (direction: "previous" | "next") => {
+    if (currentIndex < 0) return;
+
+    const targetIndex =
+      direction === "previous" ? currentIndex - 1 : currentIndex + 1;
+
+    const target = activePatients[targetIndex];
+
+    if (target) {
+      openEncounter(target);
+    }
+  };
+
+  const renderPatientCard = (
+    row: WaitingRoomPatient,
+    options?: { finished?: boolean },
+  ) => {
+    const risk = row.globalRisk || "normal";
+    const status = row.status || "triado";
+    const isCurrent =
+      String(row.encounterId) === String(currentEncounterId || "");
+
+    return (
+      <div
+        key={row.encounterId}
+        className={`rounded-lg border p-3 ${
+          isCurrent ? "border-blue-500 bg-blue-50" : "bg-white"
+        }`}
+      >
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-bold text-white">
+                {options?.finished
+                  ? `#${row.finishedPosition || row.position || "—"}`
+                  : `#${row.priorityPosition || row.position || "—"}`}
+              </span>
+
+              <span
+                className={`rounded-full border px-2 py-1 text-xs font-bold ${
+                  riskClasses[risk] || riskClasses.normal
+                }`}
+              >
+                {riskLabels[risk] || risk.toUpperCase()}
+              </span>
+
+              <span
+                className={`rounded-full border px-2 py-1 text-xs font-bold ${
+                  statusClasses[status] || "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {row.statusLabel || status.toUpperCase()}
+              </span>
+
+              {isCurrent && (
+                <span className="rounded-full bg-blue-600 px-2 py-1 text-xs font-bold text-white">
+                  PACIENTE ACTUAL
+                </span>
+              )}
+            </div>
+
+            <h3 className="mt-2 text-base font-bold text-slate-800">
+              {row.patient?.fullName || "Paciente sin nombre"}
+            </h3>
+
+            <p className="text-sm text-slate-600">
+              DNI: {row.patient?.documentNumber || "—"} | Triaje:{" "}
+              {formatTime(row.triageTime || row.createdAt)}
+            </p>
+
+            <p className="mt-1 text-sm text-slate-700">
+              Motivo: {row.reason || "—"}
+            </p>
+
+            {row.diagnosis && (
+              <p className="mt-1 text-sm text-slate-700">
+                Diagnóstico: {row.diagnosis}
+              </p>
+            )}
+
+            <p className="mt-2 text-sm font-semibold text-slate-800">
+              PA {row.vitalSigns?.bloodPressure || "—"} | FC{" "}
+              {row.vitalSigns?.heartRate || "—"} | FR{" "}
+              {row.vitalSigns?.respiratoryRate || "—"} | T°{" "}
+              {row.vitalSigns?.temperature || "—"} | SpO₂{" "}
+              {row.vitalSigns?.oxygenSat || "—"}%
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            <button
+              type="button"
+              onClick={() => openEncounter(row)}
+              className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Abrir HCE
+            </button>
+
+            {!options?.finished && status !== "atendido" && (
+              <button
+                type="button"
+                onClick={() => markAsAttended(row)}
+                className="rounded bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Marcar atendido
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 rounded-t-xl border-b bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
+    <section
+      className={`rounded-xl border border-slate-200 bg-white shadow-sm ${
+        variant === "compact" ? "p-3" : "p-4"
+      }`}
+    >
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-slate-800">🧑‍⚕️ {title}</h2>
-          <p className="text-sm text-slate-500">
-            Orden por estado clínico, prioridad y hora de triaje. Total: {data?.total ?? patients.length} pacientes.
+          <h2 className="text-lg font-bold text-slate-800">
+            Lista de espera / Triaje de hoy
+          </h2>
+          <p className="text-sm text-slate-600">
+            Pendientes o activos: {activePatients.length} | Finalizadas hoy:{" "}
+            {finishedPatients.length}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {currentPatient && (
-            <>
-              <button
-                type="button"
-                onClick={goToPrevious}
-                disabled={currentIndex <= 0 || updatingId !== null}
-                className="rounded bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
-              >
-                ← Anterior
-              </button>
-
-              <button
-                type="button"
-                onClick={goToNext}
-                disabled={currentIndex < 0 || currentIndex >= patients.length - 1 || updatingId !== null}
-                className="rounded bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
-              >
-                Siguiente →
-              </button>
-            </>
+          {currentIndex > 0 && (
+            <button
+              type="button"
+              onClick={() => goToRelativePatient("previous")}
+              className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              ← Anterior
+            </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            className="rounded bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-          >
-            {open ? 'Ocultar lista' : 'Ver lista'}
-          </button>
+          {currentIndex >= 0 && currentIndex < activePatients.length - 1 && (
+            <button
+              type="button"
+              onClick={() => goToRelativePatient("next")}
+              className="rounded bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              Siguiente →
+            </button>
+          )}
 
           <button
             type="button"
             onClick={loadWaitingRoom}
-            disabled={loading}
-            className="rounded bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+            className="rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            {loading ? 'Actualizando...' : 'Actualizar'}
+            {loading ? "Actualizando..." : "Actualizar"}
           </button>
         </div>
       </div>
 
-      {currentPatient && (
-        <div className={`m-4 rounded-lg border-2 p-4 ${getRiskClasses(currentPatient.globalRisk)}`}>
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide">Paciente actual</p>
-              <p className="text-xl font-bold">
-                {getRiskIcon(currentPatient.globalRisk)} {currentPatient.patient?.fullName || 'Paciente sin nombre'}
-              </p>
-              <p className="text-sm">
-                Posición por prioridad: {currentPatient.priorityPosition} de {patients.length} | Orden de llegada:{' '}
-                {currentPatient.position} | Riesgo: {getRiskLabel(currentPatient.globalRisk)}
-              </p>
-              <p className="mt-1 text-sm font-medium">{formatVitals(currentPatient.vitalSigns)}</p>
-            </div>
+      {error && (
+        <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusClasses(currentPatient.status)}`}>
-              {getStatusLabel(currentPatient.status)}
-            </span>
+      <div className="mt-4 space-y-3">
+        {activePatients.length === 0 ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            No hay pacientes pendientes o activos en la lista de espera.
           </div>
-        </div>
-      )}
+        ) : (
+          activePatients.map((row) => renderPatientCard(row))
+        )}
+      </div>
 
-      {error && <div className="m-4 rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="mt-4 border-t pt-3">
+        <button
+          type="button"
+          onClick={() => setShowFinished((prev) => !prev)}
+          className="flex w-full items-center justify-between rounded bg-slate-100 px-3 py-2 text-left text-sm font-bold text-slate-700 hover:bg-slate-200"
+        >
+          <span>Atenciones finalizadas hoy ({finishedPatients.length})</span>
+          <span>{showFinished ? "−" : "+"}</span>
+        </button>
 
-      {open && (
-        <div className="p-4 pt-0">
-          {loading && patients.length === 0 ? (
-            <div className="rounded border bg-slate-50 p-4 text-sm text-slate-500">Cargando lista de espera...</div>
-          ) : patients.length === 0 ? (
-            <div className="rounded border bg-slate-50 p-4 text-sm text-slate-500">
-              Todavía no hay pacientes triados el día de hoy.
-            </div>
-          ) : (
-            <div className={variant === 'compact' ? 'space-y-2' : 'grid grid-cols-1 gap-3'}>
-              {patients.map((row) => {
-                const isCurrent = String(row.encounterId) === String(currentEncounterId || '');
-                const status = normalizeStatus(row.status);
-                const isBusy = updatingId === row.encounterId;
-
-                return (
-                  <div
-                    key={row.encounterId}
-                    className={`rounded-lg border-2 p-4 ${getRiskClasses(row.globalRisk)} ${
-                      isCurrent ? 'ring-4 ring-blue-300' : ''
-                    }`}
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-base font-bold">
-                          {getRiskIcon(row.globalRisk)} Prioridad {row.priorityPosition} —{' '}
-                          {row.patient?.fullName || 'Paciente sin nombre'}
-                        </p>
-
-                        <p className="text-xs font-semibold uppercase tracking-wide opacity-80">
-                          Llegada #{row.position} | Triaje: {formatTime(row.triageTime || row.createdAt)} |{' '}
-                          {getRiskLabel(row.globalRisk)}
-                        </p>
-
-                        <p className="mt-1 text-sm">
-                          {row.patient?.documentNumber
-                            ? `${row.patient.documentType || 'DNI'}: ${row.patient.documentNumber}`
-                            : 'Documento: —'}
-                          {row.patient?.birthDate ? ` | ${calculateAge(row.patient.birthDate)}` : ''}
-                          {row.patient?.gender ? ` | ${row.patient.gender}` : ''}
-                        </p>
-
-                        <p className="mt-2 text-sm font-medium">{formatVitals(row.vitalSigns)}</p>
-
-                        <p className="mt-1 text-sm">
-                          <span className="font-semibold">Motivo:</span> {row.reason || '—'}
-                        </p>
-
-                        {row.diagnosis && (
-                          <p className="mt-1 text-sm">
-                            <span className="font-semibold">Diagnóstico:</span> {row.diagnosis}
-                          </p>
-                        )}
-
-                        {row.alerts && row.alerts.length > 0 && (
-                          <p className="mt-1 text-xs font-semibold">Alertas activas: {row.alerts.length}</p>
-                        )}
-                      </div>
-
-                      <div className="flex shrink-0 flex-col gap-2 md:items-end">
-                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusClasses(row.status)}`}>
-                          {getStatusLabel(row.status)}
-                        </span>
-
-                        <button
-                          type="button"
-                          onClick={() => openEncounter(row)}
-                          disabled={isBusy}
-                          className="rounded bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-60"
-                        >
-                          {isBusy ? 'Abriendo...' : 'Abrir HCE'}
-                        </button>
-
-                        {status !== 'atendido' && status !== 'alta' && status !== 'referido' && (
-                          <button
-                            type="button"
-                            onClick={() => markStatus(row, 'atendido')}
-                            disabled={isBusy}
-                            className="rounded bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
-                          >
-                            Marcar atendido
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        {showFinished && (
+          <div className="mt-3 space-y-3">
+            {finishedPatients.length === 0 ? (
+              <p className="rounded border bg-white p-3 text-sm text-slate-500">
+                Aún no hay atenciones finalizadas hoy.
+              </p>
+            ) : (
+              finishedPatients.map((row) =>
+                renderPatientCard(row, { finished: true }),
+              )
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

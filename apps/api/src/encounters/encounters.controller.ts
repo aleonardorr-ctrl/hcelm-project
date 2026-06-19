@@ -3,12 +3,14 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiQuery,
   ApiResponse,
@@ -60,5 +62,56 @@ export class EncountersController {
   })
   findOne(@CurrentUser() user: any, @Param('id') id: string) {
     return this.encountersService.findOne(user.tenantId, id);
+  }
+
+  @Patch(':id/status')
+  @ApiOperation({
+    summary: 'Actualizar estado de una atención',
+    description:
+      'Permite cambiar el estado clínico de la atención: triado, en_atencion, atendido, observacion, referido, alta o cancelado.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          example: 'en_atencion',
+          enum: [
+            'triado',
+            'en_atencion',
+            'atendido',
+            'observacion',
+            'referido',
+            'alta',
+            'cancelado',
+          ],
+        },
+      },
+      required: ['status'],
+    },
+  })
+  updateStatus(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ) {
+    return this.encountersService.updateStatus(user.tenantId, id, status);
+  }
+
+  @Patch(':id/start')
+  @ApiOperation({
+    summary: 'Marcar atención como EN ATENCIÓN',
+  })
+  markAsInProgress(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.encountersService.markAsInProgress(user.tenantId, id);
+  }
+
+  @Patch(':id/attended')
+  @ApiOperation({
+    summary: 'Marcar atención como ATENDIDO',
+  })
+  markAsAttended(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.encountersService.markAsAttended(user.tenantId, id);
   }
 }

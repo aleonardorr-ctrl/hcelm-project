@@ -25,6 +25,9 @@ export class WaitingRoomService {
           gte: startOfDay,
           lte: endOfDay,
         },
+        status: {
+          not: 'cancelado',
+        },
       },
       orderBy: {
         createdAt: 'asc',
@@ -67,7 +70,7 @@ export class WaitingRoomService {
           reason: encounter.reason || latestAnamnesis?.motivoConsulta || '',
           createdAt: encounter.createdAt,
           triageTime: encounter.createdAt,
-          status: latestAnamnesis ? 'HCE_REGISTRADA' : 'TRIADO',
+          status: encounter.status || 'triado',
           globalRisk: alertsResponse?.globalRisk || 'normal',
           alerts: alertsResponse?.alerts || [],
           vitalSigns: this.formatVitalSigns(encounter.vitalSigns),
@@ -79,12 +82,27 @@ export class WaitingRoomService {
     );
 
     const sortedRows = [...rows].sort((a, b) => {
+      const statusOrder: Record<string, number> = {
+        en_atencion: 1,
+        triado: 2,
+        open: 2,
+        observacion: 3,
+        referido: 4,
+        alta: 5,
+        atendido: 6,
+      };
+
       const riskOrder: Record<string, number> = {
         critical: 1,
         high: 2,
         warning: 3,
         normal: 4,
       };
+
+      const statusA = statusOrder[String(a.status || '').toLowerCase()] || 9;
+      const statusB = statusOrder[String(b.status || '').toLowerCase()] || 9;
+
+      if (statusA !== statusB) return statusA - statusB;
 
       const riskA = riskOrder[a.globalRisk] || 4;
       const riskB = riskOrder[b.globalRisk] || 4;

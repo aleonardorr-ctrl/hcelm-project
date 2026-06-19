@@ -1,5 +1,6 @@
 // HCELM - components/WaitingRoomPanel.tsx
 // Lista de espera / triaje del día para Pacientes y Anamnesis.
+// Versión con estados clínicos: triado, en_atencion, atendido, observacion, referido, alta.
 
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -73,47 +74,71 @@ function getRiskIcon(risk?: RiskLevel) {
 
 function getRiskClasses(risk?: RiskLevel) {
   if (risk === 'critical') {
-    return 'border-[#ff0033] bg-red-50 text-red-900 shadow-[0_0_18px_rgba(255,0,51,0.55)]';
+    return 'border-[#ff0033] bg-red-50 text-red-950 shadow-[0_0_18px_rgba(255,0,51,0.55)]';
   }
 
   if (risk === 'high') {
-    return 'border-[#ff6a00] bg-orange-50 text-orange-900 shadow-[0_0_16px_rgba(255,106,0,0.45)]';
+    return 'border-[#ff6a00] bg-orange-50 text-orange-950 shadow-[0_0_16px_rgba(255,106,0,0.45)]';
   }
 
   if (risk === 'warning') {
     return 'border-[#fff200] bg-yellow-50 text-yellow-950 shadow-[0_0_14px_rgba(255,242,0,0.45)]';
   }
 
-  return 'border-emerald-300 bg-emerald-50 text-emerald-900';
+  return 'border-emerald-300 bg-emerald-50 text-emerald-950';
+}
+
+function normalizeStatus(status?: string | null) {
+  return String(status || 'triado').trim().toLowerCase();
+}
+
+function getStatusLabel(status?: string | null) {
+  const normalized = normalizeStatus(status);
+
+  if (normalized === 'open') return 'TRIADO';
+  if (normalized === 'triado') return 'TRIADO';
+  if (normalized === 'en_atencion') return 'EN ATENCIÓN';
+  if (normalized === 'atendido') return 'ATENDIDO';
+  if (normalized === 'observacion') return 'OBSERVACIÓN';
+  if (normalized === 'referido') return 'REFERIDO';
+  if (normalized === 'alta') return 'ALTA';
+  if (normalized === 'cancelado') return 'CANCELADO';
+
+  return String(status || 'TRIADO').toUpperCase();
 }
 
 function getStatusClasses(status?: string | null) {
-  const normalized = String(status || '').toUpperCase();
+  const normalized = normalizeStatus(status);
 
-  if (normalized.includes('HCE') || normalized.includes('ATENDIDO')) {
-    return 'bg-blue-100 text-blue-800 border-blue-200';
+  if (normalized === 'en_atencion') {
+    return 'bg-blue-700 text-white border-blue-800 shadow-[0_0_14px_rgba(29,78,216,0.55)]';
   }
 
-  if (normalized.includes('TRIADO')) {
-    return 'bg-amber-100 text-amber-900 border-amber-200';
+  if (normalized === 'triado' || normalized === 'open') {
+    return 'bg-amber-300 text-amber-950 border-amber-500';
+  }
+
+  if (normalized === 'atendido') {
+    return 'bg-emerald-700 text-white border-emerald-800';
+  }
+
+  if (normalized === 'observacion') {
+    return 'bg-purple-700 text-white border-purple-800';
+  }
+
+  if (normalized === 'referido') {
+    return 'bg-rose-700 text-white border-rose-800';
+  }
+
+  if (normalized === 'alta') {
+    return 'bg-slate-700 text-white border-slate-800';
+  }
+
+  if (normalized === 'cancelado') {
+    return 'bg-zinc-200 text-zinc-700 border-zinc-300';
   }
 
   return 'bg-slate-100 text-slate-700 border-slate-200';
-}
-
-function formatDateTime(value?: string | null) {
-  if (!value) return '—';
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-
-  return date.toLocaleString('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 function formatTime(value?: string | null) {
@@ -144,7 +169,6 @@ function calculateAge(birthDate?: string | null) {
 
   return age >= 0 ? `${age} años` : '';
 }
-
 
 function normalizeVitalSignsForLocalStorage(vitalSigns?: WaitingRoomVitalSigns | null) {
   if (!vitalSigns) return null;
@@ -207,6 +231,7 @@ export default function WaitingRoomPanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(variant === 'full');
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const patients = data?.patients || [];
 
@@ -245,33 +270,81 @@ export default function WaitingRoomPanel({
     loadWaitingRoom();
   }, []);
 
-  const openEncounter = (row: WaitingRoomRow) => {
-    if (row.patient) {
-      localStorage.setItem(
-        'selectedPatient',
-        JSON.stringify({
-          id: row.patientId,
-          fullName: row.patient.fullName,
-          documentType: row.patient.documentType,
-          documentNumber: row.patient.documentNumber,
-          gender: row.patient.gender,
-          birthDate: row.patient.birthDate,
-          phone: row.patient.phone,
-        }),
-      );
+  const updateEncounterStatus = async (encounterId: string, status: string) => {
+    const token = localStorage.getItem('ame_token');
+
+    const response = await fetch(`${API_URL}/encounters/${encounterId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      throw new Error('No se pudo actualizar el estado de la atención.');
     }
 
-    localStorage.setItem(
-      'selectedEncounter',
-      JSON.stringify({
-        id: row.encounterId,
-        patientId: row.patientId,
-        reason: row.reason || '',
-        vitalSigns: normalizeVitalSignsForLocalStorage(row.vitalSigns),
-      }),
-    );
+    return response.json();
+  };
 
-    navigate(`/anamnesis?encounterId=${row.encounterId}`);
+  const markStatus = async (row: WaitingRoomRow, status: string) => {
+    setUpdatingId(row.encounterId);
+    setError('');
+
+    try {
+      await updateEncounterStatus(row.encounterId, status);
+      await loadWaitingRoom();
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo actualizar el estado.');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const openEncounter = async (row: WaitingRoomRow) => {
+    setUpdatingId(row.encounterId);
+    setError('');
+
+    try {
+      const currentStatus = normalizeStatus(row.status);
+
+      if (currentStatus === 'triado' || currentStatus === 'open') {
+        await updateEncounterStatus(row.encounterId, 'en_atencion');
+      }
+
+      if (row.patient) {
+        localStorage.setItem(
+          'selectedPatient',
+          JSON.stringify({
+            id: row.patientId,
+            fullName: row.patient.fullName,
+            documentType: row.patient.documentType,
+            documentNumber: row.patient.documentNumber,
+            gender: row.patient.gender,
+            birthDate: row.patient.birthDate,
+            phone: row.patient.phone,
+          }),
+        );
+      }
+
+      localStorage.setItem(
+        'selectedEncounter',
+        JSON.stringify({
+          id: row.encounterId,
+          patientId: row.patientId,
+          reason: row.reason || '',
+          vitalSigns: normalizeVitalSignsForLocalStorage(row.vitalSigns),
+        }),
+      );
+
+      navigate(`/anamnesis?encounterId=${row.encounterId}`);
+    } catch (err: any) {
+      setError(err?.message || 'No se pudo abrir la HCE.');
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const goToPrevious = () => {
@@ -304,11 +377,11 @@ export default function WaitingRoomPanel({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b bg-slate-50 p-4 md:flex-row md:items-center md:justify-between rounded-t-xl">
+      <div className="flex flex-col gap-3 rounded-t-xl border-b bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-bold text-slate-800">🧑‍⚕️ {title}</h2>
           <p className="text-sm text-slate-500">
-            Orden por prioridad clínica y hora de triaje. Total: {data?.total ?? patients.length} pacientes.
+            Orden por estado clínico, prioridad y hora de triaje. Total: {data?.total ?? patients.length} pacientes.
           </p>
         </div>
 
@@ -318,7 +391,7 @@ export default function WaitingRoomPanel({
               <button
                 type="button"
                 onClick={goToPrevious}
-                disabled={currentIndex <= 0}
+                disabled={currentIndex <= 0 || updatingId !== null}
                 className="rounded bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
               >
                 ← Anterior
@@ -327,7 +400,7 @@ export default function WaitingRoomPanel({
               <button
                 type="button"
                 onClick={goToNext}
-                disabled={currentIndex < 0 || currentIndex >= patients.length - 1}
+                disabled={currentIndex < 0 || currentIndex >= patients.length - 1 || updatingId !== null}
                 className="rounded bg-slate-700 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
               >
                 Siguiente →
@@ -370,7 +443,7 @@ export default function WaitingRoomPanel({
             </div>
 
             <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusClasses(currentPatient.status)}`}>
-              {currentPatient.status || 'TRIADO'}
+              {getStatusLabel(currentPatient.status)}
             </span>
           </div>
         </div>
@@ -390,6 +463,8 @@ export default function WaitingRoomPanel({
             <div className={variant === 'compact' ? 'space-y-2' : 'grid grid-cols-1 gap-3'}>
               {patients.map((row) => {
                 const isCurrent = String(row.encounterId) === String(currentEncounterId || '');
+                const status = normalizeStatus(row.status);
+                const isBusy = updatingId === row.encounterId;
 
                 return (
                   <div
@@ -431,24 +506,34 @@ export default function WaitingRoomPanel({
                         )}
 
                         {row.alerts && row.alerts.length > 0 && (
-                          <p className="mt-1 text-xs font-semibold">
-                            Alertas activas: {row.alerts.length}
-                          </p>
+                          <p className="mt-1 text-xs font-semibold">Alertas activas: {row.alerts.length}</p>
                         )}
                       </div>
 
                       <div className="flex shrink-0 flex-col gap-2 md:items-end">
                         <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusClasses(row.status)}`}>
-                          {row.status || 'TRIADO'}
+                          {getStatusLabel(row.status)}
                         </span>
 
                         <button
                           type="button"
                           onClick={() => openEncounter(row)}
-                          className="rounded bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800"
+                          disabled={isBusy}
+                          className="rounded bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-60"
                         >
-                          Abrir HCE
+                          {isBusy ? 'Abriendo...' : 'Abrir HCE'}
                         </button>
+
+                        {status !== 'atendido' && status !== 'alta' && status !== 'referido' && (
+                          <button
+                            type="button"
+                            onClick={() => markStatus(row, 'atendido')}
+                            disabled={isBusy}
+                            className="rounded bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+                          >
+                            Marcar atendido
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

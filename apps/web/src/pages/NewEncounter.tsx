@@ -83,6 +83,121 @@ function getSelectedPatient(): SelectedPatient | null {
   }
 }
 
+function isEditVitalsMode(): boolean {
+  const searchParams = new URLSearchParams(window.location.search);
+  return searchParams.get('mode') === 'edit-vitals';
+}
+
+function getSelectedEncounterDraft(
+  selectedPatient: SelectedPatient | null,
+): Partial<EncounterForm> {
+  const editVitalsMode = isEditVitalsMode();
+
+  if (!editVitalsMode) {
+    localStorage.removeItem('selectedEncounter');
+    return {};
+  }
+
+  const raw = localStorage.getItem('selectedEncounter');
+
+  if (!raw) return {};
+
+  try {
+    const encounter = JSON.parse(raw);
+
+    const samePatient =
+      selectedPatient?.id &&
+      encounter?.patientId &&
+      String(selectedPatient.id) === String(encounter.patientId);
+
+    if (!samePatient) {
+      localStorage.removeItem('selectedEncounter');
+      return {};
+    }
+
+    const vitalSigns = encounter?.vitalSigns || {};
+
+    return {
+      type: encounter?.type || 'consulta',
+      reason: encounter?.reason || '',
+      systolicBP:
+        vitalSigns?.systolicBP !== undefined && vitalSigns?.systolicBP !== null
+          ? String(vitalSigns.systolicBP)
+          : '',
+      diastolicBP:
+        vitalSigns?.diastolicBP !== undefined && vitalSigns?.diastolicBP !== null
+          ? String(vitalSigns.diastolicBP)
+          : '',
+      heartRate:
+        vitalSigns?.heartRate !== undefined && vitalSigns?.heartRate !== null
+          ? String(vitalSigns.heartRate)
+          : '',
+      respiratoryRate:
+        vitalSigns?.respiratoryRate !== undefined &&
+        vitalSigns?.respiratoryRate !== null
+          ? String(vitalSigns.respiratoryRate)
+          : '',
+      temperature:
+        vitalSigns?.temperature !== undefined && vitalSigns?.temperature !== null
+          ? String(vitalSigns.temperature)
+          : '',
+      oxygenSat:
+        vitalSigns?.oxygenSat !== undefined && vitalSigns?.oxygenSat !== null
+          ? String(vitalSigns.oxygenSat)
+          : '',
+      weightKg:
+        vitalSigns?.weightKg !== undefined && vitalSigns?.weightKg !== null
+          ? String(vitalSigns.weightKg)
+          : '',
+      heightCm:
+        vitalSigns?.heightCm !== undefined && vitalSigns?.heightCm !== null
+          ? String(vitalSigns.heightCm)
+          : '',
+      capillaryGlucose:
+        vitalSigns?.capillaryGlucose !== undefined &&
+        vitalSigns?.capillaryGlucose !== null
+          ? String(vitalSigns.capillaryGlucose)
+          : '',
+      painScale:
+        vitalSigns?.painScale !== undefined && vitalSigns?.painScale !== null
+          ? String(vitalSigns.painScale)
+          : '',
+      consciousness: vitalSigns?.consciousness || 'Alerta',
+      glasgowEye:
+        vitalSigns?.glasgowEye !== undefined && vitalSigns?.glasgowEye !== null
+          ? String(vitalSigns.glasgowEye)
+          : '',
+      glasgowVerbal:
+        vitalSigns?.glasgowVerbal !== undefined &&
+        vitalSigns?.glasgowVerbal !== null
+          ? String(vitalSigns.glasgowVerbal)
+          : '',
+      glasgowMotor:
+        vitalSigns?.glasgowMotor !== undefined &&
+        vitalSigns?.glasgowMotor !== null
+          ? String(vitalSigns.glasgowMotor)
+          : '',
+      oxygenSupport: vitalSigns?.oxygenSupport || 'Aire ambiente',
+      fio2:
+        vitalSigns?.fio2 !== undefined && vitalSigns?.fio2 !== null
+          ? String(vitalSigns.fio2)
+          : '',
+      nursingNotes: vitalSigns?.nursingNotes || '',
+    };
+  } catch {
+    return {};
+  }
+}
+
+function getInitialEncounterForm(
+  selectedPatient: SelectedPatient | null,
+): EncounterForm {
+  return {
+    ...emptyForm,
+    ...getSelectedEncounterDraft(selectedPatient),
+  };
+}
+
 function isValidUuid(value?: string | null): boolean {
   if (!value) return false;
 
@@ -142,9 +257,12 @@ function calculateGlasgowTotal(
 
 export default function NewEncounter() {
   const navigate = useNavigate();
+  const selectedPatient = getSelectedPatient();
 
-  const [patient] = useState<SelectedPatient | null>(getSelectedPatient());
-  const [form, setForm] = useState<EncounterForm>(emptyForm);
+  const [patient] = useState<SelectedPatient | null>(selectedPatient);
+  const [form, setForm] = useState<EncounterForm>(() =>
+    getInitialEncounterForm(selectedPatient),
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

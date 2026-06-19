@@ -1,3 +1,93 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes hcelm-alert-fast {
+  0% {
+    background-color: #ffffff;
+    color: #7f1d1d;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 1), 0 0 18px rgba(220, 38, 38, 0.95);
+    transform: scale(1);
+  }
+
+  50% {
+    background-color: #dc2626;
+    color: #ffffff;
+    border-color: #7f1d1d;
+    box-shadow: 0 0 0 8px rgba(220, 38, 38, 0.4), 0 0 28px rgba(220, 38, 38, 1);
+    transform: scale(1.08);
+  }
+
+  100% {
+    background-color: #ffffff;
+    color: #7f1d1d;
+    border-color: #dc2626;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 1), 0 0 18px rgba(220, 38, 38, 0.95);
+    transform: scale(1);
+  }
+}
+
+@keyframes hcelm-alert-medium {
+  0% {
+    background-color: #ffffff;
+    color: #7c2d12;
+    border-color: #ea580c;
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 1), 0 0 16px rgba(234, 88, 12, 0.9);
+    transform: scale(1);
+  }
+
+  50% {
+    background-color: #ea580c;
+    color: #ffffff;
+    border-color: #7c2d12;
+    box-shadow: 0 0 0 7px rgba(234, 88, 12, 0.35), 0 0 26px rgba(234, 88, 12, 1);
+    transform: scale(1.06);
+  }
+
+  100% {
+    background-color: #ffffff;
+    color: #7c2d12;
+    border-color: #ea580c;
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 1), 0 0 16px rgba(234, 88, 12, 0.9);
+    transform: scale(1);
+  }
+}
+
+@keyframes hcelm-alert-slow {
+  0% {
+    background-color: #ffffff;
+    color: #713f12;
+    border-color: #ca8a04;
+    box-shadow: 0 0 0 0 rgba(202, 138, 4, 0.95), 0 0 14px rgba(202, 138, 4, 0.85);
+    transform: scale(1);
+  }
+
+  50% {
+    background-color: #facc15;
+    color: #422006;
+    border-color: #854d0e;
+    box-shadow: 0 0 0 6px rgba(202, 138, 4, 0.32), 0 0 24px rgba(202, 138, 4, 1);
+    transform: scale(1.04);
+  }
+
+  100% {
+    background-color: #ffffff;
+    color: #713f12;
+    border-color: #ca8a04;
+    box-shadow: 0 0 0 0 rgba(202, 138, 4, 0.95), 0 0 14px rgba(202, 138, 4, 0.85);
+    transform: scale(1);
+  }
+}
+
+.animate-alert-fast {
+  animation: hcelm-alert-fast 0.55s infinite;
+}
+
+.animate-alert-medium {
+  animation: hcelm-alert-medium 0.9s infinite;
+}
+
+.animate-alert-slow {
+  animation: hcelm-alert-slow 1.3s infinite;
+}

@@ -11,6 +11,7 @@ import { EstablishmentModule } from './establishment/establishment.module';
 import { AnamnesisModule } from './anamnesis/anamnesis.module';
 import { InstitutionModule } from './institution/institution.module';
 import { EncountersModule } from './encounters/encounters.module';
+import { ClinicalAlertsModule } from './clinical-alerts/clinical-alerts.module';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -33,6 +34,7 @@ import { AppService } from './app.service';
     EstablishmentModule,
     AnamnesisModule,
     InstitutionModule,
+    ClinicalAlertsModule,
   ],
 
   controllers: [AppController],

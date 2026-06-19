@@ -690,9 +690,7 @@ export default function Anamnesis() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 md:p-6">
-      <div className="mx-auto flex max-w-[1800px] flex-col gap-4 xl:flex-row">
-        <main className="min-w-0 flex-1">
+    <div className="min-h-screen w-full bg-slate-100 p-4 md:p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
             <h1 className="text-2xl font-bold text-slate-800">
               Anamnesis y Historia Clínica Electrónica
@@ -701,7 +699,41 @@ export default function Anamnesis() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => navigate("/new-encounter")}
+                onClick={() => {
+                  const selectedPatient = patients.find(
+                    (p) => String(p.id) === String(formData.patientId),
+                  );
+
+                  if (selectedPatient) {
+                    localStorage.setItem(
+                      "selectedPatient",
+                      JSON.stringify(selectedPatient),
+                    );
+                  }
+
+                  localStorage.setItem(
+                    "selectedEncounter",
+                    JSON.stringify({
+                      id: formData.encounterId || encounterIdFromUrl || "",
+                      patientId: formData.patientId,
+                      reason: formData.motivoConsulta,
+                      vitalSigns: {
+                        systolicBP: formData.signosVitales.ta?.includes("/")
+                          ? formData.signosVitales.ta.split("/")[0]
+                          : "",
+                        diastolicBP: formData.signosVitales.ta?.includes("/")
+                          ? formData.signosVitales.ta.split("/")[1]
+                          : "",
+                        heartRate: formData.signosVitales.fc,
+                        respiratoryRate: formData.signosVitales.fr,
+                        temperature: formData.signosVitales.temp,
+                        oxygenSat: formData.signosVitales.spo2,
+                      },
+                    }),
+                  );
+
+                  navigate("/new-encounter?mode=edit-vitals");
+                }}
                 className="px-4 py-2 rounded bg-amber-600 text-white font-semibold hover:bg-amber-700"
               >
                 ← Corregir funciones vitales
@@ -1943,15 +1975,11 @@ export default function Anamnesis() {
               </button>
             </div>
           </form>
-        </main>
 
-        <aside className="w-full xl:w-80 xl:shrink-0">
-          <ClinicalAlertsPanel
-            patientId={formData.patientId}
-            encounterId={formData.encounterId}
-          />
-        </aside>
-      </div>
+      <ClinicalAlertsPanel
+        patientId={formData.patientId}
+        encounterId={formData.encounterId}
+      />
     </div>
   );
 }

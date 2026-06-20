@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -7,9 +6,12 @@ import {
   Patch,
   Request,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { DataQualityService } from './data-quality.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('admin/data-quality')
 export class DataQualityController {
   constructor(private readonly dataQualityService: DataQualityService) {}
@@ -39,10 +41,14 @@ export class DataQualityController {
   }
 
   private getTenantId(req: any): string {
+    const user = req?.user || {};
+
     const tenantId =
-      req?.user?.tenantId ||
-      req?.user?.tenant?.id ||
-      req?.body?.tenantId ||
+      user?.tenantId ||
+      user?.tenant_id ||
+      user?.tenant?.id ||
+      user?.payload?.tenantId ||
+      user?.payload?.tenant_id ||
       req?.headers?.['x-tenant-id'];
 
     if (!tenantId) {

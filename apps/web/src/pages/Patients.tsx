@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import WaitingRoomPanel from "../components/WaitingRoomPanel";
 
 type Patient = {
@@ -402,6 +402,7 @@ function formatVitalSigns(vitalSigns?: VitalSigns | null): string {
 
 export default function Patients() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const token = getAuthToken();
 
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -510,16 +511,63 @@ export default function Patients() {
   }, []);
 
   useEffect(() => {
+    const focusPatientId = searchParams.get("focusPatientId");
+
     // Al ingresar al módulo Pacientes desde el menú o después del login,
     // no debemos precargar un paciente antiguo guardado en localStorage.
-    // La selección debe ocurrir solo cuando el usuario presiona un botón del paciente actual.
+    // Si venimos desde Calidad de datos con focusPatientId, conservamos la selección
+    // para enfocar directamente al paciente observado.
+    if (focusPatientId) return;
+
     setSelectedPatient(null);
     localStorage.removeItem("selectedPatient");
     localStorage.removeItem("hcelm_selected_patient");
     localStorage.removeItem("selectedPatientId");
     localStorage.removeItem("hcelm_selected_patient_id");
     localStorage.removeItem("selectedEncounter");
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const focusPatientId = searchParams.get("focusPatientId");
+    const focusDocument = searchParams.get("focusDocument") || "";
+    const focusName = searchParams.get("focusName") || "";
+
+    if (!focusPatientId || patients.length === 0) return;
+
+    const targetPatient = patients.find((patient) => {
+      const normalized = normalizePatient(patient);
+      const currentId = getPatientId(normalized);
+      return currentId === focusPatientId || patient.id === focusPatientId;
+    });
+
+    if (!targetPatient) {
+      const fallbackSearch = focusDocument || focusName;
+      if (fallbackSearch) setSearch(fallbackSearch);
+      setError(
+        "No se encontró el paciente observado en la lista actual. Presione Actualizar o revise si fue eliminado.",
+      );
+      return;
+    }
+
+    const normalizedPatient = normalizePatient(targetPatient);
+    const searchTerm =
+      normalizedPatient.documentNumber ||
+      focusDocument ||
+      getFullName(normalizedPatient) ||
+      focusName;
+
+    if (searchTerm) setSearch(searchTerm);
+    handleSelectPatient(normalizedPatient);
+    setSuccess(
+      `Paciente observado cargado: ${getFullName(normalizedPatient)}. Revise o corrija sus datos.`,
+    );
+
+    window.setTimeout(() => {
+      const row = document.getElementById(`patient-row-${focusPatientId}`);
+      row?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patients, searchParams]);
 
   function handleChange(
     event: ChangeEvent<
@@ -1618,7 +1666,11 @@ export default function Patients() {
 
               <tbody>
                 {filteredPatients.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-gray-50">
+                  <tr
+                    key={patient.id}
+                    id={`patient-row-${getPatientId(patient) || patient.id}`}
+                    className={`hover:bg-gray-50 ${selectedPatient?.id === patient.id ? "bg-cyan-50 ring-2 ring-cyan-300" : ""}`}
+                  >
                     <td className="border px-3 py-2">
                       {patient.documentType || "DNI"}{" "}
                       {patient.documentNumber || "—"}

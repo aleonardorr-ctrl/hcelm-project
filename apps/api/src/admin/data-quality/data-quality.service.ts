@@ -23,6 +23,8 @@ type PatientQualityRow = {
   updatedAt: Date;
   hceNumber: string | null;
   issues: PatientIssue[];
+  issueDescriptions: string[];
+  hasClinicalHistory: boolean;
   canSafeDelete: boolean;
   relatedCounts: {
     encounters: number;
@@ -85,6 +87,10 @@ export class DataQualityService {
       const issues = this.evaluatePatientIssues(patient, documentFrequency);
       const hceNumber = this.buildHceNumber(patient.documentNumber);
 
+      const hasClinicalHistory = Object.values(relatedCounts).some(
+        (count) => count > 0,
+      );
+
       return {
         id: patient.id,
         tenantId: patient.tenantId,
@@ -95,7 +101,9 @@ export class DataQualityService {
         updatedAt: patient.updatedAt,
         hceNumber,
         issues,
-        canSafeDelete: Object.values(relatedCounts).every((count) => count === 0),
+        issueDescriptions: issues.map((issue) => this.getIssueDescription(issue)),
+        hasClinicalHistory,
+        canSafeDelete: !hasClinicalHistory,
         relatedCounts,
       };
     });
@@ -180,6 +188,8 @@ export class DataQualityService {
         createdAt: patient.createdAt,
         updatedAt: patient.updatedAt,
       },
+      hasClinicalHistory: Object.values(patient._count).some((count) => count > 0),
+      canSafeDelete: Object.values(patient._count).every((count) => count === 0),
       relatedCounts: patient._count,
       encounters: patient.encounters,
       anamnesis: patient.anamnesis,
@@ -328,6 +338,19 @@ export class DataQualityService {
     }
 
     return issues;
+  }
+
+
+  private getIssueDescription(issue: PatientIssue) {
+    const descriptions: Record<PatientIssue, string> = {
+      SUSPICIOUS_ID: 'ID técnico sospechoso o de prueba.',
+      MISSING_DOCUMENT: 'Paciente sin documento registrado.',
+      INVALID_DNI: 'DNI inválido. En Perú el DNI debe tener 8 dígitos.',
+      DUPLICATED_DOCUMENT: 'Documento duplicado en más de un paciente.',
+      MISSING_NAME: 'Paciente sin nombre completo registrado.',
+    };
+
+    return descriptions[issue] || issue;
   }
 
   private isSuspiciousPatientId(id?: string | null) {

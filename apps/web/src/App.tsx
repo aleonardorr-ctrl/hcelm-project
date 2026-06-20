@@ -15,6 +15,7 @@ import InstitutionSettings from './pages/InstitutionSettings';
 import ProfessionalVerification from './pages/ProfessionalVerification';
 import NewEncounter from './pages/NewEncounter';
 import Certificates from './pages/Certificates';
+import DataQuality from './pages/DataQuality';
 
 function TokenProtected({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem('ame_token');
@@ -84,6 +85,8 @@ function Navbar() {
     localStorage.removeItem('hcelm_professional_rne');
     localStorage.removeItem('hcelm_professional_license');
     localStorage.removeItem('hcelm_professional_role');
+    localStorage.removeItem('selectedPatient');
+    localStorage.removeItem('selectedEncounter');
 
     window.location.href = '/login';
   };
@@ -120,6 +123,7 @@ function Navbar() {
         <MenuLink to="/anamnesis" label="Anamnesis" />
         <MenuLink to="/certificates" label="Certificados" />
         <MenuLink to="/institution" label="Configuración" />
+        <MenuLink to="/admin/data-quality" label="Calidad de datos" />
         <MenuLink to="/professional-verification" label="Profesional" />
 
         {professionalName && (
@@ -225,6 +229,15 @@ export default function App() {
             element={
               <ClinicalProtected>
                 <InstitutionSettings />
+              </ClinicalProtected>
+            }
+          />
+
+          <Route
+            path="/admin/data-quality"
+            element={
+              <ClinicalProtected>
+                <DataQuality />
               </ClinicalProtected>
             }
           />

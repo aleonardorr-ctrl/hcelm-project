@@ -16,6 +16,8 @@ import { WaitingRoomModule } from './waiting-room/waiting-room.module';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DataQualityModule } from './admin/data-quality/data-quality.module';
+
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { AppService } from './app.service';
     InstitutionModule,
     ClinicalAlertsModule,
     WaitingRoomModule,
+    DataQualityModule,
+
   ],
 
   controllers: [AppController],

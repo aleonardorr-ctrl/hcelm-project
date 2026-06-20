@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 type SelectedPatient = {
-  id: string;
+  id?: string | null;
+  patientId?: string | null;
   name?: string | null;
   fullName?: string | null;
   documentType?: string | null;
@@ -77,10 +78,49 @@ function getSelectedPatient(): SelectedPatient | null {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as SelectedPatient;
+    const parsed = JSON.parse(raw) as SelectedPatient;
+    const normalizedId = getBestPatientId(parsed);
+
+    if (normalizedId && parsed.id !== normalizedId) {
+      const normalized = {
+        ...parsed,
+        id: normalizedId,
+      };
+
+      localStorage.setItem('selectedPatient', JSON.stringify(normalized));
+      return normalized;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
+}
+
+function getBestPatientId(patient?: SelectedPatient | null): string {
+  const possibleIds = [
+    patient?.id,
+    patient?.patientId,
+    (patient as any)?.PatientId,
+    (patient as any)?.patient_id,
+    (patient as any)?.value,
+  ];
+
+  const validId = possibleIds.find((value) => isValidUuid(String(value || '')));
+
+  return validId ? String(validId) : '';
+}
+
+function persistSelectedPatient(patient: SelectedPatient) {
+  const normalizedId = getBestPatientId(patient);
+  const normalizedPatient = {
+    ...patient,
+    id: normalizedId || patient.id || '',
+  };
+
+  localStorage.setItem('selectedPatient', JSON.stringify(normalizedPatient));
+
+  return normalizedPatient;
 }
 
 function isEditVitalsMode(): boolean {
@@ -259,7 +299,7 @@ export default function NewEncounter() {
   const navigate = useNavigate();
   const selectedPatient = getSelectedPatient();
 
-  const [patient] = useState<SelectedPatient | null>(selectedPatient);
+  const [patient, setPatient] = useState<SelectedPatient | null>(selectedPatient);
   const [form, setForm] = useState<EncounterForm>(() =>
     getInitialEncounterForm(selectedPatient),
   );
@@ -295,37 +335,112 @@ export default function NewEncounter() {
     }));
   }
 
-  function validateForm(): string | null {
-  if (!patient?.id) {
-    return 'No hay paciente seleccionado. Regrese a Pacientes, seleccione uno y vuelva a iniciar la atención.';
+  function validateForm(patientToValidate: SelectedPatient | null): string | null {
+    const patientId = getBestPatientId(patientToValidate);
+
+    if (!patientToValidate || !patientId) {
+      return 'No hay paciente seleccionado o el paciente no tiene un ID válido. Regrese a Pacientes y seleccione nuevamente al paciente.';
+    }
+
+    if (!form.reason.trim()) {
+      return 'Ingrese el motivo de consulta o atención.';
+    }
+
+    return null;
   }
 
-  if (!isValidUuid(patient.id)) {
-    return 'El paciente seleccionado no tiene un ID válido. Regrese a Pacientes, presione Actualizar y seleccione nuevamente al paciente.';
-  }
+  async function resolveSelectedPatient(): Promise<SelectedPatient | null> {
+    if (patient && getBestPatientId(patient)) {
+      return persistSelectedPatient(patient);
+    }
 
-  if (!form.reason.trim()) {
-    return 'Ingrese el motivo de consulta o atención.';
-  }
+    const storedPatient = getSelectedPatient();
 
-  return null;
-}
+    if (storedPatient && getBestPatientId(storedPatient)) {
+      const normalizedStoredPatient = persistSelectedPatient(storedPatient);
+      setPatient(normalizedStoredPatient);
+      return normalizedStoredPatient;
+    }
+
+    const documentNumber = String(
+      storedPatient?.documentNumber || patient?.documentNumber || '',
+    ).trim();
+
+    const fullName = String(
+      storedPatient?.fullName || storedPatient?.name || patient?.fullName || patient?.name || '',
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!documentNumber && !fullName) {
+      return null;
+    }
+
+    const token = getAuthToken();
+
+    if (!token) {
+      throw new Error(
+        'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+      );
+    }
+
+    const response = await fetch(`${API_URL}/patients`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const patientList = Array.isArray(data) ? data : [];
+
+    const foundPatient = patientList.find((item: any) => {
+      const itemDocument = String(item.documentNumber || '').trim();
+      const itemName = String(item.fullName || item.name || '')
+        .trim()
+        .toLowerCase();
+
+      if (documentNumber && itemDocument === documentNumber) return true;
+      if (fullName && itemName === fullName) return true;
+
+      return false;
+    });
+
+    if (!foundPatient?.id) {
+      return null;
+    }
+
+    const normalizedPatient = persistSelectedPatient({
+      ...storedPatient,
+      ...foundPatient,
+      id: foundPatient.id,
+      fullName: foundPatient.fullName || foundPatient.name || storedPatient?.fullName,
+      name: foundPatient.name || foundPatient.fullName || storedPatient?.name,
+    });
+
+    setPatient(normalizedPatient);
+    return normalizedPatient;
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const validationError = validateForm();
-
-    if (validationError) {
-      setError(validationError);
-      setSuccess('');
-      return;
-    }
 
     try {
       setSaving(true);
       setError('');
       setSuccess('');
+
+      const resolvedPatient = await resolveSelectedPatient();
+      const validationError = validateForm(resolvedPatient);
+
+      if (validationError) {
+        setError(validationError);
+        setSuccess('');
+        return;
+      }
 
       const token = getAuthToken();
 
@@ -336,7 +451,7 @@ export default function NewEncounter() {
       }
 
       const payload = {
-        patientId: String(patient!.id),
+        patientId: getBestPatientId(resolvedPatient),
         type: form.type || 'consulta',
         reason: form.reason.trim(),
 
@@ -447,7 +562,7 @@ export default function NewEncounter() {
           </p>
         </div>
 
-        {!patient?.id && (
+        {!getBestPatientId(patient) && (
           <div className="mt-4 p-3 rounded border border-red-300 bg-red-50 text-red-700 text-sm">
             No hay paciente seleccionado. Regrese a Pacientes, seleccione uno y vuelva a iniciar la atención.
           </div>

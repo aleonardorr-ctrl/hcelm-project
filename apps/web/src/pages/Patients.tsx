@@ -1,13 +1,16 @@
 // HCELM - pages/Patients.tsx
 // Módulo de pacientes: registro, búsqueda, edición, selección, nueva atención e historial de atenciones.
 
-import { useEffect, useMemo, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import WaitingRoomPanel from '../components/WaitingRoomPanel';
+import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import WaitingRoomPanel from "../components/WaitingRoomPanel";
 
 type Patient = {
   id: string;
+  patientId?: string | null;
+  _id?: string | null;
+  patient?: any;
   name?: string | null;
   fullName?: string | null;
   documentType?: string | null;
@@ -87,40 +90,40 @@ type PatientFormState = {
 };
 
 const emptyForm: PatientFormState = {
-  documentType: 'DNI',
-  documentNumber: '',
-  firstName: '',
-  paternalLastName: '',
-  maternalLastName: '',
-  sex: '',
-  birthDate: '',
-  phone: '',
-  email: '',
-  address: '',
-  allergies: '',
-  chronicDiseases: '',
-  usualMedication: '',
-  observations: '',
+  documentType: "DNI",
+  documentNumber: "",
+  firstName: "",
+  paternalLastName: "",
+  maternalLastName: "",
+  sex: "",
+  birthDate: "",
+  phone: "",
+  email: "",
+  address: "",
+  allergies: "",
+  chronicDiseases: "",
+  usualMedication: "",
+  observations: "",
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 function getAuthToken() {
   return (
-    localStorage.getItem('ame_token') ||
-    localStorage.getItem('token') ||
-    localStorage.getItem('access_token') ||
-    localStorage.getItem('accessToken') ||
-    localStorage.getItem('authToken') ||
-    localStorage.getItem('jwt')
+    localStorage.getItem("ame_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("jwt")
   );
 }
 
 function calculateAge(birthDate?: string | null): string {
-  if (!birthDate) return '';
+  if (!birthDate) return "";
 
   const birth = new Date(birthDate);
-  if (Number.isNaN(birth.getTime())) return '';
+  if (Number.isNaN(birth.getTime())) return "";
 
   const today = new Date();
 
@@ -132,87 +135,89 @@ function calculateAge(birthDate?: string | null): string {
     years -= 1;
   }
 
-  if (years < 0) return '';
+  if (years < 0) return "";
 
   return `${years} años`;
 }
 
 function normalizeDateForInput(date?: string | null): string {
-  if (!date) return '';
+  if (!date) return "";
   return date.slice(0, 10);
 }
 
 function formatDateTime(date?: string | null): string {
-  if (!date) return '—';
+  if (!date) return "—";
 
   const parsedDate = new Date(date);
 
-  if (Number.isNaN(parsedDate.getTime())) return '—';
+  if (Number.isNaN(parsedDate.getTime())) return "—";
 
-  return parsedDate.toLocaleString('es-PE', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  return parsedDate.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 function formatEncounterStatus(status?: string | null): string {
-  if (!status) return 'Sin atención';
+  if (!status) return "Sin atención";
 
   const normalizedStatus = status.toLowerCase();
 
   const statusMap: Record<string, string> = {
-    open: 'En atención',
-    opened: 'En atención',
-    active: 'En atención',
-    in_progress: 'En atención',
-    pending: 'Pendiente',
-    completed: 'Finalizada',
-    closed: 'Finalizada',
-    finished: 'Finalizada',
-    cancelled: 'Cancelada',
-    canceled: 'Cancelada',
+    open: "En atención",
+    opened: "En atención",
+    active: "En atención",
+    in_progress: "En atención",
+    pending: "Pendiente",
+    completed: "Finalizada",
+    closed: "Finalizada",
+    finished: "Finalizada",
+    cancelled: "Cancelada",
+    canceled: "Cancelada",
   };
 
   return statusMap[normalizedStatus] || status;
 }
 
 function formatEncounterType(type?: string | null): string {
-  if (!type) return 'Atención';
+  if (!type) return "Atención";
 
   const typeMap: Record<string, string> = {
-    outpatient: 'Consulta externa',
-    emergency: 'Emergencia',
-    procedure: 'Procedimiento',
-    triage: 'Triaje',
-    control: 'Control',
-    consultation: 'Consulta',
+    outpatient: "Consulta externa",
+    emergency: "Emergencia",
+    procedure: "Procedimiento",
+    triage: "Triaje",
+    control: "Control",
+    consultation: "Consulta",
   };
 
   return typeMap[type.toLowerCase()] || type;
 }
 
 function formatDiagnosis(diagnosis: any): string {
-  if (!diagnosis) return 'Sin diagnóstico registrado';
+  if (!diagnosis) return "Sin diagnóstico registrado";
 
-  if (typeof diagnosis === 'string') {
-    return diagnosis.trim() || 'Sin diagnóstico registrado';
+  if (typeof diagnosis === "string") {
+    return diagnosis.trim() || "Sin diagnóstico registrado";
   }
 
-  if (typeof diagnosis === 'object') {
-    const codigo = diagnosis.codigo || diagnosis.code || '';
+  if (typeof diagnosis === "object") {
+    const codigo = diagnosis.codigo || diagnosis.code || "";
     const descripcion =
-      diagnosis.descripcion || diagnosis.description || diagnosis.desc || '';
-    const tipo = diagnosis.tipo || diagnosis.type || '';
+      diagnosis.descripcion || diagnosis.description || diagnosis.desc || "";
+    const tipo = diagnosis.tipo || diagnosis.type || "";
 
-    const base = [codigo, descripcion].filter(Boolean).join(' - ');
-    return [base, tipo ? `(${tipo})` : ''].filter(Boolean).join(' ') ||
-      'Sin diagnóstico registrado';
+    const base = [codigo, descripcion].filter(Boolean).join(" - ");
+    return (
+      [base, tipo ? `(${tipo})` : ""].filter(Boolean).join(" ") ||
+      "Sin diagnóstico registrado"
+    );
   }
 
-  return 'Sin diagnóstico registrado';
+  return "Sin diagnóstico registrado";
 }
 
 function buildFullNameFromForm(form: PatientFormState): string {
@@ -222,7 +227,7 @@ function buildFullNameFromForm(form: PatientFormState): string {
     form.firstName.trim(),
   ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
 }
 
 function getFullName(patient: Patient): string {
@@ -232,73 +237,167 @@ function getFullName(patient: Patient): string {
     patient.firstName,
   ]
     .filter(Boolean)
-    .join(' ')
+    .join(" ")
     .trim();
 
-  return separatedName || patient.fullName || patient.name || 'Paciente sin nombre';
+  return (
+    separatedName || patient.fullName || patient.name || "Paciente sin nombre"
+  );
 }
 
 function splitFullName(fullName?: string | null) {
-  const cleanedName = (fullName || '').trim();
+  const cleanedName = (fullName || "").trim();
 
   if (!cleanedName) {
     return {
-      paternalLastName: '',
-      maternalLastName: '',
-      firstName: '',
+      paternalLastName: "",
+      maternalLastName: "",
+      firstName: "",
     };
   }
 
   const parts = cleanedName.split(/\s+/);
 
   return {
-    paternalLastName: parts[0] || '',
-    maternalLastName: parts[1] || '',
-    firstName: parts.slice(2).join(' ') || '',
+    paternalLastName: parts[0] || "",
+    maternalLastName: parts[1] || "",
+    firstName: parts.slice(2).join(" ") || "",
+  };
+}
+
+function getPatientId(patient: any): string {
+  const possibleId =
+    patient?.id ??
+    patient?.patientId ??
+    patient?.patient?.id ??
+    patient?.patient?._id ??
+    patient?._id ??
+    patient?.data?.id ??
+    patient?.data?.patientId ??
+    "";
+
+  return String(possibleId || "").trim();
+}
+
+function normalizePatient(patient: any): Patient {
+  const patientData =
+    patient?.patient && typeof patient.patient === "object"
+      ? patient.patient
+      : patient?.data && typeof patient.data === "object"
+        ? patient.data
+        : patient;
+
+  const id = getPatientId(patientData) || getPatientId(patient);
+  const splitName = splitFullName(
+    patient?.fullName ||
+      patientData?.fullName ||
+      patient?.name ||
+      patientData?.name ||
+      "",
+  );
+
+  return {
+    ...patientData,
+    ...patient,
+    id,
+    patientId: id,
+    fullName:
+      patient?.fullName ||
+      patientData?.fullName ||
+      patient?.name ||
+      patientData?.name ||
+      "",
+    name:
+      patient?.name ||
+      patientData?.name ||
+      patient?.fullName ||
+      patientData?.fullName ||
+      "",
+    documentType: patient?.documentType || patientData?.documentType || "DNI",
+    documentNumber:
+      patient?.documentNumber || patientData?.documentNumber || "",
+    firstName:
+      patient?.firstName || patientData?.firstName || splitName.firstName || "",
+    paternalLastName:
+      patient?.paternalLastName ||
+      patientData?.paternalLastName ||
+      splitName.paternalLastName ||
+      "",
+    maternalLastName:
+      patient?.maternalLastName ||
+      patientData?.maternalLastName ||
+      splitName.maternalLastName ||
+      "",
+    gender:
+      patient?.gender ||
+      patient?.sex ||
+      patientData?.gender ||
+      patientData?.sex ||
+      "",
+    sex:
+      patient?.gender ||
+      patient?.sex ||
+      patientData?.gender ||
+      patientData?.sex ||
+      "",
   };
 }
 
 function buildSelectedPatientForStorage(patient: Patient) {
-  const patientFullName = getFullName(patient);
+  const normalizedPatient = normalizePatient(patient);
+  const patientFullName = getFullName(normalizedPatient);
+  const patientId = getPatientId(normalizedPatient);
 
   return {
-    id: patient.id,
-    name: patient.name,
+    ...normalizedPatient,
+    id: patientId,
+    patientId,
+    name: normalizedPatient.name || patientFullName,
     fullName: patientFullName,
-    documentType: patient.documentType,
-    documentNumber: patient.documentNumber,
-    firstName: patient.firstName,
-    paternalLastName: patient.paternalLastName,
-    maternalLastName: patient.maternalLastName,
-    gender: patient.gender || patient.sex,
-    sex: patient.gender || patient.sex,
-    birthDate: patient.birthDate,
-    age: calculateAge(patient.birthDate),
-    phone: patient.phone,
-    email: patient.email,
-    address: patient.address,
-    allergies: patient.allergies,
-    chronicDiseases: patient.chronicDiseases,
-    usualMedication: patient.usualMedication,
-    observations: patient.observations,
+    documentType: normalizedPatient.documentType || "DNI",
+    documentNumber: normalizedPatient.documentNumber || "",
+    firstName: normalizedPatient.firstName || "",
+    paternalLastName: normalizedPatient.paternalLastName || "",
+    maternalLastName: normalizedPatient.maternalLastName || "",
+    gender: normalizedPatient.gender || normalizedPatient.sex || "",
+    sex: normalizedPatient.gender || normalizedPatient.sex || "",
+    birthDate: normalizedPatient.birthDate || "",
+    age: calculateAge(normalizedPatient.birthDate),
+    phone: normalizedPatient.phone || "",
+    email: normalizedPatient.email || "",
+    address: normalizedPatient.address || "",
+    allergies: normalizedPatient.allergies || "",
+    chronicDiseases: normalizedPatient.chronicDiseases || "",
+    usualMedication: normalizedPatient.usualMedication || "",
+    observations: normalizedPatient.observations || "",
+    encountersCount: normalizedPatient.encountersCount,
+    lastEncounterDate: normalizedPatient.lastEncounterDate,
+    lastEncounterStatus: normalizedPatient.lastEncounterStatus,
+    lastDiagnosis: normalizedPatient.lastDiagnosis,
   };
 }
 
 function formatVitalSigns(vitalSigns?: VitalSigns | null): string {
-  if (!vitalSigns) return 'Sin funciones vitales registradas';
+  if (!vitalSigns) return "Sin funciones vitales registradas";
 
   const ta =
     vitalSigns.systolicBP && vitalSigns.diastolicBP
       ? `PA ${vitalSigns.systolicBP}/${vitalSigns.diastolicBP}`
-      : '';
-  const fc = vitalSigns.heartRate ? `FC ${vitalSigns.heartRate}` : '';
-  const fr = vitalSigns.respiratoryRate ? `FR ${vitalSigns.respiratoryRate}` : '';
-  const temp = vitalSigns.temperature ? `T° ${vitalSigns.temperature}` : '';
-  const spo2 = vitalSigns.oxygenSat ? `SpO₂ ${vitalSigns.oxygenSat}%` : '';
-  const glasgow = vitalSigns.glasgowTotal ? `Glasgow ${vitalSigns.glasgowTotal}` : '';
+      : "";
+  const fc = vitalSigns.heartRate ? `FC ${vitalSigns.heartRate}` : "";
+  const fr = vitalSigns.respiratoryRate
+    ? `FR ${vitalSigns.respiratoryRate}`
+    : "";
+  const temp = vitalSigns.temperature ? `T° ${vitalSigns.temperature}` : "";
+  const spo2 = vitalSigns.oxygenSat ? `SpO₂ ${vitalSigns.oxygenSat}%` : "";
+  const glasgow = vitalSigns.glasgowTotal
+    ? `Glasgow ${vitalSigns.glasgowTotal}`
+    : "";
 
-  return [ta, fc, fr, temp, spo2, glasgow].filter(Boolean).join(' | ') ||
-    'Sin funciones vitales registradas';
+  return (
+    [ta, fc, fr, temp, spo2, glasgow].filter(Boolean).join(" | ") ||
+    "Sin funciones vitales registradas"
+  );
 }
 
 export default function Patients() {
@@ -307,19 +406,21 @@ export default function Patients() {
 
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState<PatientFormState>(emptyForm);
   const [showForm, setShowForm] = useState(false);
   const [editingPatientId, setEditingPatientId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPatient, setHistoryPatient] = useState<Patient | null>(null);
-  const [historyEncounters, setHistoryEncounters] = useState<PatientEncounter[]>([]);
+  const [historyEncounters, setHistoryEncounters] = useState<
+    PatientEncounter[]
+  >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -332,12 +433,14 @@ export default function Patients() {
 
     return patients.filter((patient) => {
       const fullName = getFullName(patient).toLowerCase();
-      const documentNumber = patient.documentNumber?.toLowerCase() || '';
-      const phone = patient.phone?.toLowerCase() || '';
-      const email = patient.email?.toLowerCase() || '';
-      const documentType = patient.documentType?.toLowerCase() || '';
-      const lastDiagnosis = patient.lastDiagnosis?.toLowerCase() || '';
-      const lastStatus = formatEncounterStatus(patient.lastEncounterStatus).toLowerCase();
+      const documentNumber = patient.documentNumber?.toLowerCase() || "";
+      const phone = patient.phone?.toLowerCase() || "";
+      const email = patient.email?.toLowerCase() || "";
+      const documentType = patient.documentType?.toLowerCase() || "";
+      const lastDiagnosis = patient.lastDiagnosis?.toLowerCase() || "";
+      const lastStatus = formatEncounterStatus(
+        patient.lastEncounterStatus,
+      ).toLowerCase();
 
       return (
         fullName.includes(term) ||
@@ -354,11 +457,11 @@ export default function Patients() {
   async function loadPatients() {
     try {
       setLoading(true);
-      setError('');
+      setError("");
 
       if (!token) {
         throw new Error(
-          'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+          "No se encontró token de sesión. Cierre sesión e ingrese nuevamente.",
         );
       }
 
@@ -372,12 +475,12 @@ export default function Patients() {
         const backendError = await response.json().catch(() => null);
 
         const message = Array.isArray(backendError?.message)
-          ? backendError.message.join(' | ')
+          ? backendError.message.join(" | ")
           : backendError?.message || backendError?.error;
 
         throw new Error(
           `Error ${response.status}: ${
-            message || 'No se pudo cargar la lista de pacientes.'
+            message || "No se pudo cargar la lista de pacientes."
           }`,
         );
       }
@@ -385,15 +488,17 @@ export default function Patients() {
       const data = await response.json();
 
       if (Array.isArray(data)) {
-        setPatients(data);
+        setPatients(data.map(normalizePatient));
       } else if (Array.isArray(data.items)) {
-        setPatients(data.items);
+        setPatients(data.items.map(normalizePatient));
       } else {
         setPatients([]);
       }
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'Error al cargar pacientes.');
+      setError(
+        err instanceof Error ? err.message : "Error al cargar pacientes.",
+      );
     } finally {
       setLoading(false);
     }
@@ -404,8 +509,22 @@ export default function Patients() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // Al ingresar al módulo Pacientes desde el menú o después del login,
+    // no debemos precargar un paciente antiguo guardado en localStorage.
+    // La selección debe ocurrir solo cuando el usuario presiona un botón del paciente actual.
+    setSelectedPatient(null);
+    localStorage.removeItem("selectedPatient");
+    localStorage.removeItem("hcelm_selected_patient");
+    localStorage.removeItem("selectedPatientId");
+    localStorage.removeItem("hcelm_selected_patient_id");
+    localStorage.removeItem("selectedEncounter");
+  }, []);
+
   function handleChange(
-    event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+    event: ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
   ) {
     const { name, value } = event.target;
 
@@ -422,16 +541,16 @@ export default function Patients() {
   }
 
   function validateForm(): string | null {
-    if (!form.firstName.trim()) return 'Ingrese los nombres del paciente.';
-    if (!form.paternalLastName.trim()) return 'Ingrese el apellido paterno.';
-    if (!form.documentType.trim()) return 'Seleccione el tipo de documento.';
+    if (!form.firstName.trim()) return "Ingrese los nombres del paciente.";
+    if (!form.paternalLastName.trim()) return "Ingrese el apellido paterno.";
+    if (!form.documentType.trim()) return "Seleccione el tipo de documento.";
 
-    if (form.documentType !== 'SIN_DOCUMENTO' && !form.documentNumber.trim()) {
-      return 'Ingrese el número de documento.';
+    if (form.documentType !== "SIN_DOCUMENTO" && !form.documentNumber.trim()) {
+      return "Ingrese el número de documento.";
     }
 
     if (!form.birthDate) {
-      return 'Ingrese la fecha de nacimiento.';
+      return "Ingrese la fecha de nacimiento.";
     }
 
     if (form.birthDate) {
@@ -439,7 +558,7 @@ export default function Patients() {
       const today = new Date();
 
       if (birth > today) {
-        return 'La fecha de nacimiento no puede ser futura.';
+        return "La fecha de nacimiento no puede ser futura.";
       }
     }
 
@@ -453,18 +572,18 @@ export default function Patients() {
 
     if (validationError) {
       setError(validationError);
-      setSuccess('');
+      setSuccess("");
       return;
     }
 
     try {
       setSaving(true);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
 
       if (!token) {
         throw new Error(
-          'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+          "No se encontró token de sesión. Cierre sesión e ingrese nuevamente.",
         );
       }
 
@@ -490,12 +609,12 @@ export default function Patients() {
         ? `${API_URL}/patients/${editingPatientId}`
         : `${API_URL}/patients`;
 
-      const method = editingPatientId ? 'PATCH' : 'POST';
+      const method = editingPatientId ? "PATCH" : "POST";
 
       const response = await fetch(url, {
         method,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -505,12 +624,12 @@ export default function Patients() {
         const backendError = await response.json().catch(() => null);
 
         const message = Array.isArray(backendError?.message)
-          ? backendError.message.join(' | ')
+          ? backendError.message.join(" | ")
           : backendError?.message || backendError?.error;
 
         throw new Error(
           message ||
-            'No se pudo guardar el paciente. Revise los datos ingresados.',
+            "No se pudo guardar el paciente. Revise los datos ingresados.",
         );
       }
 
@@ -518,13 +637,13 @@ export default function Patients() {
 
       setSuccess(
         editingPatientId
-          ? 'Paciente actualizado correctamente.'
-          : 'Paciente registrado correctamente.',
+          ? "Paciente actualizado correctamente."
+          : "Paciente registrado correctamente.",
       );
 
       setSelectedPatient(savedPatient);
       localStorage.setItem(
-        'selectedPatient',
+        "selectedPatient",
         JSON.stringify(buildSelectedPatientForStorage(savedPatient)),
       );
 
@@ -532,15 +651,17 @@ export default function Patients() {
       await loadPatients();
     } catch (err) {
       console.error(err);
-      setError(err instanceof Error ? err.message : 'Error al guardar paciente.');
+      setError(
+        err instanceof Error ? err.message : "Error al guardar paciente.",
+      );
     } finally {
       setSaving(false);
     }
   }
 
   function handleNewPatient() {
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
     setSelectedPatient(null);
     setEditingPatientId(null);
     setForm(emptyForm);
@@ -548,86 +669,119 @@ export default function Patients() {
   }
 
   function handleEditPatient(patient: Patient) {
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
     setSelectedPatient(patient);
     setEditingPatientId(patient.id);
 
     const splitName = splitFullName(patient.fullName || patient.name);
 
     setForm({
-      documentType: patient.documentType || 'DNI',
-      documentNumber: patient.documentNumber || '',
-      firstName: patient.firstName || splitName.firstName || '',
-      paternalLastName: patient.paternalLastName || splitName.paternalLastName || '',
-      maternalLastName: patient.maternalLastName || splitName.maternalLastName || '',
-      sex: patient.gender || patient.sex || '',
+      documentType: patient.documentType || "DNI",
+      documentNumber: patient.documentNumber || "",
+      firstName: patient.firstName || splitName.firstName || "",
+      paternalLastName:
+        patient.paternalLastName || splitName.paternalLastName || "",
+      maternalLastName:
+        patient.maternalLastName || splitName.maternalLastName || "",
+      sex: patient.gender || patient.sex || "",
       birthDate: normalizeDateForInput(patient.birthDate),
-      phone: patient.phone || '',
-      email: patient.email || '',
-      address: patient.address || '',
-      allergies: patient.allergies || '',
-      chronicDiseases: patient.chronicDiseases || '',
-      usualMedication: patient.usualMedication || '',
-      observations: patient.observations || '',
+      phone: patient.phone || "",
+      email: patient.email || "",
+      address: patient.address || "",
+      allergies: patient.allergies || "",
+      chronicDiseases: patient.chronicDiseases || "",
+      usualMedication: patient.usualMedication || "",
+      observations: patient.observations || "",
     });
 
     setShowForm(true);
   }
 
-  function handleSelectPatient(patient: Patient) {
-    const patientFullName = getFullName(patient);
+  function handleSelectPatient(patient: Patient): boolean {
+    const normalizedPatient = normalizePatient(patient);
+    const patientId = getPatientId(normalizedPatient);
+    const patientFullName = getFullName(normalizedPatient);
 
-    setSelectedPatient(patient);
+    if (!patientId) {
+      setSelectedPatient(null);
+      localStorage.removeItem("selectedPatient");
+      localStorage.removeItem("hcelm_selected_patient");
+      localStorage.removeItem("selectedPatientId");
+      localStorage.removeItem("hcelm_selected_patient_id");
+      setSuccess("");
+      setError(
+        "El paciente seleccionado no tiene un ID válido. Presione Actualizar y vuelva a seleccionar el paciente.",
+      );
+      return false;
+    }
+
+    const patientForStorage = buildSelectedPatientForStorage(normalizedPatient);
+
+    setSelectedPatient(patientForStorage);
     setSuccess(`Paciente seleccionado: ${patientFullName}`);
-    setError('');
+    setError("");
 
+    localStorage.setItem("selectedPatient", JSON.stringify(patientForStorage));
     localStorage.setItem(
-      'selectedPatient',
-      JSON.stringify(buildSelectedPatientForStorage(patient)),
+      "hcelm_selected_patient",
+      JSON.stringify(patientForStorage),
     );
+    localStorage.setItem("selectedPatientId", patientId);
+    localStorage.setItem("hcelm_selected_patient_id", patientId);
+
+    return true;
   }
 
   function handleOpenSummary(patient: Patient) {
-    handleSelectPatient(patient);
-    setSummaryPatient(patient);
+    if (!handleSelectPatient(patient)) return;
+
+    const normalizedPatient = normalizePatient(patient);
+    setSummaryPatient(normalizedPatient);
     setSummaryOpen(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
   }
 
   async function handleViewEncounters(patient: Patient) {
     try {
-      handleSelectPatient(patient);
-      setHistoryPatient(patient);
+      if (!handleSelectPatient(patient)) return;
+
+      const normalizedPatient = normalizePatient(patient);
+      const patientId = getPatientId(normalizedPatient);
+
+      setHistoryPatient(normalizedPatient);
       setHistoryOpen(true);
       setHistoryEncounters([]);
       setHistoryLoading(true);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
 
       if (!token) {
         throw new Error(
-          'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+          "No se encontró token de sesión. Cierre sesión e ingrese nuevamente.",
         );
       }
 
-      const response = await fetch(`${API_URL}/patients/${patient.id}/encounters`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `${API_URL}/patients/${patientId}/encounters`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         const backendError = await response.json().catch(() => null);
 
         const message = Array.isArray(backendError?.message)
-          ? backendError.message.join(' | ')
+          ? backendError.message.join(" | ")
           : backendError?.message || backendError?.error;
 
         throw new Error(
           `Error ${response.status}: ${
-            message || 'No se pudo cargar el historial de atenciones.'
+            message || "No se pudo cargar el historial de atenciones."
           }`,
         );
       }
@@ -639,7 +793,7 @@ export default function Patients() {
       setError(
         err instanceof Error
           ? err.message
-          : 'Error al cargar historial de atenciones.',
+          : "Error al cargar historial de atenciones.",
       );
     } finally {
       setHistoryLoading(false);
@@ -650,14 +804,27 @@ export default function Patients() {
     const patient = historyPatient || selectedPatient;
 
     if (patient) {
+      const patientForStorage = buildSelectedPatientForStorage(patient);
       localStorage.setItem(
-        'selectedPatient',
-        JSON.stringify(buildSelectedPatientForStorage(patient)),
+        "selectedPatient",
+        JSON.stringify(patientForStorage),
+      );
+      localStorage.setItem(
+        "hcelm_selected_patient",
+        JSON.stringify(patientForStorage),
+      );
+      localStorage.setItem(
+        "selectedPatientId",
+        getPatientId(patientForStorage),
+      );
+      localStorage.setItem(
+        "hcelm_selected_patient_id",
+        getPatientId(patientForStorage),
       );
     }
 
     localStorage.setItem(
-      'selectedEncounter',
+      "selectedEncounter",
       JSON.stringify({
         id: encounter.id,
         patientId: encounter.patientId,
@@ -674,34 +841,74 @@ export default function Patients() {
 
   function handleSearch() {
     setSearch(search.trim());
-    setError('');
+    setError("");
   }
 
   function handleClearSearch() {
-    setSearch('');
-    setError('');
+    setSearch("");
+    setError("");
   }
 
   function handleStartNewEncounter(patient?: Patient) {
-    const targetPatient = patient || selectedPatient;
+    let targetPatient = patient || selectedPatient;
 
     if (!targetPatient) {
-      setError('Primero seleccione un paciente.');
+      const rawSelectedPatient =
+        localStorage.getItem("selectedPatient") ||
+        localStorage.getItem("hcelm_selected_patient");
+
+      if (rawSelectedPatient) {
+        try {
+          targetPatient = normalizePatient(JSON.parse(rawSelectedPatient));
+        } catch {
+          targetPatient = null;
+        }
+      }
+    }
+
+    if (!targetPatient) {
+      setError("Primero seleccione un paciente.");
       return;
     }
 
-    setSelectedPatient(targetPatient);
-    setError('');
-    setSuccess(`Iniciando nueva atención para ${getFullName(targetPatient)}.`);
+    const normalizedPatient = normalizePatient(targetPatient);
+    const patientId = getPatientId(normalizedPatient);
 
-    localStorage.setItem(
-      'selectedPatient',
-      JSON.stringify(buildSelectedPatientForStorage(targetPatient)),
+    if (!patientId) {
+      setSelectedPatient(null);
+      localStorage.removeItem("selectedPatient");
+      localStorage.removeItem("hcelm_selected_patient");
+      localStorage.removeItem("selectedPatientId");
+      localStorage.removeItem("hcelm_selected_patient_id");
+      setError(
+        "El paciente seleccionado no tiene un ID válido. Presione Actualizar y vuelva a seleccionar el paciente.",
+      );
+      return;
+    }
+
+    const patientForStorage = buildSelectedPatientForStorage(normalizedPatient);
+
+    setSelectedPatient(patientForStorage);
+    setError("");
+    setSuccess(
+      `Iniciando nueva atención para ${getFullName(patientForStorage)}.`,
     );
 
-    localStorage.removeItem('selectedEncounter');
+    localStorage.setItem("selectedPatient", JSON.stringify(patientForStorage));
+    localStorage.setItem(
+      "hcelm_selected_patient",
+      JSON.stringify(patientForStorage),
+    );
+    localStorage.setItem("selectedPatientId", patientId);
+    localStorage.setItem("hcelm_selected_patient_id", patientId);
+    localStorage.removeItem("selectedEncounter");
 
-    navigate('/new-encounter');
+    navigate(`/new-encounter?patientId=${encodeURIComponent(patientId)}`, {
+      state: {
+        selectedPatient: patientForStorage,
+        patientId,
+      },
+    });
   }
 
   function goToNewEncounter() {
@@ -709,12 +916,12 @@ export default function Patients() {
   }
 
   function goToAnamnesis() {
-    if (!selectedPatient) {
-      setError('Primero seleccione un paciente.');
+    if (!selectedPatient && !localStorage.getItem("selectedPatient")) {
+      setError("Primero seleccione un paciente.");
       return;
     }
 
-    navigate('/anamnesis');
+    navigate("/anamnesis");
   }
 
   return (
@@ -742,20 +949,20 @@ export default function Patients() {
         {selectedPatient && (
           <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded">
             <p className="text-sm text-blue-900">
-              <span className="font-bold">Paciente seleccionado:</span>{' '}
+              <span className="font-bold">Paciente seleccionado:</span>{" "}
               {getFullName(selectedPatient)}
               {selectedPatient.documentNumber
-                ? ` | ${selectedPatient.documentType || 'DNI'}: ${
+                ? ` | ${selectedPatient.documentType || "DNI"}: ${
                     selectedPatient.documentNumber
                   }`
-                : ''}
+                : ""}
               {selectedPatient.birthDate
                 ? ` | ${calculateAge(selectedPatient.birthDate)}`
-                : ''}
+                : ""}
               {selectedPatient.gender || selectedPatient.sex
                 ? ` | ${selectedPatient.gender || selectedPatient.sex}`
-                : ''}
-              {selectedPatient.phone ? ` | Cel: ${selectedPatient.phone}` : ''}
+                : ""}
+              {selectedPatient.phone ? ` | Cel: ${selectedPatient.phone}` : ""}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -807,7 +1014,10 @@ export default function Patients() {
         )}
       </div>
 
-      <WaitingRoomPanel variant="compact" title="Lista de espera / Triaje de hoy" />
+      <WaitingRoomPanel
+        variant="compact"
+        title="Lista de espera / Triaje de hoy"
+      />
 
       {historyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
@@ -815,11 +1025,14 @@ export default function Patients() {
             <div className="flex flex-col gap-2 border-b bg-slate-50 px-6 py-4 md:flex-row md:items-start md:justify-between rounded-t-xl">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">
-                  📋 Historial clínico de{' '}
-                  {historyPatient ? getFullName(historyPatient) : 'paciente seleccionado'}
+                  📋 Historial clínico de{" "}
+                  {historyPatient
+                    ? getFullName(historyPatient)
+                    : "paciente seleccionado"}
                 </h3>
                 <p className="text-sm text-gray-500">
-                  Revise atenciones previas, diagnósticos, funciones vitales y abra la HCE correspondiente.
+                  Revise atenciones previas, diagnósticos, funciones vitales y
+                  abra la HCE correspondiente.
                 </p>
               </div>
 
@@ -838,7 +1051,9 @@ export default function Patients() {
 
             <div className="max-h-[78vh] overflow-y-auto p-6">
               {historyLoading ? (
-                <div className="text-sm text-gray-500">Cargando atenciones...</div>
+                <div className="text-sm text-gray-500">
+                  Cargando atenciones...
+                </div>
               ) : historyEncounters.length === 0 ? (
                 <div className="border rounded p-4 bg-gray-50 text-sm text-gray-600">
                   Este paciente todavía no tiene atenciones registradas.
@@ -853,12 +1068,12 @@ export default function Patients() {
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div>
                           <p className="font-bold text-slate-800">
-                            Atención #{historyEncounters.length - index} |{' '}
+                            Atención #{historyEncounters.length - index} |{" "}
                             {formatDateTime(encounter.createdAt)}
                           </p>
                           <p className="text-sm text-slate-600">
-                            Tipo: {formatEncounterType(encounter.type)} | Estado:{' '}
-                            {formatEncounterStatus(encounter.status)}
+                            Tipo: {formatEncounterType(encounter.type)} |
+                            Estado: {formatEncounterStatus(encounter.status)}
                           </p>
                         </div>
 
@@ -875,7 +1090,9 @@ export default function Patients() {
                         <div className="border rounded bg-white p-3">
                           <p className="font-semibold text-gray-700">Motivo</p>
                           <p className="text-gray-600">
-                            {encounter.motivoConsulta || encounter.reason || '—'}
+                            {encounter.motivoConsulta ||
+                              encounter.reason ||
+                              "—"}
                           </p>
                         </div>
 
@@ -904,11 +1121,13 @@ export default function Patients() {
                                 Diagnósticos secundarios
                               </p>
                               <ul className="list-disc pl-5 text-gray-600">
-                                {encounter.diagnosticosSecundarios.map((diag, diagIndex) => (
-                                  <li key={`${encounter.id}-${diagIndex}`}>
-                                    {formatDiagnosis(diag)}
-                                  </li>
-                                ))}
+                                {encounter.diagnosticosSecundarios.map(
+                                  (diag, diagIndex) => (
+                                    <li key={`${encounter.id}-${diagIndex}`}>
+                                      {formatDiagnosis(diag)}
+                                    </li>
+                                  ),
+                                )}
                               </ul>
                             </div>
                           )}
@@ -931,7 +1150,8 @@ export default function Patients() {
                   🩺 Resumen clínico de {getFullName(summaryPatient)}
                 </h3>
                 <p className="text-sm text-cyan-800">
-                  Información rápida para orientar la atención antes de abrir la HCE.
+                  Información rápida para orientar la atención antes de abrir la
+                  HCE.
                 </p>
               </div>
 
@@ -952,25 +1172,30 @@ export default function Patients() {
                 <div className="border rounded bg-slate-50 p-3">
                   <p className="font-semibold text-slate-700">Documento</p>
                   <p className="text-slate-600">
-                    {summaryPatient.documentType || 'DNI'} {summaryPatient.documentNumber || '—'}
+                    {summaryPatient.documentType || "DNI"}{" "}
+                    {summaryPatient.documentNumber || "—"}
                   </p>
                 </div>
 
                 <div className="border rounded bg-slate-50 p-3">
                   <p className="font-semibold text-slate-700">Edad / género</p>
                   <p className="text-slate-600">
-                    {calculateAge(summaryPatient.birthDate) || '—'} |{' '}
-                    {summaryPatient.gender || summaryPatient.sex || '—'}
+                    {calculateAge(summaryPatient.birthDate) || "—"} |{" "}
+                    {summaryPatient.gender || summaryPatient.sex || "—"}
                   </p>
                 </div>
 
                 <div className="border rounded bg-slate-50 p-3">
                   <p className="font-semibold text-slate-700">Celular</p>
-                  <p className="text-slate-600">{summaryPatient.phone || '—'}</p>
+                  <p className="text-slate-600">
+                    {summaryPatient.phone || "—"}
+                  </p>
                 </div>
 
                 <div className="border rounded bg-slate-50 p-3">
-                  <p className="font-semibold text-slate-700">Última atención</p>
+                  <p className="font-semibold text-slate-700">
+                    Última atención
+                  </p>
                   <p className="text-slate-600">
                     {formatDateTime(summaryPatient.lastEncounterDate)}
                   </p>
@@ -979,7 +1204,9 @@ export default function Patients() {
 
               <div className="border rounded bg-red-50 p-3">
                 <p className="font-semibold text-red-800">Alergias</p>
-                <p className="text-red-700">{summaryPatient.allergies || 'Sin alergias registradas.'}</p>
+                <p className="text-red-700">
+                  {summaryPatient.allergies || "Sin alergias registradas."}
+                </p>
               </div>
 
               <div className="border rounded bg-amber-50 p-3">
@@ -987,20 +1214,28 @@ export default function Patients() {
                   Antecedentes / enfermedades crónicas
                 </p>
                 <p className="text-amber-700">
-                  {summaryPatient.chronicDiseases || 'Sin antecedentes registrados.'}
+                  {summaryPatient.chronicDiseases ||
+                    "Sin antecedentes registrados."}
                 </p>
               </div>
 
               <div className="border rounded bg-blue-50 p-3">
-                <p className="font-semibold text-blue-800">Medicación habitual</p>
+                <p className="font-semibold text-blue-800">
+                  Medicación habitual
+                </p>
                 <p className="text-blue-700">
-                  {summaryPatient.usualMedication || 'Sin medicación habitual registrada.'}
+                  {summaryPatient.usualMedication ||
+                    "Sin medicación habitual registrada."}
                 </p>
               </div>
 
               <div className="border rounded bg-slate-50 p-3">
-                <p className="font-semibold text-slate-700">Último diagnóstico</p>
-                <p className="text-slate-600">{summaryPatient.lastDiagnosis || '—'}</p>
+                <p className="font-semibold text-slate-700">
+                  Último diagnóstico
+                </p>
+                <p className="text-slate-600">
+                  {summaryPatient.lastDiagnosis || "—"}
+                </p>
               </div>
 
               <div className="flex flex-col gap-2 border-t pt-4 md:flex-row md:justify-end">
@@ -1036,7 +1271,7 @@ export default function Patients() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') {
+              if (event.key === "Enter") {
                 event.preventDefault();
                 handleSearch();
               }
@@ -1075,257 +1310,259 @@ export default function Patients() {
             onSubmit={handleSubmit}
             className="w-full max-w-5xl max-h-[88vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl border border-gray-200 space-y-5"
           >
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">
-                {editingPatientId ? 'Editar paciente' : 'Registrar nuevo paciente'}
-              </h3>
-              <p className="text-sm text-gray-500">
-                Complete los datos administrativos y clínicos relevantes.
-              </p>
-            </div>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">
+                  {editingPatientId
+                    ? "Editar paciente"
+                    : "Registrar nuevo paciente"}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Complete los datos administrativos y clínicos relevantes.
+                </p>
+              </div>
 
-            <button
-              type="button"
-              onClick={resetForm}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
-            >
-              Cancelar
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Tipo documento
-              </label>
-              <select
-                name="documentType"
-                value={form.documentType}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
               >
-                <option value="DNI">DNI</option>
-                <option value="CE">Carné de extranjería</option>
-                <option value="PASAPORTE">Pasaporte</option>
-                <option value="SIN_DOCUMENTO">Sin documento</option>
-              </select>
+                Cancelar
+              </button>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Número documento
-              </label>
-              <input
-                type="text"
-                name="documentNumber"
-                value={form.documentNumber}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Ejemplo: 12345678"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Tipo documento
+                </label>
+                <select
+                  name="documentType"
+                  value={form.documentType}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  <option value="DNI">DNI</option>
+                  <option value="CE">Carné de extranjería</option>
+                  <option value="PASAPORTE">Pasaporte</option>
+                  <option value="SIN_DOCUMENTO">Sin documento</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Número documento
+                </label>
+                <input
+                  type="text"
+                  name="documentNumber"
+                  value={form.documentNumber}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Ejemplo: 12345678"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Fecha nacimiento
+                </label>
+                <input
+                  type="date"
+                  name="birthDate"
+                  value={form.birthDate}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Edad
+                </label>
+                <input
+                  type="text"
+                  value={calculateAge(form.birthDate)}
+                  readOnly
+                  className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Apellido paterno
+                </label>
+                <input
+                  type="text"
+                  name="paternalLastName"
+                  value={form.paternalLastName}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Apellido materno
+                </label>
+                <input
+                  type="text"
+                  name="maternalLastName"
+                  value={form.maternalLastName}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Nombres
+                </label>
+                <input
+                  type="text"
+                  name="firstName"
+                  value={form.firstName}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Género
+                </label>
+                <select
+                  name="sex"
+                  value={form.sex}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                >
+                  <option value="">Seleccione</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Femenino">Femenino</option>
+                  <option value="No especificado">No especificado</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Celular
+                </label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="999888777"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Correo
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="correo@ejemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Dirección
+                </label>
+                <input
+                  type="text"
+                  name="address"
+                  value={form.address}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Alergias
+                </label>
+                <textarea
+                  name="allergies"
+                  value={form.allergies}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Ejemplo: penicilina, AINES, alimentos, etc."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Antecedentes / enfermedades crónicas
+                </label>
+                <textarea
+                  name="chronicDiseases"
+                  value={form.chronicDiseases}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Ejemplo: HTA, DM2, asma, ERC, cardiopatía, etc."
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Medicación habitual
+                </label>
+                <textarea
+                  name="usualMedication"
+                  value={form.usualMedication}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Ejemplo: losartán 50 mg cada 24 h"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Observaciones
+                </label>
+                <textarea
+                  name="observations"
+                  value={form.observations}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full border border-gray-300 rounded px-3 py-2"
+                  placeholder="Observaciones administrativas o clínicas relevantes"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Fecha nacimiento
-              </label>
-              <input
-                type="date"
-                name="birthDate"
-                value={form.birthDate}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Edad
-              </label>
-              <input
-                type="text"
-                value={calculateAge(form.birthDate)}
-                readOnly
-                className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Apellido paterno
-              </label>
-              <input
-                type="text"
-                name="paternalLastName"
-                value={form.paternalLastName}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Apellido materno
-              </label>
-              <input
-                type="text"
-                name="maternalLastName"
-                value={form.maternalLastName}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Nombres
-              </label>
-              <input
-                type="text"
-                name="firstName"
-                value={form.firstName}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Género
-              </label>
-              <select
-                name="sex"
-                value={form.sex}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
+            <div className="flex flex-col md:flex-row gap-3 md:justify-end pt-4 border-t">
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
               >
-                <option value="">Seleccione</option>
-                <option value="Masculino">Masculino</option>
-                <option value="Femenino">Femenino</option>
-                <option value="No especificado">No especificado</option>
-              </select>
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800 disabled:opacity-60"
+              >
+                {saving
+                  ? "Guardando..."
+                  : editingPatientId
+                    ? "Guardar cambios"
+                    : "Registrar paciente"}
+              </button>
             </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Celular
-              </label>
-              <input
-                type="text"
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="999888777"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Correo
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="correo@ejemplo.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Dirección
-              </label>
-              <input
-                type="text"
-                name="address"
-                value={form.address}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Alergias
-              </label>
-              <textarea
-                name="allergies"
-                value={form.allergies}
-                onChange={handleChange}
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Ejemplo: penicilina, AINES, alimentos, etc."
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Antecedentes / enfermedades crónicas
-              </label>
-              <textarea
-                name="chronicDiseases"
-                value={form.chronicDiseases}
-                onChange={handleChange}
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Ejemplo: HTA, DM2, asma, ERC, cardiopatía, etc."
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Medicación habitual
-              </label>
-              <textarea
-                name="usualMedication"
-                value={form.usualMedication}
-                onChange={handleChange}
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Ejemplo: losartán 50 mg cada 24 h"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Observaciones
-              </label>
-              <textarea
-                name="observations"
-                value={form.observations}
-                onChange={handleChange}
-                rows={3}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-                placeholder="Observaciones administrativas o clínicas relevantes"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-3 md:justify-end pt-4 border-t">
-            <button
-              type="button"
-              onClick={resetForm}
-              className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2 rounded bg-blue-700 text-white font-semibold hover:bg-blue-800 disabled:opacity-60"
-            >
-              {saving
-                ? 'Guardando...'
-                : editingPatientId
-                  ? 'Guardar cambios'
-                  : 'Registrar paciente'}
-            </button>
-          </div>
           </form>
         </div>
       )}
@@ -1333,7 +1570,9 @@ export default function Patients() {
       <div className="p-6 bg-white rounded shadow border border-gray-200">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
           <div>
-            <h3 className="text-xl font-bold text-gray-800">Lista de pacientes</h3>
+            <h3 className="text-xl font-bold text-gray-800">
+              Lista de pacientes
+            </h3>
             <p className="text-sm text-gray-500">
               Total: {patients.length} paciente(s)
             </p>
@@ -1345,7 +1584,7 @@ export default function Patients() {
             disabled={loading}
             className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300 disabled:opacity-60"
           >
-            {loading ? 'Actualizando...' : 'Actualizar'}
+            {loading ? "Actualizando..." : "Actualizar"}
           </button>
         </div>
 
@@ -1365,9 +1604,13 @@ export default function Patients() {
                   <th className="border px-3 py-2 text-left">Edad</th>
                   <th className="border px-3 py-2 text-left">Género</th>
                   <th className="border px-3 py-2 text-left">Celular</th>
-                  <th className="border px-3 py-2 text-left">Última atención</th>
+                  <th className="border px-3 py-2 text-left">
+                    Última atención
+                  </th>
                   <th className="border px-3 py-2 text-left">N° atenciones</th>
-                  <th className="border px-3 py-2 text-left">Último diagnóstico</th>
+                  <th className="border px-3 py-2 text-left">
+                    Último diagnóstico
+                  </th>
                   <th className="border px-3 py-2 text-left">Estado</th>
                   <th className="border px-3 py-2 text-left">Acciones</th>
                 </tr>
@@ -1377,8 +1620,8 @@ export default function Patients() {
                 {filteredPatients.map((patient) => (
                   <tr key={patient.id} className="hover:bg-gray-50">
                     <td className="border px-3 py-2">
-                      {patient.documentType || 'DNI'}{' '}
-                      {patient.documentNumber || '—'}
+                      {patient.documentType || "DNI"}{" "}
+                      {patient.documentNumber || "—"}
                     </td>
 
                     <td className="border px-3 py-2 font-medium">
@@ -1386,16 +1629,14 @@ export default function Patients() {
                     </td>
 
                     <td className="border px-3 py-2">
-                      {calculateAge(patient.birthDate) || '—'}
+                      {calculateAge(patient.birthDate) || "—"}
                     </td>
 
                     <td className="border px-3 py-2">
-                      {patient.gender || patient.sex || '—'}
+                      {patient.gender || patient.sex || "—"}
                     </td>
 
-                    <td className="border px-3 py-2">
-                      {patient.phone || '—'}
-                    </td>
+                    <td className="border px-3 py-2">{patient.phone || "—"}</td>
 
                     <td className="border px-3 py-2">
                       {formatDateTime(patient.lastEncounterDate)}
@@ -1406,7 +1647,7 @@ export default function Patients() {
                     </td>
 
                     <td className="border px-3 py-2">
-                      {patient.lastDiagnosis || '—'}
+                      {patient.lastDiagnosis || "—"}
                     </td>
 
                     <td className="border px-3 py-2">

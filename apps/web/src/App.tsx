@@ -8,13 +8,13 @@ import {
 } from 'react-router-dom';
 
 import Login from './pages/Login';
-import IssueCertificate from './pages/IssueCertificate';
 import Home from './pages/Home';
 import Patients from './pages/Patients';
 import Anamnesis from './pages/Anamnesis';
 import InstitutionSettings from './pages/InstitutionSettings';
 import ProfessionalVerification from './pages/ProfessionalVerification';
 import NewEncounter from './pages/NewEncounter';
+import Certificates from './pages/Certificates';
 
 function TokenProtected({ children }: { children: JSX.Element }) {
   const token = localStorage.getItem('ame_token');
@@ -118,7 +118,7 @@ function Navbar() {
         <MenuLink to="/home" label="Inicio" />
         <MenuLink to="/patients" label="Pacientes" />
         <MenuLink to="/anamnesis" label="Anamnesis" />
-        <MenuLink to="/certificates/issue" label="Certificados" />
+        <MenuLink to="/certificates" label="Certificados" />
         <MenuLink to="/institution" label="Configuración" />
         <MenuLink to="/professional-verification" label="Profesional" />
 
@@ -210,13 +210,15 @@ export default function App() {
           />
 
           <Route
-            path="/certificates/issue"
+            path="/certificates"
             element={
               <ClinicalProtected>
-                <IssueCertificate />
+                <Certificates />
               </ClinicalProtected>
             }
           />
+
+          <Route path="/certificates/issue" element={<Navigate to="/certificates" replace />} />
 
           <Route
             path="/institution"

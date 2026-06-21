@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { generateHceNumber } from '../common/utils/hce-number.util';
 
 @Injectable()
 export class PatientsService {
@@ -15,11 +16,17 @@ export class PatientsService {
 
   async create(tenantId: string, data: CreatePatientDto) {
     try {
-      return await this.prisma.patient.create({
+      const initialHceNumber = generateHceNumber({
+        documentType: data.documentType,
+        documentNumber: data.documentNumber,
+      });
+
+      const patient = await this.prisma.patient.create({
         data: {
           tenantId,
           documentType: data.documentType,
           documentNumber: data.documentNumber,
+          hceNumber: initialHceNumber,
           fullName: data.fullName,
           birthDate: data.birthDate ? new Date(data.birthDate) : null,
 
@@ -33,13 +40,31 @@ export class PatientsService {
           observations: data.observations || null,
         },
       });
+
+      if (!patient.hceNumber) {
+        const fallbackHceNumber = generateHceNumber({
+          documentType: patient.documentType,
+          documentNumber: patient.documentNumber,
+          patientId: patient.id,
+          createdAt: patient.createdAt,
+        });
+
+        if (fallbackHceNumber) {
+          return await this.prisma.patient.update({
+            where: { id: patient.id },
+            data: { hceNumber: fallbackHceNumber },
+          });
+        }
+      }
+
+      return patient;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         throw new ConflictException(
-          'Ya existe un paciente con ese documento en esta clínica.',
+          'Ya existe un paciente con ese documento o número de HCE en esta clínica.',
         );
       }
 
@@ -81,6 +106,7 @@ export class PatientsService {
         tenantId: patient.tenantId,
         documentType: patient.documentType,
         documentNumber: patient.documentNumber,
+        hceNumber: (patient as any).hceNumber || null,
         fullName: patient.fullName,
         birthDate: patient.birthDate,
         gender: patient.gender,
@@ -175,13 +201,36 @@ export class PatientsService {
         throw new NotFoundException('Paciente no encontrado en esta clínica.');
       }
 
+      const nextDocumentType = data.documentType ?? existingPatient.documentType;
+      const nextDocumentNumber =
+        data.documentNumber ?? existingPatient.documentNumber;
+
+      const documentChanged =
+        data.documentType !== undefined || data.documentNumber !== undefined;
+
+      const nextHceNumber = documentChanged
+        ? generateHceNumber({
+            documentType: nextDocumentType,
+            documentNumber: nextDocumentNumber,
+            patientId: existingPatient.id,
+            createdAt: existingPatient.createdAt,
+          })
+        : (existingPatient as any).hceNumber ||
+          generateHceNumber({
+            documentType: nextDocumentType,
+            documentNumber: nextDocumentNumber,
+            patientId: existingPatient.id,
+            createdAt: existingPatient.createdAt,
+          });
+
       return await this.prisma.patient.update({
         where: {
           id: patientId,
         },
         data: {
-          documentType: data.documentType ?? existingPatient.documentType,
-          documentNumber: data.documentNumber ?? existingPatient.documentNumber,
+          documentType: nextDocumentType,
+          documentNumber: nextDocumentNumber,
+          hceNumber: nextHceNumber,
           fullName: data.fullName ?? existingPatient.fullName,
           birthDate: data.birthDate
             ? new Date(data.birthDate)
@@ -209,7 +258,7 @@ export class PatientsService {
         error.code === 'P2002'
       ) {
         throw new ConflictException(
-          'Ya existe otro paciente con ese documento en esta clínica.',
+          'Ya existe otro paciente con ese documento o número de HCE en esta clínica.',
         );
       }
 

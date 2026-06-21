@@ -47,6 +47,7 @@ model Patient {
   tenantId       String         @db.Uuid
   fullName       String
   documentNumber String
+  hceNumber String? @db.VarChar(30)
   documentType   String         @default("DNI")
   birthDate      DateTime?
   gender         String?
@@ -70,6 +71,7 @@ model Patient {
   @@index([tenantId])
   @@index([documentNumber])
   @@index([fullName])
+  @@unique([tenantId, hceNumber])
 }
 
 model Encounter {

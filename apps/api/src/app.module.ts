@@ -1,50 +1,47 @@
+/**
+ * Archivo: app.module.ts
+ * Ruta: apps/api/src/app.module.ts
+ * Función: Módulo raíz de la API HCELM.
+ */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
-import { PrismaModule } from './prisma/prisma.module';
-import { AuthModule } from './auth/auth.module';
-import { PatientsModule } from './patients/patients.module';
-import { MedicationsModule } from './medications/medications.module';
-import { PrescriptionsModule } from './prescriptions/prescriptions.module';
-import { CertificatesModule } from './certificates/certificates.module';
-import { EstablishmentModule } from './establishment/establishment.module';
 import { AnamnesisModule } from './anamnesis/anamnesis.module';
-import { InstitutionModule } from './institution/institution.module';
-import { EncountersModule } from './encounters/encounters.module';
-import { ClinicalAlertsModule } from './clinical-alerts/clinical-alerts.module';
-import { WaitingRoomModule } from './waiting-room/waiting-room.module';
-
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
+import { CertificatesModule } from './certificates/certificates.module';
+import { ClinicalAlertsModule } from './clinical-alerts/clinical-alerts.module';
+import { DiagnosesModule } from './diagnoses/diagnoses.module';
+import { EncountersModule } from './encounters/encounters.module';
+import { EstablishmentModule } from './establishment/establishment.module';
+import { InstitutionModule } from './institution/institution.module';
+import { MedicationsModule } from './medications/medications.module';
+import { PatientsModule } from './patients/patients.module';
+import { PrescriptionsModule } from './prescriptions/prescriptions.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { WaitingRoomModule } from './waiting-room/waiting-room.module';
 import { DataQualityModule } from './admin/data-quality/data-quality.module';
-
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
-
+    ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
     PatientsModule,
     EncountersModule,
-
     MedicationsModule,
     PrescriptionsModule,
     CertificatesModule,
-
     EstablishmentModule,
     AnamnesisModule,
     InstitutionModule,
     ClinicalAlertsModule,
     WaitingRoomModule,
     DataQualityModule,
-
+    DiagnosesModule,
   ],
-
   controllers: [AppController],
-
   providers: [AppService],
 })
 export class AppModule {}

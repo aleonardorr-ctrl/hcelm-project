@@ -1,3 +1,6 @@
+// Archivo: schema-catalogos.prisma
+// Destino: apps/api/prisma/schema.prisma
+// Función: Bloques que deben incorporarse al esquema actual para CIE-10/CIE-11.
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,48 +10,52 @@ datasource db {
 }
 
 model Tenant {
-  id             String         @id @default(uuid()) @db.Uuid
-  name           String
-  ruc            String         @unique
-  active         Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  anamnesis      Anamnesis[]
-  certificates   Certificate[]
-  encounters     Encounter[]
-  establishments Establishment?
-  hceConfigs     HceConfig?
-  institutions   Institution?
-  medications    Medication[]
-  patients       Patient[]
-  prescriptions  Prescription[]
-  users          User[]
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String
+  ruc               String             @unique
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  anamnesis         Anamnesis[]
+  certificates      Certificate[]
+  encounters        Encounter[]
+  establishments    Establishment?
+  hceConfigs        HceConfig?
+  institutions      Institution?
+  medications       Medication[]
+  patients          Patient[]
+  prescriptions     Prescription[]
+  users             User[]
+  diagnosisCatalogs DiagnosisCatalog[]
+  catalogImports    CatalogImport[]
 }
 
 model User {
-  id            String         @id @default(uuid()) @db.Uuid
-  tenantId      String         @db.Uuid
-  email         String
-  password      String
-  fullName      String?
-  role          String         @default("medico")
-  cmp           String?
-  rne           String?
-  active        Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  certificates  Certificate[]
-  prescriptions Prescription[]
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                       String             @id @default(uuid()) @db.Uuid
+  tenantId                 String             @db.Uuid
+  email                    String
+  password                 String
+  fullName                 String?
+  role                     String             @default("medico")
+  cmp                      String?
+  rne                      String?
+  active                   Boolean            @default(true)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+  certificates             Certificate[]
+  prescriptions            Prescription[]
+  tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  diagnosisCatalogsCreated DiagnosisCatalog[] @relation("DiagnosisCatalogCreatedBy")
+  catalogImports           CatalogImport[]    @relation("CatalogImportCreatedBy")
 }
 
 model Patient {
-  id             String         @id @default(uuid()) @db.Uuid
-  tenantId       String         @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
   fullName       String
   documentNumber String
-  hceNumber String? @db.VarChar(30)
-  documentType   String         @default("DNI")
+  hceNumber      String?   @db.VarChar(30)
+  documentType   String    @default("DNI")
   birthDate      DateTime?
   gender         String?
   phone          String?
@@ -60,18 +67,18 @@ model Patient {
   usualMedication String?
   observations    String?
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  anamnesis      Anamnesis[]
-  certificates   Certificate[]
-  encounters     Encounter[]
-  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  prescriptions  Prescription[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  anamnesis     Anamnesis[]
+  certificates  Certificate[]
+  encounters    Encounter[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prescriptions Prescription[]
 
+  @@unique([tenantId, hceNumber])
   @@index([tenantId])
   @@index([documentNumber])
   @@index([fullName])
-  @@unique([tenantId, hceNumber])
 }
 
 model Encounter {
@@ -283,4 +290,56 @@ model PrescriptionItem {
   createdAt      DateTime     @default(now())
   medication     Medication   @relation(fields: [medicationId], references: [id])
   prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+}
+
+model DiagnosisCatalog {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  system       String   @default("CIE10") @db.VarChar(10)
+  code         String   @db.VarChar(20)
+  description  String   @db.Text
+  chapter      String?  @db.VarChar(255)
+  group        String?  @db.VarChar(255)
+  subgroup     String?  @db.VarChar(255)
+  synonyms     String[] @default([])
+  searchText   String   @default("") @db.Text
+  active       Boolean  @default(true)
+  observations String?  @db.Text
+  source       String?  @db.VarChar(255)
+  createdById  String?  @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser User?  @relation("DiagnosisCatalogCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, system, code])
+  @@index([tenantId, system, active])
+  @@index([tenantId, code])
+}
+
+model CatalogImport {
+  id               String    @id @default(uuid()) @db.Uuid
+  tenantId         String    @db.Uuid
+  catalogType      String    @db.VarChar(30)
+  sourceFileName   String    @db.VarChar(255)
+  source           String?   @db.VarChar(255)
+  status           String    @default("PENDING") @db.VarChar(20)
+  totalRows        Int       @default(0)
+  validRows        Int       @default(0)
+  invalidRows      Int       @default(0)
+  createdRows      Int       @default(0)
+  updatedRows      Int       @default(0)
+  skippedRows      Int       @default(0)
+  errorRows        Int       @default(0)
+  validationReport Json?
+  createdById      String?   @db.Uuid
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser User?  @relation("CatalogImportCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, catalogType, createdAt])
+  @@index([tenantId, status])
 }

@@ -1,3 +1,5 @@
+// HCELM - pages/Certificates.tsx
+// Gestión institucional de constancias, certificados, CMP y pase SINADEF.
 import React, { useEffect, useMemo, useState } from "react";
 
 const API_URL = "http://localhost:3000/api";
@@ -53,6 +55,14 @@ type EncounterRecord = {
   createdAt?: string;
   updatedAt?: string;
   anamnesis?: AnamnesisRecord[] | AnamnesisRecord | null;
+};
+
+type DiagnosisSearchResult = {
+  id: string;
+  code: string;
+  description: string;
+  desc?: string;
+  synonyms?: string[];
 };
 
 const tabs: { id: CertificateType; label: string; description: string }[] = [
@@ -181,6 +191,12 @@ export default function Certificates() {
   const [saving, setSaving] = useState(false);
   const [loadingClinicalData, setLoadingClinicalData] = useState(false);
   const [latestClinicalSource, setLatestClinicalSource] = useState("");
+  const [diagnosisSearch, setDiagnosisSearch] = useState("");
+  const [diagnosisResults, setDiagnosisResults] = useState<
+    DiagnosisSearchResult[]
+  >([]);
+  const [diagnosisSearchLoading, setDiagnosisSearchLoading] = useState(false);
+  const [showDiagnosisDropdown, setShowDiagnosisDropdown] = useState(false);
 
   const [formData, setFormData] = useState({
     patientId: "",
@@ -343,6 +359,56 @@ export default function Certificates() {
   }, [formData.patientId]);
 
   useEffect(() => {
+    const query = diagnosisSearch.trim();
+
+    if (query.length < 2) {
+      setDiagnosisResults([]);
+      setDiagnosisSearchLoading(false);
+      setShowDiagnosisDropdown(false);
+      return;
+    }
+
+    const token = localStorage.getItem("ame_token");
+    if (!token) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setDiagnosisSearchLoading(true);
+
+      fetch(
+        `${API_URL}/diagnoses/search?q=${encodeURIComponent(query)}&system=CIE10`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        },
+      )
+        .then((response) => {
+          if (!response.ok) throw new Error("No se pudo buscar CIE-10.");
+          return response.json();
+        })
+        .then((data) => {
+          const results = Array.isArray(data) ? data : [];
+          setDiagnosisResults(results);
+          setShowDiagnosisDropdown(true);
+        })
+        .catch((error) => {
+          if (error?.name === "AbortError") return;
+          console.warn("Error buscando diagnósticos:", error);
+          setDiagnosisResults([]);
+          setShowDiagnosisDropdown(false);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setDiagnosisSearchLoading(false);
+        });
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [diagnosisSearch]);
+
+  useEffect(() => {
     if (!formData.restDays) return;
 
     setFormData((prev) => ({
@@ -375,6 +441,18 @@ export default function Certificates() {
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const selectDiagnosis = (diagnosis: DiagnosisSearchResult) => {
+    setFormData((prev) => ({
+      ...prev,
+      diagnosisCode: diagnosis.code,
+      diagnosisDescription: diagnosis.description || diagnosis.desc || "",
+    }));
+    setDiagnosisSearch("");
+    setDiagnosisResults([]);
+    setShowDiagnosisDropdown(false);
+    setLatestClinicalSource("Diagnóstico seleccionado desde el catálogo CIE-10.");
   };
 
   const getDiagnosisText = () => {
@@ -835,6 +913,65 @@ export default function Certificates() {
             : latestClinicalSource}
         </div>
       )}
+
+      <div className="relative">
+        <label className="block font-semibold text-slate-700 mb-1">
+          Buscar en catálogo CIE-10
+        </label>
+        <input
+          type="text"
+          value={diagnosisSearch}
+          onChange={(event) => {
+            setDiagnosisSearch(event.target.value);
+            setShowDiagnosisDropdown(event.target.value.trim().length >= 2);
+          }}
+          onFocus={() => {
+            if (diagnosisSearch.trim().length >= 2) {
+              setShowDiagnosisDropdown(true);
+            }
+          }}
+          onBlur={() => {
+            window.setTimeout(() => setShowDiagnosisDropdown(false), 150);
+          }}
+          placeholder="Código, diagnóstico o sinónimo..."
+          className="w-full rounded-lg border border-cyan-300 p-3 pr-24 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        />
+        <span className="absolute right-3 top-10 text-xs font-semibold text-slate-500">
+          {diagnosisSearchLoading ? "Buscando..." : "CIE-10"}
+        </span>
+
+        {showDiagnosisDropdown && !diagnosisSearchLoading && (
+          <div className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+            {diagnosisResults.length > 0 ? (
+              diagnosisResults.map((diagnosis) => (
+                <button
+                  key={diagnosis.id}
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectDiagnosis(diagnosis)}
+                  className="block w-full border-b border-slate-100 px-4 py-3 text-left hover:bg-cyan-50 last:border-b-0"
+                >
+                  <span className="font-extrabold text-cyan-800">
+                    {diagnosis.code}
+                  </span>
+                  <span className="ml-2 font-semibold text-slate-800">
+                    {diagnosis.description || diagnosis.desc}
+                  </span>
+                  {diagnosis.synonyms && diagnosis.synonyms.length > 0 && (
+                    <span className="mt-1 block text-xs text-slate-500">
+                      Sinónimos: {diagnosis.synonyms.join("; ")}
+                    </span>
+                  )}
+                </button>
+              ))
+            ) : (
+              <p className="px-4 py-3 text-sm text-slate-500">
+                No se encontraron coincidencias en el catálogo activo.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>

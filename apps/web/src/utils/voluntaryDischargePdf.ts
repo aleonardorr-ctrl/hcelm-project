@@ -1,3 +1,5 @@
+// HCELM - utils/voluntaryDischargePdf.ts
+// Generador PDF de acta de alta voluntaria con datos institucionales y N.° HCE Digital.
 import { cleanPrefix } from './recipePdf';
 
 export function generateVoluntaryDischargePdf({
@@ -31,6 +33,12 @@ export function generateVoluntaryDischargePdf({
   const professionalRne = cleanPrefix(professionalRneRaw, 'RNE');
 
   const primaryColor = institution?.primaryColor || '#0f766e';
+
+  const hceNumber =
+    patient?.hceNumber ||
+    patient?.hce_number ||
+    patient?.medicalRecordNumber ||
+    'HCE pendiente de generar';
 
   const logoWidth = Number(institution?.logoWidth || 70);
   const logoHeight = Number(institution?.logoHeight || 70);
@@ -101,6 +109,18 @@ export function generateVoluntaryDischargePdf({
           color: ${primaryColor};
           margin: 16px 0;
           text-transform: uppercase;
+        }
+
+        .hce-band {
+          border: 2px solid ${primaryColor};
+          background: #ecfdf5;
+          color: #064e3b;
+          text-align: center;
+          font-size: 14px;
+          font-weight: bold;
+          padding: 8px;
+          margin: 0 0 12px 0;
+          border-radius: 6px;
         }
 
         .section {
@@ -238,10 +258,15 @@ export function generateVoluntaryDischargePdf({
 
       <div class="title">Acta de Alta Voluntaria</div>
 
+      <div class="hce-band">
+        N.° HCE Digital: ${hceNumber}
+      </div>
+
       <div class="section">
         <div class="section-title">Datos del paciente</div>
         <div class="grid">
           <p class="field"><span class="label">Paciente:</span> ${patient?.fullName || ''}</p>
+          <p class="field"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
           <p class="field"><span class="label">Documento:</span> ${patient?.documentNumber || ''}</p>
           <p class="field"><span class="label">Tipo documento:</span> ${patient?.documentType || 'DNI'}</p>
           <p class="field"><span class="label">Fecha y hora:</span> ${fechaHora}</p>

@@ -1,3 +1,5 @@
+// HCELM - utils/sinadefReferralPdf.ts
+// Generador PDF de pase clínico para SINADEF.
 import { cleanPrefix } from './recipePdf';
 
 export function generateSinadefReferralPdf({
@@ -31,6 +33,8 @@ export function generateSinadefReferralPdf({
   const professionalRne = cleanPrefix(professionalRneRaw, 'RNE');
 
   const primaryColor = institution?.primaryColor || '#0f766e';
+
+  const hceNumber = patient?.hceNumber || 'HCE pendiente de generar';
 
   const logoWidth = Number(institution?.logoWidth || 70);
   const logoHeight = Number(institution?.logoHeight || 70);
@@ -86,6 +90,18 @@ export function generateSinadefReferralPdf({
           color: ${primaryColor};
           margin: 0 0 4px 0;
           text-transform: uppercase;
+        }
+
+        .hce-banner {
+          border: 2px solid ${primaryColor};
+          background: #ecfeff;
+          color: #0f172a;
+          text-align: center;
+          font-weight: bold;
+          padding: 7px 10px;
+          border-radius: 7px;
+          margin: 8px 0 12px 0;
+          font-size: 13px;
         }
 
         .small {
@@ -245,6 +261,8 @@ export function generateSinadefReferralPdf({
         Documento interno de apoyo clínico. No reemplaza el certificado oficial emitido en SINADEF.
       </div>
 
+      <div class="hce-banner">N.° HCE Digital: ${hceNumber}</div>
+
       <div class="warning">
         Este documento resume información clínica relevante para facilitar el registro oficial en SINADEF.
         La emisión válida del certificado de defunción debe realizarse en la plataforma oficial correspondiente.
@@ -255,6 +273,7 @@ export function generateSinadefReferralPdf({
 
         <div class="grid">
           <p class="field"><span class="label">Paciente:</span> ${patient?.fullName || ''}</p>
+          <p class="field"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
           <p class="field"><span class="label">Documento:</span> ${patient?.documentNumber || ''}</p>
           <p class="field"><span class="label">Tipo documento:</span> ${patient?.documentType || 'DNI'}</p>
           <p class="field"><span class="label">Fecha de emisión del pase:</span> ${fechaEmision}</p>

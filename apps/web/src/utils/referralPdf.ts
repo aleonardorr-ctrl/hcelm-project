@@ -1,3 +1,5 @@
+// HCELM - utils/referralPdf.ts
+// Generador PDF de hoja de referencia clínica.
 import { cleanPrefix } from './recipePdf';
 
 export function generateReferralPdf({
@@ -31,6 +33,8 @@ export function generateReferralPdf({
   const professionalRne = cleanPrefix(professionalRneRaw, 'RNE');
 
   const primaryColor = institution?.primaryColor || '#0f766e';
+
+  const hceNumber = patient?.hceNumber || 'HCE pendiente de generar';
 
   const logoWidth = Number(institution?.logoWidth || 70);
   const logoHeight = Number(institution?.logoHeight || 70);
@@ -90,6 +94,18 @@ export function generateReferralPdf({
           color: ${primaryColor};
           margin: 0 0 4px 0;
           text-transform: uppercase;
+        }
+
+        .hce-banner {
+          border: 2px solid ${primaryColor};
+          background: #ecfeff;
+          color: #0f172a;
+          text-align: center;
+          font-weight: bold;
+          padding: 7px 10px;
+          border-radius: 7px;
+          margin: 8px 0 12px 0;
+          font-size: 13px;
         }
 
         .small {
@@ -241,6 +257,8 @@ export function generateReferralPdf({
 
       <div class="title">Hoja de Referencia</div>
 
+      <div class="hce-banner">N.° HCE Digital: ${hceNumber}</div>
+
       <div class="section">
         <div class="section-title">Datos generales de la referencia</div>
         <div class="grid">
@@ -267,6 +285,7 @@ export function generateReferralPdf({
         <div class="section-title">Datos del paciente</div>
         <div class="grid">
           <p class="field"><span class="label">Paciente:</span> ${patient?.fullName || ''}</p>
+          <p class="field"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
           <p class="field"><span class="label">Documento:</span> ${
             patient?.documentNumber || ''
           }</p>

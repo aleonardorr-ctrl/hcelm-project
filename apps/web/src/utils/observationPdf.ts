@@ -1,3 +1,5 @@
+// HCELM - utils/observationPdf.ts
+// Generador PDF de orden de observación clínica.
 import { cleanPrefix } from './recipePdf';
 
 export function generateObservationPdf({
@@ -31,6 +33,8 @@ export function generateObservationPdf({
   const professionalRne = cleanPrefix(professionalRneRaw, 'RNE');
 
   const primaryColor = institution?.primaryColor || '#0f766e';
+
+  const hceNumber = patient?.hceNumber || 'HCE pendiente de generar';
 
   const logoWidth = Number(institution?.logoWidth || 70);
   const logoHeight = Number(institution?.logoHeight || 70);
@@ -86,6 +90,18 @@ export function generateObservationPdf({
           color: ${primaryColor};
           margin: 0 0 4px 0;
           text-transform: uppercase;
+        }
+
+        .hce-banner {
+          border: 2px solid ${primaryColor};
+          background: #ecfeff;
+          color: #0f172a;
+          text-align: center;
+          font-weight: bold;
+          padding: 7px 10px;
+          border-radius: 7px;
+          margin: 8px 0 12px 0;
+          font-size: 13px;
         }
 
         .small {
@@ -252,11 +268,14 @@ export function generateObservationPdf({
 
       <div class="title">Orden de Observación Clínica</div>
 
+      <div class="hce-banner">N.° HCE Digital: ${hceNumber}</div>
+
       <div class="section">
         <div class="section-title">Datos del paciente</div>
 
         <div class="grid">
           <p class="field"><span class="label">Paciente:</span> ${patient?.fullName || ''}</p>
+          <p class="field"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
           <p class="field"><span class="label">Documento:</span> ${patient?.documentNumber || ''}</p>
           <p class="field"><span class="label">Tipo documento:</span> ${patient?.documentType || 'DNI'}</p>
           <p class="field"><span class="label">Fecha y hora:</span> ${fechaHora}</p>

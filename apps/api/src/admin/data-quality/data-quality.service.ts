@@ -1,3 +1,8 @@
+/**
+ * Archivo: data-quality.service.ts
+ * Ruta: apps/api/src/admin/data-quality/data-quality.service.ts
+ * Función: Detección y reparación segura de problemas de datos de pacientes.
+ */
 import {
   BadRequestException,
   Injectable,
@@ -5,13 +10,15 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { generateHceNumber } from '../../common/utils/hce-number.util';
 
 type PatientIssue =
   | 'SUSPICIOUS_ID'
   | 'MISSING_DOCUMENT'
   | 'INVALID_DNI'
   | 'DUPLICATED_DOCUMENT'
-  | 'MISSING_NAME';
+  | 'MISSING_NAME'
+  | 'MISSING_HCE';
 
 type PatientQualityRow = {
   id: string;
@@ -85,7 +92,7 @@ export class DataQualityService {
       };
 
       const issues = this.evaluatePatientIssues(patient, documentFrequency);
-      const hceNumber = this.buildHceNumber(patient.documentNumber);
+      const hceNumber = patient.hceNumber;
 
       const hasClinicalHistory = Object.values(relatedCounts).some(
         (count) => count > 0,
@@ -184,7 +191,7 @@ export class DataQualityService {
         fullName: patient.fullName,
         documentType: patient.documentType,
         documentNumber: patient.documentNumber,
-        hceNumber: this.buildHceNumber(patient.documentNumber),
+        hceNumber: patient.hceNumber,
         createdAt: patient.createdAt,
         updatedAt: patient.updatedAt,
       },
@@ -307,6 +314,119 @@ export class DataQualityService {
     };
   }
 
+  async generateMissingHceNumbers(tenantId: string) {
+    const patients = await this.prisma.patient.findMany({
+      where: {
+        tenantId,
+        OR: [{ hceNumber: null }, { hceNumber: '' }],
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        fullName: true,
+        documentType: true,
+        documentNumber: true,
+        createdAt: true,
+      },
+    });
+
+    const assignedRows = await this.prisma.patient.findMany({
+      where: {
+        tenantId,
+        hceNumber: { not: null },
+      },
+      select: { id: true, hceNumber: true },
+    });
+
+    const assignedHceNumbers = new Map<string, string>();
+    for (const row of assignedRows) {
+      const hceNumber = String(row.hceNumber || '').trim();
+      if (hceNumber) assignedHceNumbers.set(hceNumber, row.id);
+    }
+
+    let updated = 0;
+    let skipped = 0;
+    const conflicts: Array<{
+      patientId: string;
+      patientName: string;
+      proposedHceNumber: string | null;
+      reason: string;
+    }> = [];
+
+    for (const patient of patients) {
+      const proposedHceNumber = generateHceNumber({
+        documentType: patient.documentType,
+        documentNumber: patient.documentNumber,
+        patientId: patient.id,
+        createdAt: patient.createdAt,
+      });
+
+      if (!proposedHceNumber) {
+        skipped += 1;
+        conflicts.push({
+          patientId: patient.id,
+          patientName: patient.fullName || 'Paciente sin nombre',
+          proposedHceNumber: null,
+          reason:
+            'No se pudo generar el N.° HCE con los datos actuales. Revise el tipo y número de documento.',
+        });
+        continue;
+      }
+
+      const ownerPatientId = assignedHceNumbers.get(proposedHceNumber);
+      if (ownerPatientId && ownerPatientId !== patient.id) {
+        skipped += 1;
+        conflicts.push({
+          patientId: patient.id,
+          patientName: patient.fullName || 'Paciente sin nombre',
+          proposedHceNumber,
+          reason: `El N.° HCE propuesto ya pertenece al paciente ${ownerPatientId}.`,
+        });
+        continue;
+      }
+
+      try {
+        const result = await this.prisma.patient.updateMany({
+          where: {
+            id: patient.id,
+            tenantId,
+            OR: [{ hceNumber: null }, { hceNumber: '' }],
+          },
+          data: { hceNumber: proposedHceNumber },
+        });
+
+        if (result.count === 1) {
+          updated += 1;
+          assignedHceNumbers.set(proposedHceNumber, patient.id);
+        } else {
+          skipped += 1;
+        }
+      } catch (error: any) {
+        skipped += 1;
+        conflicts.push({
+          patientId: patient.id,
+          patientName: patient.fullName || 'Paciente sin nombre',
+          proposedHceNumber,
+          reason:
+            error?.code === 'P2002'
+              ? 'El N.° HCE ya existe y la restricción de unicidad evitó el duplicado.'
+              : 'No se pudo actualizar el paciente. Revise el registro y vuelva a intentarlo.',
+        });
+      }
+    }
+
+    return {
+      message:
+        updated > 0
+          ? `Se generaron ${updated} N.° HCE Digital correctamente.`
+          : 'No se encontraron N.° HCE Digital pendientes que pudieran generarse.',
+      totalMissing: patients.length,
+      updated,
+      skipped,
+      conflicts,
+    };
+  }
+
   private evaluatePatientIssues(
     patient: any,
     documentFrequency: Map<string, number>,
@@ -319,6 +439,10 @@ export class DataQualityService {
 
     if (!String(patient.fullName || '').trim()) {
       issues.push('MISSING_NAME');
+    }
+
+    if (!String(patient.hceNumber || '').trim()) {
+      issues.push('MISSING_HCE');
     }
 
     const documentNumber = String(patient.documentNumber || '').trim();
@@ -348,6 +472,7 @@ export class DataQualityService {
       INVALID_DNI: 'DNI inválido. En Perú el DNI debe tener 8 dígitos.',
       DUPLICATED_DOCUMENT: 'Documento duplicado en más de un paciente.',
       MISSING_NAME: 'Paciente sin nombre completo registrado.',
+      MISSING_HCE: 'Paciente sin N.° HCE Digital generado.',
     };
 
     return descriptions[issue] || issue;
@@ -367,9 +492,4 @@ export class DataQualityService {
     return `${type}:${number}`;
   }
 
-  private buildHceNumber(documentNumber?: string | null) {
-    const number = String(documentNumber || '').trim();
-    if (!number) return null;
-    return `HCELM-${number}`;
-  }
 }

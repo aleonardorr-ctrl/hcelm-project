@@ -1,9 +1,15 @@
+/**
+ * Archivo: data-quality.controller.ts
+ * Ruta: apps/api/src/admin/data-quality/data-quality.controller.ts
+ * Función: Endpoints administrativos para revisar y corregir la calidad de datos.
+ */
 import {
   Controller,
   Delete,
   Get,
   Param,
   Patch,
+  Post,
   Request,
   UnauthorizedException,
   UseGuards,
@@ -20,6 +26,12 @@ export class DataQualityController {
   async getProblemPatients(@Request() req: any) {
     const tenantId = this.getTenantId(req);
     return this.dataQualityService.getProblemPatients(tenantId);
+  }
+
+  @Post('patients/generate-missing-hce')
+  async generateMissingHceNumbers(@Request() req: any) {
+    const tenantId = this.getTenantId(req);
+    return this.dataQualityService.generateMissingHceNumbers(tenantId);
   }
 
   @Get('patients/:id')

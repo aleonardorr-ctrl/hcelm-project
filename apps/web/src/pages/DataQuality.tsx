@@ -1,3 +1,8 @@
+/**
+ * Archivo: DataQuality.tsx
+ * Ruta: apps/web/src/pages/DataQuality.tsx
+ * Función: Panel administrativo para detectar y corregir datos de pacientes.
+ */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -14,6 +19,7 @@ type DataQualityPatient = {
   fullName?: string;
   documentType?: string;
   documentNumber?: string;
+  hceNumber?: string | null;
   birthDate?: string | null;
   phone?: string | null;
   issues?: string[];
@@ -23,6 +29,21 @@ type DataQualityPatient = {
   canSafeDelete?: boolean;
   createdAt?: string;
   updatedAt?: string;
+};
+
+type HceGenerationConflict = {
+  patientId: string;
+  patientName: string;
+  proposedHceNumber: string | null;
+  reason: string;
+};
+
+type HceGenerationResult = {
+  message: string;
+  totalMissing: number;
+  updated: number;
+  skipped: number;
+  conflicts: HceGenerationConflict[];
 };
 
 type DataQualityResponse = {
@@ -40,6 +61,8 @@ const issueLabels: Record<string, string> = {
   INVALID_DNI: 'DNI inválido',
   DUPLICATED_DOCUMENT: 'Documento duplicado',
   MISSING_FULL_NAME: 'Nombre incompleto',
+  MISSING_NAME: 'Nombre incompleto',
+  MISSING_HCE: 'N.° HCE Digital pendiente',
 };
 
 function getAuthHeaders(): HeadersInit {
@@ -82,6 +105,8 @@ export default function DataQuality() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [generatingHce, setGeneratingHce] = useState(false);
+  const [hceGenerationResult, setHceGenerationResult] = useState<HceGenerationResult | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<DataQualityPatient | null>(null);
   const [filter, setFilter] = useState<'all' | 'invalid_dni' | 'suspicious_id' | 'safe_delete' | 'with_history'>('all');
 
@@ -161,6 +186,47 @@ export default function DataQuality() {
       setError(err?.message || 'Error al reparar ID del paciente.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generateMissingHceNumbers() {
+    const confirmed = window.confirm(
+      'Se generará el N.° HCE Digital únicamente para los pacientes que todavía no lo tengan. ¿Desea continuar?',
+    );
+
+    if (!confirmed) return;
+
+    setGeneratingHce(true);
+    setError('');
+    setSuccess('');
+    setHceGenerationResult(null);
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/admin/data-quality/patients/generate-missing-hce`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result?.message || 'No se pudieron generar los N.° HCE Digital faltantes.',
+        );
+      }
+
+      await loadData();
+      setHceGenerationResult(result);
+      setSuccess(
+        `${result.updated} paciente(s) actualizado(s), ${result.skipped} omitido(s) y ${result.conflicts?.length || 0} conflicto(s).`,
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Error al generar los N.° HCE Digital faltantes.');
+    } finally {
+      setGeneratingHce(false);
     }
   }
 
@@ -250,6 +316,14 @@ export default function DataQuality() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              onClick={generateMissingHceNumbers}
+              disabled={loading || generatingHce}
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60"
+            >
+              {generatingHce ? 'Generando HCE...' : 'Generar N.° HCE faltantes'}
+            </button>
+            <button
+              type="button"
               onClick={() => navigate('/home')}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
@@ -275,6 +349,39 @@ export default function DataQuality() {
         {success && (
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
             {success}
+          </div>
+        )}
+
+        {hceGenerationResult && hceGenerationResult.conflicts.length > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <p className="font-bold text-amber-900">
+              Conflictos detectados ({hceGenerationResult.conflicts.length})
+            </p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full divide-y divide-amber-200 text-sm">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 text-left font-bold text-amber-900">Paciente</th>
+                    <th className="px-3 py-2 text-left font-bold text-amber-900">HCE propuesta</th>
+                    <th className="px-3 py-2 text-left font-bold text-amber-900">Motivo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {hceGenerationResult.conflicts.map((conflict) => (
+                    <tr key={conflict.patientId}>
+                      <td className="px-3 py-2 text-amber-950">
+                        <p className="font-semibold">{conflict.patientName}</p>
+                        <p className="break-all text-xs">{conflict.patientId}</p>
+                      </td>
+                      <td className="px-3 py-2 font-semibold text-amber-950">
+                        {conflict.proposedHceNumber || 'No generada'}
+                      </td>
+                      <td className="px-3 py-2 text-amber-950">{conflict.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -370,6 +477,9 @@ export default function DataQuality() {
                       </td>
                       <td className="px-4 py-4 align-top">
                         <p className="font-semibold text-slate-800">{patient.documentType || 'DNI'} {patient.documentNumber || '—'}</p>
+                        <p className="mt-1 text-xs font-semibold text-cyan-700">
+                          HCE: {patient.hceNumber || 'Pendiente de generar'}
+                        </p>
                       </td>
                       <td className="px-4 py-4 align-top">
                         <div className="flex flex-wrap gap-2">
@@ -467,6 +577,12 @@ export default function DataQuality() {
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="text-xs font-bold uppercase text-slate-500">ID técnico</p>
                 <p className="mt-1 break-all text-sm font-semibold text-slate-800">{selectedPatient.id}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 p-4">
+                <p className="text-xs font-bold uppercase text-slate-500">N.° HCE Digital</p>
+                <p className="mt-1 text-sm font-semibold text-cyan-700">
+                  {selectedPatient.hceNumber || 'Pendiente de generar'}
+                </p>
               </div>
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="text-xs font-bold uppercase text-slate-500">Documento</p>

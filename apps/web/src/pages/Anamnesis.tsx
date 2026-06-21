@@ -22,6 +22,15 @@ type Diagnosis = {
   tipo: string;
 };
 
+type DiagnosisSearchResult = {
+  id: string;
+  system: string;
+  code: string;
+  description: string;
+  desc?: string;
+  synonyms?: string[];
+};
+
 function getSelectedEncounter() {
   const raw = localStorage.getItem("selectedEncounter");
 
@@ -33,22 +42,6 @@ function getSelectedEncounter() {
     return null;
   }
 }
-
-const CIE10_CODES = [
-  { code: "J06.9", desc: "Infección aguda de vías respiratorias" },
-  { code: "J00", desc: "Nasofaringitis aguda (Resfriado común)" },
-  { code: "R51", desc: "Cefalea (Dolor de cabeza)" },
-  { code: "M54.5", desc: "Dolor lumbar bajo" },
-  { code: "E11.9", desc: "Diabetes mellitus tipo 2" },
-  { code: "I10", desc: "Hipertensión esencial" },
-  { code: "K21.0", desc: "Enfermedad por reflujo gastroesofágico" },
-  { code: "N39.0", desc: "Infección de vías urinarias" },
-  { code: "A09", desc: "Diarrea y gastroenteritis" },
-  { code: "B34.9", desc: "Infección viral no especificada" },
-  { code: "J18.9", desc: "Neumonía no especificada" },
-  { code: "R10.4", desc: "Dolor abdominal" },
-  { code: "F41.1", desc: "Trastorno de ansiedad generalizada" },
-];
 
 const CollapsibleSection = ({
   id,
@@ -152,6 +145,12 @@ export default function Anamnesis() {
     descripcion: "",
     tipo: "presuntivo",
   });
+  const [diagnosisSearch, setDiagnosisSearch] = useState("");
+  const [diagnosisResults, setDiagnosisResults] = useState<
+    DiagnosisSearchResult[]
+  >([]);
+  const [diagnosisSearchLoading, setDiagnosisSearchLoading] = useState(false);
+  const [showDiagnosisDropdown, setShowDiagnosisDropdown] = useState(false);
 
   const [destinationDetails, setDestinationDetails] = useState({
     altaIndicaciones: "",
@@ -382,6 +381,58 @@ export default function Anamnesis() {
   }, [sectionFromUrl]);
 
   useEffect(() => {
+    const query = diagnosisSearch.trim();
+
+    if (query.length < 2) {
+      setDiagnosisResults([]);
+      setDiagnosisSearchLoading(false);
+      setShowDiagnosisDropdown(false);
+      return;
+    }
+
+    const token = localStorage.getItem("ame_token");
+    if (!token) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      setDiagnosisSearchLoading(true);
+
+      fetch(
+        `${API_URL}/diagnoses/search?q=${encodeURIComponent(query)}&system=CIE10`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        },
+      )
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error("No se pudo buscar diagnósticos CIE-10.");
+          }
+          return response.json();
+        })
+        .then((data) => {
+          const results = Array.isArray(data) ? data : [];
+          setDiagnosisResults(results);
+          setShowDiagnosisDropdown(true);
+        })
+        .catch((error) => {
+          if (error?.name === "AbortError") return;
+          console.warn("Error buscando diagnósticos:", error);
+          setDiagnosisResults([]);
+          setShowDiagnosisDropdown(false);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setDiagnosisSearchLoading(false);
+        });
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [diagnosisSearch]);
+
+  useEffect(() => {
     const query = medSearch.trim();
 
     if (query.length < 2) {
@@ -605,28 +656,15 @@ export default function Anamnesis() {
     }
   };
 
-  const updateSelectedDiagnosisByCode = (value: string) => {
-    const found = CIE10_CODES.find(
-      (c) => c.code.toLowerCase() === value.toLowerCase(),
-    );
-
+  const selectDiagnosis = (diagnosis: DiagnosisSearchResult) => {
     setSelectedDiagnosis((prev) => ({
       ...prev,
-      codigo: value,
-      descripcion: found ? found.desc : prev.descripcion,
+      codigo: diagnosis.code,
+      descripcion: diagnosis.description || diagnosis.desc || "",
     }));
-  };
-
-  const updateSelectedDiagnosisByDescription = (value: string) => {
-    const found = CIE10_CODES.find(
-      (c) => c.desc.toLowerCase() === value.toLowerCase(),
-    );
-
-    setSelectedDiagnosis((prev) => ({
-      ...prev,
-      descripcion: value,
-      codigo: found ? found.code : prev.codigo,
-    }));
+    setDiagnosisSearch("");
+    setDiagnosisResults([]);
+    setShowDiagnosisDropdown(false);
   };
 
   const addDiagnosisAsPrincipal = () => {
@@ -654,6 +692,9 @@ export default function Anamnesis() {
       descripcion: "",
       tipo: "presuntivo",
     });
+    setDiagnosisSearch("");
+    setDiagnosisResults([]);
+    setShowDiagnosisDropdown(false);
   };
 
   const addDiagnosisAsSecondary = () => {
@@ -686,6 +727,9 @@ export default function Anamnesis() {
       descripcion: "",
       tipo: "presuntivo",
     });
+    setDiagnosisSearch("");
+    setDiagnosisResults([]);
+    setShowDiagnosisDropdown(false);
   };
 
   const clearSelectedDiagnosis = () => {
@@ -694,6 +738,9 @@ export default function Anamnesis() {
       descripcion: "",
       tipo: "presuntivo",
     });
+    setDiagnosisSearch("");
+    setDiagnosisResults([]);
+    setShowDiagnosisDropdown(false);
   };
 
   const removeSecondaryDiag = (id: number) => {
@@ -1051,23 +1098,84 @@ export default function Anamnesis() {
                 Diagnóstico seleccionado
               </label>
 
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  placeholder="Buscar por código, diagnóstico o sinónimo..."
+                  value={diagnosisSearch}
+                  onChange={(e) => {
+                    setDiagnosisSearch(e.target.value);
+                    setShowDiagnosisDropdown(e.target.value.trim().length >= 2);
+                  }}
+                  onFocus={() => {
+                    if (diagnosisSearch.trim().length >= 2) {
+                      setShowDiagnosisDropdown(true);
+                    }
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowDiagnosisDropdown(false), 150);
+                  }}
+                  className="w-full border border-cyan-300 p-3 pr-24 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+
+                <span className="absolute right-3 top-3 text-xs font-semibold text-slate-500">
+                  {diagnosisSearchLoading ? "Buscando..." : "CIE-10"}
+                </span>
+
+                {showDiagnosisDropdown && !diagnosisSearchLoading && (
+                  <div className="absolute z-40 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                    {diagnosisResults.length > 0 ? (
+                      diagnosisResults.map((diagnosis) => (
+                        <button
+                          key={diagnosis.id}
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => selectDiagnosis(diagnosis)}
+                          className="block w-full border-b border-slate-100 px-4 py-3 text-left hover:bg-cyan-50 last:border-b-0"
+                        >
+                          <span className="font-extrabold text-cyan-800">
+                            {diagnosis.code}
+                          </span>
+                          <span className="ml-2 font-semibold text-slate-800">
+                            {diagnosis.description || diagnosis.desc}
+                          </span>
+                          {diagnosis.synonyms && diagnosis.synonyms.length > 0 && (
+                            <span className="mt-1 block text-xs text-slate-500">
+                              Sinónimos: {diagnosis.synonyms.join("; ")}
+                            </span>
+                          )}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-4 py-3 text-sm text-slate-500">
+                        No se encontraron coincidencias en el catálogo activo.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <input
-                  list="cie-codes"
                   placeholder="Código CIE-10"
                   value={selectedDiagnosis.codigo}
                   onChange={(e) =>
-                    updateSelectedDiagnosisByCode(e.target.value)
+                    setSelectedDiagnosis((prev) => ({
+                      ...prev,
+                      codigo: e.target.value.toUpperCase(),
+                    }))
                   }
                   className="border p-2 rounded"
                 />
 
                 <input
-                  list="cie-descs"
                   placeholder="Descripción del diagnóstico"
                   value={selectedDiagnosis.descripcion}
                   onChange={(e) =>
-                    updateSelectedDiagnosisByDescription(e.target.value)
+                    setSelectedDiagnosis((prev) => ({
+                      ...prev,
+                      descripcion: e.target.value,
+                    }))
                   }
                   className="md:col-span-2 border p-2 rounded"
                 />
@@ -1194,17 +1302,6 @@ export default function Anamnesis() {
               )}
             </div>
 
-            <datalist id="cie-codes">
-              {CIE10_CODES.map((c) => (
-                <option key={c.code} value={c.code} />
-              ))}
-            </datalist>
-
-            <datalist id="cie-descs">
-              {CIE10_CODES.map((c) => (
-                <option key={c.desc} value={c.desc} />
-              ))}
-            </datalist>
           </div>
         </CollapsibleSection>
 

@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+// HCELM - pages/NewEncounter.tsx
+// Módulo de nueva atención y registro de funciones vitales.
+
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type SelectedPatient = {
   id?: string | null;
@@ -8,6 +11,7 @@ type SelectedPatient = {
   fullName?: string | null;
   documentType?: string | null;
   documentNumber?: string | null;
+  hceNumber?: string | null;
   birthDate?: string | null;
   age?: string | null;
   gender?: string | null;
@@ -37,45 +41,57 @@ type EncounterForm = {
   nursingNotes: string;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 const emptyForm: EncounterForm = {
-  type: 'consulta',
-  reason: '',
-  systolicBP: '',
-  diastolicBP: '',
-  heartRate: '',
-  respiratoryRate: '',
-  temperature: '',
-  oxygenSat: '',
-  weightKg: '',
-  heightCm: '',
-  capillaryGlucose: '',
-  painScale: '',
-  consciousness: 'Alerta',
-  glasgowEye: '',
-  glasgowVerbal: '',
-  glasgowMotor: '',
-  oxygenSupport: 'Aire ambiente',
-  fio2: '',
-  nursingNotes: '',
+  type: "consulta",
+  reason: "",
+  systolicBP: "",
+  diastolicBP: "",
+  heartRate: "",
+  respiratoryRate: "",
+  temperature: "",
+  oxygenSat: "",
+  weightKg: "",
+  heightCm: "",
+  capillaryGlucose: "",
+  painScale: "",
+  consciousness: "Alerta",
+  glasgowEye: "",
+  glasgowVerbal: "",
+  glasgowMotor: "",
+  oxygenSupport: "Aire ambiente",
+  fio2: "",
+  nursingNotes: "",
 };
 
 function getAuthToken() {
   return (
-    localStorage.getItem('ame_token') ||
-    localStorage.getItem('token') ||
-    localStorage.getItem('access_token') ||
-    localStorage.getItem('accessToken') ||
-    localStorage.getItem('authToken') ||
-    localStorage.getItem('jwt')
+    localStorage.getItem("ame_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("access_token") ||
+    localStorage.getItem("accessToken") ||
+    localStorage.getItem("authToken") ||
+    localStorage.getItem("jwt")
   );
 }
 
 function getSelectedPatient(): SelectedPatient | null {
-  const raw = localStorage.getItem('selectedPatient');
+  const raw =
+    localStorage.getItem("selectedPatient") ||
+    localStorage.getItem("hcelm_selected_patient");
 
-  if (!raw) return null;
+  if (!raw) {
+    const storedId =
+      localStorage.getItem("selectedPatientId") ||
+      localStorage.getItem("hcelm_selected_patient_id");
+
+    if (isValidUuid(String(storedId || ""))) {
+      return { id: storedId, patientId: storedId };
+    }
+
+    return null;
+  }
 
   try {
     const parsed = JSON.parse(raw) as SelectedPatient;
@@ -87,7 +103,7 @@ function getSelectedPatient(): SelectedPatient | null {
         id: normalizedId,
       };
 
-      localStorage.setItem('selectedPatient', JSON.stringify(normalized));
+      localStorage.setItem("selectedPatient", JSON.stringify(normalized));
       return normalized;
     }
 
@@ -103,29 +119,30 @@ function getBestPatientId(patient?: SelectedPatient | null): string {
     patient?.patientId,
     (patient as any)?.PatientId,
     (patient as any)?.patient_id,
+    (patient as any)?._id,
     (patient as any)?.value,
   ];
 
-  const validId = possibleIds.find((value) => isValidUuid(String(value || '')));
+  const validId = possibleIds.find((value) => isValidUuid(String(value || "")));
 
-  return validId ? String(validId) : '';
+  return validId ? String(validId) : "";
 }
 
 function persistSelectedPatient(patient: SelectedPatient) {
   const normalizedId = getBestPatientId(patient);
   const normalizedPatient = {
     ...patient,
-    id: normalizedId || patient.id || '',
+    id: normalizedId || patient.id || "",
   };
 
-  localStorage.setItem('selectedPatient', JSON.stringify(normalizedPatient));
+  localStorage.setItem("selectedPatient", JSON.stringify(normalizedPatient));
 
   return normalizedPatient;
 }
 
 function isEditVitalsMode(): boolean {
   const searchParams = new URLSearchParams(window.location.search);
-  return searchParams.get('mode') === 'edit-vitals';
+  return searchParams.get("mode") === "edit-vitals";
 }
 
 function getSelectedEncounterDraft(
@@ -134,11 +151,11 @@ function getSelectedEncounterDraft(
   const editVitalsMode = isEditVitalsMode();
 
   if (!editVitalsMode) {
-    localStorage.removeItem('selectedEncounter');
+    localStorage.removeItem("selectedEncounter");
     return {};
   }
 
-  const raw = localStorage.getItem('selectedEncounter');
+  const raw = localStorage.getItem("selectedEncounter");
 
   if (!raw) return {};
 
@@ -151,78 +168,80 @@ function getSelectedEncounterDraft(
       String(selectedPatient.id) === String(encounter.patientId);
 
     if (!samePatient) {
-      localStorage.removeItem('selectedEncounter');
+      localStorage.removeItem("selectedEncounter");
       return {};
     }
 
     const vitalSigns = encounter?.vitalSigns || {};
 
     return {
-      type: encounter?.type || 'consulta',
-      reason: encounter?.reason || '',
+      type: encounter?.type || "consulta",
+      reason: encounter?.reason || "",
       systolicBP:
         vitalSigns?.systolicBP !== undefined && vitalSigns?.systolicBP !== null
           ? String(vitalSigns.systolicBP)
-          : '',
+          : "",
       diastolicBP:
-        vitalSigns?.diastolicBP !== undefined && vitalSigns?.diastolicBP !== null
+        vitalSigns?.diastolicBP !== undefined &&
+        vitalSigns?.diastolicBP !== null
           ? String(vitalSigns.diastolicBP)
-          : '',
+          : "",
       heartRate:
         vitalSigns?.heartRate !== undefined && vitalSigns?.heartRate !== null
           ? String(vitalSigns.heartRate)
-          : '',
+          : "",
       respiratoryRate:
         vitalSigns?.respiratoryRate !== undefined &&
         vitalSigns?.respiratoryRate !== null
           ? String(vitalSigns.respiratoryRate)
-          : '',
+          : "",
       temperature:
-        vitalSigns?.temperature !== undefined && vitalSigns?.temperature !== null
+        vitalSigns?.temperature !== undefined &&
+        vitalSigns?.temperature !== null
           ? String(vitalSigns.temperature)
-          : '',
+          : "",
       oxygenSat:
         vitalSigns?.oxygenSat !== undefined && vitalSigns?.oxygenSat !== null
           ? String(vitalSigns.oxygenSat)
-          : '',
+          : "",
       weightKg:
         vitalSigns?.weightKg !== undefined && vitalSigns?.weightKg !== null
           ? String(vitalSigns.weightKg)
-          : '',
+          : "",
       heightCm:
         vitalSigns?.heightCm !== undefined && vitalSigns?.heightCm !== null
           ? String(vitalSigns.heightCm)
-          : '',
+          : "",
       capillaryGlucose:
         vitalSigns?.capillaryGlucose !== undefined &&
         vitalSigns?.capillaryGlucose !== null
           ? String(vitalSigns.capillaryGlucose)
-          : '',
+          : "",
       painScale:
         vitalSigns?.painScale !== undefined && vitalSigns?.painScale !== null
           ? String(vitalSigns.painScale)
-          : '',
-      consciousness: vitalSigns?.consciousness || 'Alerta',
+          : "",
+      consciousness: vitalSigns?.consciousness || "Alerta",
       glasgowEye:
         vitalSigns?.glasgowEye !== undefined && vitalSigns?.glasgowEye !== null
           ? String(vitalSigns.glasgowEye)
-          : '',
+          : "",
       glasgowVerbal:
         vitalSigns?.glasgowVerbal !== undefined &&
         vitalSigns?.glasgowVerbal !== null
           ? String(vitalSigns.glasgowVerbal)
-          : '',
+          : "",
       glasgowMotor:
         vitalSigns?.glasgowMotor !== undefined &&
         vitalSigns?.glasgowMotor !== null
           ? String(vitalSigns.glasgowMotor)
-          : '',
-      oxygenSupport: vitalSigns?.oxygenSupport || 'Aire ambiente',
+          : "",
+      oxygenSupport: vitalSigns?.oxygenSupport || "Aire ambiente",
       fio2:
         vitalSigns?.fio2 !== undefined && vitalSigns?.fio2 !== null
           ? String(vitalSigns.fio2)
-          : '',
-      nursingNotes: vitalSigns?.nursingNotes || '',
+          : "",
+      nursingNotes: vitalSigns?.nursingNotes || "",
     };
   } catch {
     return {};
@@ -247,7 +266,7 @@ function isValidUuid(value?: string | null): boolean {
 }
 
 function toNumberOrUndefined(value: string): number | undefined {
-  if (value.trim() === '') return undefined;
+  if (value.trim() === "") return undefined;
 
   const numberValue = Number(value);
 
@@ -257,7 +276,7 @@ function toNumberOrUndefined(value: string): number | undefined {
 }
 
 function toIntegerOrUndefined(value: string): number | undefined {
-  if (value.trim() === '') return undefined;
+  if (value.trim() === "") return undefined;
 
   const numberValue = Number(value);
 
@@ -270,11 +289,11 @@ function calculateBmi(weightKg: string, heightCm: string): string {
   const weight = Number(weightKg);
   const height = Number(heightCm);
 
-  if (!weight || !height) return '';
+  if (!weight || !height) return "";
 
   const heightM = height / 100;
 
-  if (heightM <= 0) return '';
+  if (heightM <= 0) return "";
 
   const bmi = weight / (heightM * heightM);
 
@@ -290,22 +309,57 @@ function calculateGlasgowTotal(
   const v = Number(verbal);
   const m = Number(motor);
 
-  if (!e && !v && !m) return '';
+  if (!e && !v && !m) return "";
 
   return String((e || 0) + (v || 0) + (m || 0));
 }
 
+function getHceNumber(patient?: SelectedPatient | null): string {
+  const value = String(patient?.hceNumber || "").trim();
+  return value || "HCE pendiente de generar";
+}
+
 export default function NewEncounter() {
   const navigate = useNavigate();
-  const selectedPatient = getSelectedPatient();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const patientIdFromUrl = searchParams.get("patientId") || "";
+  const patientFromState = (location.state as any)?.selectedPatient as
+    | SelectedPatient
+    | undefined;
+  const selectedPatient = patientFromState || getSelectedPatient();
 
-  const [patient, setPatient] = useState<SelectedPatient | null>(selectedPatient);
+  const initialPatient = (() => {
+    const storedId = getBestPatientId(selectedPatient);
+
+    if (patientIdFromUrl && isValidUuid(patientIdFromUrl)) {
+      return persistSelectedPatient({
+        ...(selectedPatient || {}),
+        id: patientIdFromUrl,
+        patientId: patientIdFromUrl,
+      });
+    }
+
+    if (storedId) {
+      return persistSelectedPatient({
+        ...(selectedPatient || {}),
+        id: storedId,
+        patientId: storedId,
+      });
+    }
+
+    return selectedPatient || null;
+  })();
+
+  const [patient, setPatient] = useState<SelectedPatient | null>(
+    initialPatient,
+  );
   const [form, setForm] = useState<EncounterForm>(() =>
-    getInitialEncounterForm(selectedPatient),
+    getInitialEncounterForm(initialPatient),
   );
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const bmi = useMemo(
     () => calculateBmi(form.weightKg, form.heightCm),
@@ -335,23 +389,43 @@ export default function NewEncounter() {
     }));
   }
 
-  function validateForm(patientToValidate: SelectedPatient | null): string | null {
-    const patientId = getBestPatientId(patientToValidate);
+  function validateForm(
+    patientToValidate: SelectedPatient | null,
+  ): string | null {
+    const patientId =
+      getBestPatientId(patientToValidate) ||
+      patientIdFromUrl ||
+      localStorage.getItem("selectedPatientId") ||
+      localStorage.getItem("hcelm_selected_patient_id") ||
+      "";
 
-    if (!patientToValidate || !patientId) {
-      return 'No hay paciente seleccionado o el paciente no tiene un ID válido. Regrese a Pacientes y seleccione nuevamente al paciente.';
+    if (!patientId || !isValidUuid(patientId)) {
+      return "No hay paciente seleccionado o el paciente no tiene un ID válido. Regrese a Pacientes y seleccione nuevamente al paciente.";
     }
 
     if (!form.reason.trim()) {
-      return 'Ingrese el motivo de consulta o atención.';
+      return "Ingrese el motivo de consulta o atención.";
     }
 
     return null;
   }
 
   async function resolveSelectedPatient(): Promise<SelectedPatient | null> {
+    const urlId = String(patientIdFromUrl || "").trim();
+
     if (patient && getBestPatientId(patient)) {
       return persistSelectedPatient(patient);
+    }
+
+    if (isValidUuid(urlId)) {
+      const fromUrl = persistSelectedPatient({
+        ...(patient || {}),
+        id: urlId,
+        patientId: urlId,
+      });
+
+      setPatient(fromUrl);
+      return fromUrl;
     }
 
     const storedPatient = getSelectedPatient();
@@ -363,11 +437,15 @@ export default function NewEncounter() {
     }
 
     const documentNumber = String(
-      storedPatient?.documentNumber || patient?.documentNumber || '',
+      storedPatient?.documentNumber || patient?.documentNumber || "",
     ).trim();
 
     const fullName = String(
-      storedPatient?.fullName || storedPatient?.name || patient?.fullName || patient?.name || '',
+      storedPatient?.fullName ||
+        storedPatient?.name ||
+        patient?.fullName ||
+        patient?.name ||
+        "",
     )
       .trim()
       .toLowerCase();
@@ -380,7 +458,7 @@ export default function NewEncounter() {
 
     if (!token) {
       throw new Error(
-        'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+        "No se encontró token de sesión. Cierre sesión e ingrese nuevamente.",
       );
     }
 
@@ -398,8 +476,8 @@ export default function NewEncounter() {
     const patientList = Array.isArray(data) ? data : [];
 
     const foundPatient = patientList.find((item: any) => {
-      const itemDocument = String(item.documentNumber || '').trim();
-      const itemName = String(item.fullName || item.name || '')
+      const itemDocument = String(item.documentNumber || "").trim();
+      const itemName = String(item.fullName || item.name || "")
         .trim()
         .toLowerCase();
 
@@ -417,7 +495,8 @@ export default function NewEncounter() {
       ...storedPatient,
       ...foundPatient,
       id: foundPatient.id,
-      fullName: foundPatient.fullName || foundPatient.name || storedPatient?.fullName,
+      fullName:
+        foundPatient.fullName || foundPatient.name || storedPatient?.fullName,
       name: foundPatient.name || foundPatient.fullName || storedPatient?.name,
     });
 
@@ -430,15 +509,15 @@ export default function NewEncounter() {
 
     try {
       setSaving(true);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
 
       const resolvedPatient = await resolveSelectedPatient();
       const validationError = validateForm(resolvedPatient);
 
       if (validationError) {
         setError(validationError);
-        setSuccess('');
+        setSuccess("");
         return;
       }
 
@@ -446,13 +525,18 @@ export default function NewEncounter() {
 
       if (!token) {
         throw new Error(
-          'No se encontró token de sesión. Cierre sesión e ingrese nuevamente.',
+          "No se encontró token de sesión. Cierre sesión e ingrese nuevamente.",
         );
       }
 
       const payload = {
-        patientId: getBestPatientId(resolvedPatient),
-        type: form.type || 'consulta',
+        patientId:
+          getBestPatientId(resolvedPatient) ||
+          patientIdFromUrl ||
+          localStorage.getItem("selectedPatientId") ||
+          localStorage.getItem("hcelm_selected_patient_id") ||
+          "",
+        type: form.type || "consulta",
         reason: form.reason.trim(),
 
         systolicBP: toIntegerOrUndefined(form.systolicBP),
@@ -481,9 +565,9 @@ export default function NewEncounter() {
       };
 
       const response = await fetch(`${API_URL}/encounters`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
@@ -493,39 +577,102 @@ export default function NewEncounter() {
         const backendError = await response.json().catch(() => null);
 
         const message = Array.isArray(backendError?.message)
-          ? backendError.message.join(' | ')
+          ? backendError.message.join(" | ")
           : backendError?.message || backendError?.error;
 
-        throw new Error(
-          message || 'No se pudo guardar la nueva atención.',
-        );
+        throw new Error(message || "No se pudo guardar la nueva atención.");
       }
 
       const savedEncounter = await response.json();
 
-      localStorage.setItem('selectedEncounter', JSON.stringify(savedEncounter));
+      localStorage.setItem("selectedEncounter", JSON.stringify(savedEncounter));
 
-      setSuccess('Atención y funciones vitales guardadas correctamente.');
+      setSuccess("Atención y funciones vitales guardadas correctamente.");
 
-      navigate(
-        `/anamnesis?encounterId=${savedEncounter.id}`,
-      );
+      navigate(`/anamnesis?encounterId=${savedEncounter.id}`);
     } catch (err) {
       console.error(err);
       setError(
         err instanceof Error
           ? err.message
-          : 'Error al guardar la nueva atención.',
+          : "Error al guardar la nueva atención.",
       );
     } finally {
       setSaving(false);
     }
   }
 
-  const patientName = patient?.fullName || patient?.name || 'Paciente no seleccionado';
+  useEffect(() => {
+    const urlId = String(patientIdFromUrl || "").trim();
+
+    if (!isValidUuid(urlId)) return;
+
+    const currentId = getBestPatientId(patient);
+
+    if (currentId === urlId && (patient?.fullName || patient?.name)) return;
+
+    const token = getAuthToken();
+
+    if (!token) return;
+
+    let isMounted = true;
+
+    fetch(`${API_URL}/patients`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((data) => {
+        if (!isMounted || !Array.isArray(data)) return;
+
+        const found = data.find((item: any) => String(item.id) === urlId);
+
+        if (!found) {
+          const minimalPatient = persistSelectedPatient({
+            ...(patient || {}),
+            id: urlId,
+            patientId: urlId,
+          });
+          setPatient(minimalPatient);
+          return;
+        }
+
+        const normalizedPatient = persistSelectedPatient({
+          ...found,
+          id: found.id,
+          patientId: found.id,
+          fullName: found.fullName || found.name || "",
+          name: found.name || found.fullName || "",
+        });
+
+        setPatient(normalizedPatient);
+      })
+      .catch(() => {
+        // Si no se pudo traer el detalle, igual conservamos el ID de la URL.
+        const minimalPatient = persistSelectedPatient({
+          ...(patient || {}),
+          id: urlId,
+          patientId: urlId,
+        });
+        setPatient(minimalPatient);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientIdFromUrl]);
+
+  const patientName =
+    patient?.fullName || patient?.name || "Paciente seleccionado por ID";
   const patientDocument = patient?.documentNumber
-    ? `${patient.documentType || 'DNI'}: ${patient.documentNumber}`
-    : 'Sin documento';
+    ? `${patient.documentType || "DNI"}: ${patient.documentNumber}`
+    : "Sin documento";
+  const patientHceNumber = getHceNumber(patient);
 
   return (
     <div className="space-y-6">
@@ -542,7 +689,7 @@ export default function NewEncounter() {
 
           <button
             type="button"
-            onClick={() => navigate('/patients')}
+            onClick={() => navigate("/patients")}
             className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
           >
             Volver a Pacientes
@@ -550,21 +697,35 @@ export default function NewEncounter() {
         </div>
 
         <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded">
-          <p className="text-sm text-blue-900">
-            <span className="font-bold">Paciente:</span> {patientName}
-            {' | '}
-            {patientDocument}
-            {patient?.age ? ` | ${patient.age}` : ''}
-            {patient?.gender || patient?.sex
-              ? ` | ${patient.gender || patient.sex}`
-              : ''}
-            {patient?.phone ? ` | Cel: ${patient.phone}` : ''}
-          </p>
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm text-blue-900">
+                <span className="font-bold">Paciente:</span> {patientName}
+                {" | "}
+                {patientDocument}
+                {patient?.age ? ` | ${patient.age}` : ""}
+                {patient?.gender || patient?.sex
+                  ? ` | ${patient.gender || patient.sex}`
+                  : ""}
+                {patient?.phone ? ` | Cel: ${patient.phone}` : ""}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-right shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-500">
+                N.° HCE Digital
+              </p>
+              <p className="text-lg font-extrabold text-blue-800">
+                {patientHceNumber}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {!getBestPatientId(patient) && (
+        {!getBestPatientId(patient) && !isValidUuid(patientIdFromUrl) && (
           <div className="mt-4 p-3 rounded border border-red-300 bg-red-50 text-red-700 text-sm">
-            No hay paciente seleccionado. Regrese a Pacientes, seleccione uno y vuelva a iniciar la atención.
+            No hay paciente seleccionado. Regrese a Pacientes, seleccione uno y
+            vuelva a iniciar la atención.
           </div>
         )}
 
@@ -809,160 +970,160 @@ export default function NewEncounter() {
         </div>
 
         <div>
-      <h3 className="text-lg font-bold text-gray-800 mb-4">
-        Glasgow y soporte respiratorio
-      </h3>
+          <h3 className="text-lg font-bold text-gray-800 mb-4">
+            Glasgow y soporte respiratorio
+          </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Glasgow ocular
-          </label>
-          <select
-            name="glasgowEye"
-            value={form.glasgowEye}
-            onChange={handleChange}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          >
-            <option value="">Seleccione</option>
-            <option value="4">4 - Apertura ocular espontánea</option>
-            <option value="3">3 - Apertura ocular al llamado</option>
-            <option value="2">2 - Apertura ocular al dolor</option>
-            <option value="1">1 - No apertura ocular</option>
-          </select>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Glasgow ocular
+              </label>
+              <select
+                name="glasgowEye"
+                value={form.glasgowEye}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">Seleccione</option>
+                <option value="4">4 - Apertura ocular espontánea</option>
+                <option value="3">3 - Apertura ocular al llamado</option>
+                <option value="2">2 - Apertura ocular al dolor</option>
+                <option value="1">1 - No apertura ocular</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Glasgow verbal
+              </label>
+              <select
+                name="glasgowVerbal"
+                value={form.glasgowVerbal}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">Seleccione</option>
+                <option value="5">5 - Orientado y conversa</option>
+                <option value="4">4 - Confuso, conversa</option>
+                <option value="3">3 - Palabras inapropiadas</option>
+                <option value="2">2 - Sonidos incomprensibles</option>
+                <option value="1">1 - Sin respuesta verbal</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Glasgow motor
+              </label>
+              <select
+                name="glasgowMotor"
+                value={form.glasgowMotor}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">Seleccione</option>
+                <option value="6">6 - Obedece órdenes</option>
+                <option value="5">5 - Localiza el dolor</option>
+                <option value="4">4 - Retira al dolor</option>
+                <option value="3">3 - Flexión anormal</option>
+                <option value="2">2 - Extensión anormal</option>
+                <option value="1">1 - Sin respuesta motora</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Glasgow total
+              </label>
+              <input
+                type="text"
+                value={glasgowTotal}
+                readOnly
+                className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100 font-bold text-blue-700"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Soporte de oxígeno
+              </label>
+              <select
+                name="oxygenSupport"
+                value={form.oxygenSupport}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="Aire ambiente">Aire ambiente</option>
+                <option value="Cánula binasal">Cánula binasal</option>
+                <option value="Mascarilla simple">Mascarilla simple</option>
+                <option value="Mascarilla con reservorio">
+                  Mascarilla con reservorio
+                </option>
+                <option value="Venturi">Venturi</option>
+                <option value="CNAF">Cánula nasal de alto flujo</option>
+                <option value="VMNI">Ventilación mecánica no invasiva</option>
+                <option value="VMI">Ventilación mecánica invasiva</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                FiO₂ %
+              </label>
+              <input
+                type="number"
+                name="fio2"
+                value={form.fio2}
+                onChange={handleChange}
+                placeholder="21"
+                min={21}
+                max={100}
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Interpretación rápida Glasgow
+              </label>
+              <input
+                type="text"
+                value={
+                  glasgowTotal
+                    ? Number(glasgowTotal) >= 13
+                      ? "Leve / conservado"
+                      : Number(glasgowTotal) >= 9
+                        ? "Moderado"
+                        : "Severo"
+                    : ""
+                }
+                readOnly
+                className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
+              />
+            </div>
+
+            <div className="md:col-span-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                Notas de enfermería / triaje
+              </label>
+              <textarea
+                name="nursingNotes"
+                value={form.nursingNotes}
+                onChange={handleChange}
+                rows={3}
+                placeholder="Observaciones iniciales del paciente"
+                className="w-full border border-gray-300 rounded px-3 py-2"
+              />
+            </div>
+          </div>
         </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Glasgow verbal
-          </label>
-          <select
-            name="glasgowVerbal"
-            value={form.glasgowVerbal}
-            onChange={handleChange}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          >
-            <option value="">Seleccione</option>
-            <option value="5">5 - Orientado y conversa</option>
-            <option value="4">4 - Confuso, conversa</option>
-            <option value="3">3 - Palabras inapropiadas</option>
-            <option value="2">2 - Sonidos incomprensibles</option>
-            <option value="1">1 - Sin respuesta verbal</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Glasgow motor
-          </label>
-          <select
-            name="glasgowMotor"
-            value={form.glasgowMotor}
-            onChange={handleChange}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          >
-            <option value="">Seleccione</option>
-            <option value="6">6 - Obedece órdenes</option>
-            <option value="5">5 - Localiza el dolor</option>
-            <option value="4">4 - Retira al dolor</option>
-            <option value="3">3 - Flexión anormal</option>
-            <option value="2">2 - Extensión anormal</option>
-            <option value="1">1 - Sin respuesta motora</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Glasgow total
-          </label>
-          <input
-            type="text"
-            value={glasgowTotal}
-            readOnly
-            className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100 font-bold text-blue-700"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            Soporte de oxígeno
-          </label>
-          <select
-            name="oxygenSupport"
-            value={form.oxygenSupport}
-            onChange={handleChange}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          >
-            <option value="Aire ambiente">Aire ambiente</option>
-            <option value="Cánula binasal">Cánula binasal</option>
-            <option value="Mascarilla simple">Mascarilla simple</option>
-            <option value="Mascarilla con reservorio">
-              Mascarilla con reservorio
-            </option>
-            <option value="Venturi">Venturi</option>
-            <option value="CNAF">Cánula nasal de alto flujo</option>
-            <option value="VMNI">Ventilación mecánica no invasiva</option>
-            <option value="VMI">Ventilación mecánica invasiva</option>
-            <option value="Otro">Otro</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">
-            FiO₂ %
-          </label>
-          <input
-            type="number"
-            name="fio2"
-            value={form.fio2}
-            onChange={handleChange}
-            placeholder="21"
-            min={21}
-            max={100}
-            className="w-full border border-gray-300 rounded px-3 py-2"
-          />
-        </div>
-
-    <div className="md:col-span-2">
-      <label className="block text-sm font-semibold text-gray-700 mb-1">
-        Interpretación rápida Glasgow
-      </label>
-      <input
-        type="text"
-        value={
-          glasgowTotal
-            ? Number(glasgowTotal) >= 13
-              ? 'Leve / conservado'
-              : Number(glasgowTotal) >= 9
-                ? 'Moderado'
-                : 'Severo'
-            : ''
-        }
-        readOnly
-        className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-100"
-      />
-    </div>
-
-    <div className="md:col-span-4">
-      <label className="block text-sm font-semibold text-gray-700 mb-1">
-        Notas de enfermería / triaje
-      </label>
-      <textarea
-        name="nursingNotes"
-        value={form.nursingNotes}
-        onChange={handleChange}
-        rows={3}
-        placeholder="Observaciones iniciales del paciente"
-        className="w-full border border-gray-300 rounded px-3 py-2"
-      />
-    </div>
-  </div>
-</div>
 
         <div className="flex flex-col md:flex-row gap-3 md:justify-between pt-4 border-t">
           <button
             type="button"
-            onClick={() => navigate('/patients')}
+            onClick={() => navigate("/patients")}
             className="px-4 py-2 rounded bg-gray-200 text-gray-800 font-semibold hover:bg-gray-300"
           >
             Volver
@@ -974,8 +1135,8 @@ export default function NewEncounter() {
             className="px-5 py-2 rounded bg-green-700 text-white font-semibold hover:bg-green-800 disabled:opacity-60"
           >
             {saving
-              ? 'Guardando...'
-              : 'Guardar atención y continuar a Anamnesis'}
+              ? "Guardando..."
+              : "Guardar atención y continuar a Anamnesis"}
           </button>
         </div>
       </form>

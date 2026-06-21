@@ -74,6 +74,8 @@ export function generateImagingOrderPdf({
     timeStyle: 'short',
   });
 
+  const hceNumber = safeText(patient?.hceNumber) || 'HCE pendiente de generar';
+
   const html = `
   <html>
     <head>
@@ -268,6 +270,7 @@ export function generateImagingOrderPdf({
         <div class="section-title">Datos del paciente</div>
 
         <div class="grid">
+          <p class="hce-number"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
           <p class="field"><span class="label">Paciente:</span> ${safeText(patient?.fullName)}</p>
           <p class="field"><span class="label">Documento:</span> ${safeText(patient?.documentNumber)}</p>
           <p class="field"><span class="label">Tipo documento:</span> ${safeText(patient?.documentType || 'DNI')}</p>

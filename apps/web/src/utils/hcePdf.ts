@@ -1,28 +1,39 @@
+// HCELM - utils/hcePdf.ts
+// Generador PDF de Historia Clínica Electrónica completa.
+
 import { cleanPrefix } from './recipePdf';
 
 function safeText(value: any) {
   return String(value ?? '').trim();
 }
 
+function getPatientHceNumber(patient: any) {
+  return safeText(patient?.hceNumber) || 'HCE pendiente de generar';
+}
+
 function formatVitalSigns(signosVitales: any) {
   if (!signosVitales) return '-';
 
   const items = [
-    ['PA', signosVitales.pa],
+    ['PA', signosVitales.pa || signosVitales.ta],
     ['FC', signosVitales.fc],
     ['FR', signosVitales.fr],
-    ['SatO₂', signosVitales.sato2],
-    ['T°', signosVitales.temperatura],
+    ['SatO₂', signosVitales.sato2 || signosVitales.spo2],
+    ['T°', signosVitales.temperatura || signosVitales.temp],
     ['Peso', signosVitales.peso],
     ['Talla', signosVitales.talla],
     ['IMC', signosVitales.imc],
   ];
 
-  const filtered = items.filter(([, value]) => value !== undefined && value !== null && value !== '');
+  const filtered = items.filter(
+    ([, value]) => value !== undefined && value !== null && value !== '',
+  );
 
   if (!filtered.length) return '-';
 
-  return filtered.map(([label, value]) => `<span><b>${label}:</b> ${value}</span>`).join(' &nbsp; | &nbsp; ');
+  return filtered
+    .map(([label, value]) => `<span><b>${label}:</b> ${value}</span>`)
+    .join(' &nbsp; | &nbsp; ');
 }
 
 function formatDiagnosis(d: any) {
@@ -202,6 +213,7 @@ export function generateHcePdf({
 
   const professionalCmp = cleanPrefix(professionalCmpRaw, 'CMP');
   const professionalRne = cleanPrefix(professionalRneRaw, 'RNE');
+  const hceNumber = getPatientHceNumber(patient);
 
   const primaryColor = institution?.primaryColor || '#0f766e';
 
@@ -282,6 +294,24 @@ export function generateHcePdf({
           color: #4b5563;
           margin-top: -6px;
           margin-bottom: 12px;
+        }
+
+        .hce-banner {
+          border: 2px solid ${primaryColor};
+          background: #ecfeff;
+          color: #0f172a;
+          border-radius: 8px;
+          padding: 8px 12px;
+          margin: 10px 0 12px 0;
+          text-align: center;
+          font-size: 15px;
+          font-weight: bold;
+          letter-spacing: 0.3px;
+        }
+
+        .hce-banner span {
+          color: ${primaryColor};
+          font-size: 16px;
         }
 
         .section {
@@ -433,10 +463,12 @@ export function generateHcePdf({
 
       <div class="title">Historia Clínica Electrónica</div>
       <div class="subtitle">Documento generado desde HCELM · ${fechaEmision}</div>
+      <div class="hce-banner">N.° HCE Digital: <span>${hceNumber}</span></div>
 
       <div class="section">
         <div class="section-title">Datos del paciente</div>
         <div class="grid">
+          <p class="field"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
           <p class="field"><span class="label">Paciente:</span> ${safeText(patient?.fullName)}</p>
           <p class="field"><span class="label">Documento:</span> ${safeText(patient?.documentNumber)}</p>
           <p class="field"><span class="label">Tipo documento:</span> ${safeText(patient?.documentType || 'DNI')}</p>

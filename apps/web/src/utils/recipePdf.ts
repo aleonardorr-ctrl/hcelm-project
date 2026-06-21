@@ -61,6 +61,8 @@ export function generateRecipePdf({
     timeStyle: 'short',
   });
 
+  const hceNumber = patient?.hceNumber || 'HCE pendiente de generar';
+
   const html = `
   <html>
     <head>
@@ -286,6 +288,7 @@ export function generateRecipePdf({
         <div class="section">
           <div class="section-title">Datos del paciente</div>
           <div class="grid">
+            <p class="hce-number"><span class="label">N.° HCE Digital:</span> ${hceNumber}</p>
             <p class="field"><span class="label">Paciente:</span> ${
               patient?.fullName || ''
             }</p>

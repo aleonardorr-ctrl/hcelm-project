@@ -1,6 +1,6 @@
-// Archivo: schema-catalogos.prisma
-// Destino: apps/api/prisma/schema.prisma
-// Función: Bloques que deben incorporarse al esquema actual para CIE-10/CIE-11.
+// Archivo: schema.prisma
+// Ruta: apps/api/prisma/schema.prisma
+// Función: Esquema principal de datos de HCELM.
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,43 +10,45 @@ datasource db {
 }
 
 model Tenant {
-  id                String             @id @default(uuid()) @db.Uuid
-  name              String
-  ruc               String             @unique
-  active            Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  anamnesis         Anamnesis[]
-  certificates      Certificate[]
-  encounters        Encounter[]
-  establishments    Establishment?
-  hceConfigs        HceConfig?
-  institutions      Institution?
-  medications       Medication[]
-  patients          Patient[]
-  prescriptions     Prescription[]
-  users             User[]
-  diagnosisCatalogs DiagnosisCatalog[]
-  catalogImports    CatalogImport[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  name               String
+  ruc                String              @unique
+  active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  anamnesis          Anamnesis[]
+  certificates       Certificate[]
+  encounters         Encounter[]
+  establishments     Establishment?
+  hceConfigs         HceConfig?
+  institutions       Institution?
+  medications        Medication[]
+  patients           Patient[]
+  prescriptions      Prescription[]
+  users              User[]
+  diagnosisCatalogs  DiagnosisCatalog[]
+  catalogImports     CatalogImport[]
+  clinicalAlertRules ClinicalAlertRule[]
 }
 
 model User {
-  id                       String             @id @default(uuid()) @db.Uuid
-  tenantId                 String             @db.Uuid
-  email                    String
-  password                 String
-  fullName                 String?
-  role                     String             @default("medico")
-  cmp                      String?
-  rne                      String?
-  active                   Boolean            @default(true)
-  createdAt                DateTime           @default(now())
-  updatedAt                DateTime           @updatedAt
-  certificates             Certificate[]
-  prescriptions            Prescription[]
-  tenant                   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  diagnosisCatalogsCreated DiagnosisCatalog[] @relation("DiagnosisCatalogCreatedBy")
-  catalogImports           CatalogImport[]    @relation("CatalogImportCreatedBy")
+  id                        String              @id @default(uuid()) @db.Uuid
+  tenantId                  String              @db.Uuid
+  email                     String
+  password                  String
+  fullName                  String?
+  role                      String              @default("medico")
+  cmp                       String?
+  rne                       String?
+  active                    Boolean             @default(true)
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  certificates              Certificate[]
+  prescriptions             Prescription[]
+  tenant                    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  diagnosisCatalogsCreated  DiagnosisCatalog[]  @relation("DiagnosisCatalogCreatedBy")
+  catalogImports            CatalogImport[]     @relation("CatalogImportCreatedBy")
+  clinicalAlertRulesUpdated ClinicalAlertRule[] @relation("ClinicalAlertRuleUpdatedBy")
 }
 
 model Patient {
@@ -342,4 +344,71 @@ model CatalogImport {
 
   @@index([tenantId, catalogType, createdAt])
   @@index([tenantId, status])
+}
+
+model ClinicalAlertRule {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  key           String   @db.VarChar(80)
+  name          String   @db.VarChar(160)
+  abbreviation  String   @db.VarChar(20)
+  category      String   @default("vital_signs") @db.VarChar(40)
+  sourceType    String   @default("VITAL_SIGNS") @db.VarChar(40)
+  displayFields String[] @default([])
+  unit          String?  @db.VarChar(30)
+  referenceKey  String?  @db.VarChar(80)
+  sourceNote    String?  @db.Text
+  active        Boolean  @default(true)
+  displayOrder  Int      @default(0)
+  version       Int      @default(1)
+  updatedById   String?  @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  updatedByUser User?               @relation("ClinicalAlertRuleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  bands         ClinicalAlertBand[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, active, displayOrder])
+  @@index([tenantId, sourceType])
+}
+
+model ClinicalAlertBand {
+  id              String   @id @default(uuid()) @db.Uuid
+  ruleId          String   @db.Uuid
+  key             String   @db.VarChar(80)
+  severity        String   @db.VarChar(20)
+  label           String   @db.VarChar(100)
+  symbol          String?  @db.VarChar(10)
+  colorHex        String?  @db.VarChar(9)
+  matchMode       String   @default("ALL") @db.VarChar(10)
+  messageTemplate String   @db.Text
+  suggestedAction String?  @db.Text
+  active          Boolean  @default(true)
+  priority        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  rule       ClinicalAlertRule        @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  conditions ClinicalAlertCondition[]
+
+  @@unique([ruleId, key])
+  @@index([ruleId, active, priority])
+}
+
+model ClinicalAlertCondition {
+  id          String   @id @default(uuid()) @db.Uuid
+  bandId      String   @db.Uuid
+  sourceField String   @db.VarChar(80)
+  operator    String   @db.VarChar(20)
+  value1      Float
+  value2      Float?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  band ClinicalAlertBand @relation(fields: [bandId], references: [id], onDelete: Cascade)
+
+  @@index([bandId, order])
 }

@@ -112,6 +112,42 @@ function formatRecipeItems(recipeItems: any[]) {
   `;
 }
 
+function formatRequestedItems(value?: string | null) {
+  const items = safeText(value)
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (!items.length) return '<span class="muted">No solicitado.</span>';
+
+  return `<ul class="compact-list">${items
+    .map((item) => `<li>${item}</li>`)
+    .join('')}</ul>`;
+}
+
+function formatAuxiliaryOrder(
+  title: string,
+  itemsLabel: string,
+  items: string | null | undefined,
+  order: any,
+) {
+  if (!safeText(items)) return '';
+
+  return `
+    <div class="section">
+      <div class="section-title">${title}</div>
+      <div class="order-grid">
+        <div><span class="label">${itemsLabel}:</span>${formatRequestedItems(items)}</div>
+        <div>
+          <p class="field"><span class="label">Prioridad:</span> ${safeText(order?.priority) || 'Rutina'}</p>
+          ${safeText(order?.clinicalInfo) ? `<p class="field"><span class="label">Información clínica:</span> ${safeText(order.clinicalInfo)}</p>` : ''}
+          ${safeText(order?.observations) ? `<p class="field"><span class="label">Observaciones:</span> ${safeText(order.observations)}</p>` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function formatDestinoFinal(destinoFinal: string, destinationDetails: any) {
   const destino = safeText(destinoFinal);
 
@@ -184,12 +220,16 @@ export function generateHcePdf({
   formData,
   destinationDetails,
   recipeItems,
+  labOrder,
+  imagingOrder,
 }: {
   institution: any;
   patient: any;
   formData: any;
   destinationDetails: any;
   recipeItems: any[];
+  labOrder?: any;
+  imagingOrder?: any;
 }) {
   if (!patient) {
     alert('Seleccione un paciente antes de generar la Historia Clínica PDF.');
@@ -217,10 +257,10 @@ export function generateHcePdf({
 
   const primaryColor = institution?.primaryColor || '#0f766e';
 
-  const logoWidth = Number(institution?.logoWidth || 70);
-  const logoHeight = Number(institution?.logoHeight || 70);
+  const logoWidth = Math.min(Number(institution?.logoWidth || 54), 60);
+  const logoHeight = Math.min(Number(institution?.logoHeight || 54), 60);
 
-  const sealSize = Number(institution?.sealWidth || 200);
+  const sealSize = Math.min(Number(institution?.sealWidth || 86), 95);
   const signatureWidth = Math.round(sealSize * 0.62);
   const signatureHeight = Math.round(sealSize * 0.32);
 
@@ -237,7 +277,7 @@ export function generateHcePdf({
       <style>
         @page {
           size: A4;
-          margin: 15mm;
+          margin: 8mm 9mm;
         }
 
         body {
@@ -245,16 +285,16 @@ export function generateHcePdf({
           color: #111827;
           margin: 0;
           padding: 0;
-          font-size: 12px;
+          font-size: 9px;
         }
 
         .header {
           border-bottom: 3px solid ${primaryColor};
-          padding-bottom: 10px;
-          margin-bottom: 12px;
+          padding-bottom: 5px;
+          margin-bottom: 5px;
           display: flex;
           align-items: center;
-          gap: 12px;
+          gap: 8px;
         }
 
         .logo {
@@ -266,7 +306,7 @@ export function generateHcePdf({
         }
 
         .institution-name {
-          font-size: 18px;
+          font-size: 14px;
           font-weight: bold;
           color: ${primaryColor};
           margin: 0 0 4px 0;
@@ -274,51 +314,51 @@ export function generateHcePdf({
         }
 
         .small {
-          font-size: 11px;
-          margin: 2px 0;
+          font-size: 8.5px;
+          margin: 1px 0;
           color: #374151;
         }
 
         .title {
           text-align: center;
-          font-size: 18px;
+          font-size: 14px;
           font-weight: bold;
           color: ${primaryColor};
-          margin: 14px 0;
+          margin: 5px 0;
           text-transform: uppercase;
         }
 
         .subtitle {
           text-align: center;
-          font-size: 11px;
+          font-size: 8px;
           color: #4b5563;
-          margin-top: -6px;
-          margin-bottom: 12px;
+          margin-top: -3px;
+          margin-bottom: 4px;
         }
 
         .hce-banner {
           border: 2px solid ${primaryColor};
           background: #ecfeff;
           color: #0f172a;
-          border-radius: 8px;
-          padding: 8px 12px;
-          margin: 10px 0 12px 0;
+          border-radius: 4px;
+          padding: 4px 8px;
+          margin: 4px 0 5px 0;
           text-align: center;
-          font-size: 15px;
+          font-size: 11px;
           font-weight: bold;
           letter-spacing: 0.3px;
         }
 
         .hce-banner span {
           color: ${primaryColor};
-          font-size: 16px;
+          font-size: 11px;
         }
 
         .section {
           border: 1px solid #d1d5db;
-          border-radius: 6px;
-          padding: 8px;
-          margin-bottom: 9px;
+          border-radius: 4px;
+          padding: 4px 5px;
+          margin-bottom: 4px;
           page-break-inside: avoid;
         }
 
@@ -326,21 +366,21 @@ export function generateHcePdf({
           font-weight: bold;
           color: ${primaryColor};
           border-bottom: 1px solid #e5e7eb;
-          padding-bottom: 4px;
-          margin-bottom: 7px;
+          padding-bottom: 2px;
+          margin-bottom: 3px;
           text-transform: uppercase;
-          font-size: 12px;
+          font-size: 9px;
         }
 
         .grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 5px 12px;
+          gap: 2px 8px;
         }
 
         .field {
-          margin: 3px 0;
-          line-height: 1.4;
+          margin: 1px 0;
+          line-height: 1.25;
         }
 
         .label {
@@ -353,28 +393,28 @@ export function generateHcePdf({
 
         .text-block {
           white-space: pre-wrap;
-          line-height: 1.45;
-          min-height: 24px;
+          line-height: 1.3;
+          min-height: 0;
         }
 
         table {
           width: 100%;
           border-collapse: collapse;
-          margin-top: 6px;
+          margin-top: 3px;
         }
 
         th {
           background: #f3f4f6;
           border: 1px solid #d1d5db;
-          padding: 5px;
-          font-size: 10.5px;
+          padding: 2px 3px;
+          font-size: 8px;
           text-align: left;
         }
 
         td {
           border: 1px solid #d1d5db;
-          padding: 5px;
-          font-size: 10.5px;
+          padding: 2px 3px;
+          font-size: 8px;
           vertical-align: top;
         }
 
@@ -382,7 +422,8 @@ export function generateHcePdf({
           text-align: center;
           width: 50%;
           margin-left: auto;
-          margin-top: 22px;
+          margin-top: 5px;
+          page-break-inside: avoid;
         }
 
         .signature-box {
@@ -416,15 +457,15 @@ export function generateHcePdf({
 
         .signature-line {
           border-top: 1px solid #111827;
-          padding-top: 5px;
-          font-size: 11px;
-          line-height: 1.35;
+          padding-top: 2px;
+          font-size: 8px;
+          line-height: 1.2;
         }
 
         .note {
-          font-size: 10px;
+          font-size: 7.5px;
           color: #4b5563;
-          margin-top: 12px;
+          margin-top: 4px;
           border-left: 3px solid ${primaryColor};
           padding-left: 8px;
         }
@@ -432,6 +473,24 @@ export function generateHcePdf({
         .print-actions {
           margin-top: 18px;
           text-align: center;
+        }
+
+        .order-grid {
+          display: grid;
+          grid-template-columns: 1.2fr 1fr;
+          gap: 6px;
+        }
+
+        .compact-list {
+          margin: 2px 0 0 14px;
+          padding: 0;
+          columns: 2;
+          column-gap: 14px;
+        }
+
+        .compact-list li {
+          margin: 0 0 1px 0;
+          break-inside: avoid;
         }
 
         @media print {
@@ -544,6 +603,20 @@ export function generateHcePdf({
         <div class="section-title">Exámenes auxiliares</div>
         <div class="text-block">${safeText(formData?.examenesAuxiliares)}</div>
       </div>
+
+      ${formatAuxiliaryOrder(
+        'Solicitud de laboratorio',
+        'Exámenes solicitados',
+        labOrder?.tests,
+        labOrder,
+      )}
+
+      ${formatAuxiliaryOrder(
+        'Solicitud de imágenes',
+        'Estudios solicitados',
+        imagingOrder?.studies,
+        imagingOrder,
+      )}
 
       <div class="section">
         <div class="section-title">Prescripción / tratamiento</div>

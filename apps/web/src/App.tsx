@@ -17,7 +17,7 @@ import NewEncounter from './pages/NewEncounter';
 import Certificates from './pages/Certificates';
 import DataQuality from './pages/DataQuality';
 
-function TokenProtected({ children }: { children: JSX.Element }) {
+function TokenProtected({ children }: { children: React.ReactElement }) {
   const token = localStorage.getItem('ame_token');
 
   if (!token) return <Navigate to="/login" replace />;
@@ -25,7 +25,7 @@ function TokenProtected({ children }: { children: JSX.Element }) {
   return <>{children}</>;
 }
 
-function ClinicalProtected({ children }: { children: JSX.Element }) {
+function ClinicalProtected({ children }: { children: React.ReactElement }) {
   const token = localStorage.getItem('ame_token');
   const professionalVerified = localStorage.getItem('hcelm_professional_verified') === 'true';
 

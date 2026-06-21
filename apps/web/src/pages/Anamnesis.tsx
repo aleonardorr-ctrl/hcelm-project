@@ -15,6 +15,13 @@ import { generateImagingOrderPdf } from "../utils/imagingOrderPdf";
 import ClinicalAlertsPanel from '../components/clinical-alerts/ClinicalAlertsPanel';
 
 const API_URL = "http://localhost:3000/api";
+
+type Diagnosis = {
+  codigo: string;
+  descripcion: string;
+  tipo: string;
+};
+
 function getSelectedEncounter() {
   const raw = localStorage.getItem("selectedEncounter");
 
@@ -172,7 +179,9 @@ export default function Anamnesis() {
     observacionPlan: "",
     observacionIndicaciones: "",
     fallecidoFechaHora: "",
+    fallecidoLugar: "",
     fallecidoCausaProbable: "",
+    fallecidoResumenClinico: "",
     fallecidoObservaciones: "",
     fallecidoGenerarCertificado: false,
   });
@@ -811,6 +820,11 @@ export default function Anamnesis() {
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-6">
+      <ClinicalAlertsPanel
+        patientId={formData.patientId || null}
+        encounterId={formData.encounterId || encounterIdFromUrl || null}
+      />
+
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
         <h1 className="text-2xl font-bold text-slate-800">
           Anamnesis y Historia Clínica Electrónica
@@ -2109,6 +2123,8 @@ export default function Anamnesis() {
                 formData,
                 destinationDetails,
                 recipeItems,
+                labOrder,
+                imagingOrder,
               });
             }}
             className="md:w-1/3 bg-slate-700 text-white px-6 py-3 rounded-lg hover:bg-slate-800 font-medium"

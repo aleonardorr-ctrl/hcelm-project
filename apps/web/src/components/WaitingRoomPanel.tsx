@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+// HCELM - components/WaitingRoomPanel.tsx
+// Panel de lista de espera y triaje con variantes completa y compacta.
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_URL = "http://localhost:3000/api";
@@ -53,6 +55,7 @@ type WaitingRoomResponse = {
 type Props = {
   currentEncounterId?: string | null;
   variant?: "compact" | "full";
+  title?: string;
 };
 
 const riskLabels: Record<string, string> = {
@@ -139,6 +142,7 @@ function normalizeVitalSigns(row: WaitingRoomPatient) {
 export default function WaitingRoomPanel({
   currentEncounterId,
   variant = "full",
+  title = "Lista de espera / Triaje de hoy",
 }: Props) {
   const navigate = useNavigate();
 
@@ -406,7 +410,7 @@ export default function WaitingRoomPanel({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-800">
-            Lista de espera / Triaje de hoy
+            {title}
           </h2>
           <p className="text-sm text-slate-600">
             Pendientes o activos: {activePatients.length} | Finalizadas hoy:{" "}

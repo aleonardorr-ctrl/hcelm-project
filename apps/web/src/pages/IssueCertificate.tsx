@@ -29,7 +29,7 @@ export default function IssueCertificate() {
   const [newCode, setNewCode] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
-  const [restDays, setRestDays] = useState(0);
+  const [restDays, setRestDays] = useState<number | ''>(0);
   const [observations, setObservations] = useState('');
   const [loading, setLoading] = useState(false);
 

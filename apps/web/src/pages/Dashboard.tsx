@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [doctor, setDoctor] = useState('Dr. Alfonso Rodriguez Rojas');
+  const doctor = 'Dr. Alfonso Rodriguez Rojas';
 
   useEffect(() => {
     const token = localStorage.getItem('ame_token');

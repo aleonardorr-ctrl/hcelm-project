@@ -1,3 +1,5 @@
+// HCELM - components/clinical-alerts/ClinicalAlertsPanel.tsx
+// Barra lateral compacta de alertas clínicas con abreviatura y valor alterado.
 import { useEffect, useMemo, useState } from 'react';
 import ClinicalReferenceModal from './ClinicalReferenceModal';
 import type {
@@ -28,27 +30,20 @@ const severityLabels: Record<ClinicalAlertSeverity, string> = {
   normal: 'Sin alerta',
 };
 
-const severityDot: Record<ClinicalAlertSeverity, string> = {
-  critical: '🔴',
-  high: '🟠',
-  warning: '🟡',
-  normal: '🟢',
-};
-
 const railButtonClasses: Record<ClinicalAlertSeverity, string> = {
   critical:
-    'bg-red-600 text-white border-red-800 animate-alert-fast hover:bg-red-700',
+    'bg-[#9f1239] text-white border-[#701a35] animate-alert-fast hover:bg-[#881337]',
   high:
-    'bg-orange-500 text-white border-orange-700 animate-alert-medium hover:bg-orange-600',
+    'bg-orange-600 text-white border-orange-800 animate-alert-medium hover:bg-orange-700',
   warning:
-    'bg-yellow-300 text-yellow-950 border-yellow-500 animate-alert-slow hover:bg-yellow-400',
+    'bg-yellow-300 text-yellow-950 border-yellow-600 animate-alert-slow hover:bg-yellow-400',
   normal:
     'bg-green-600 text-white border-green-700 hover:bg-green-700',
 };
 
 const detailBorderClasses: Record<ClinicalAlertSeverity, string> = {
-  critical: 'border-red-500 bg-red-50',
-  high: 'border-orange-500 bg-orange-50',
+  critical: 'border-[#9f1239] bg-rose-50',
+  high: 'border-orange-600 bg-orange-50',
   warning: 'border-yellow-400 bg-yellow-50',
   normal: 'border-green-400 bg-green-50',
 };
@@ -68,22 +63,52 @@ function formatDateTime(value?: string | null) {
 
 function getAlertShortLabel(alert: ClinicalAlert) {
   const key = alert.referenceKey;
+  const numericValue = Number(alert.value);
 
-  if (key === 'spo2') return 'SpO₂';
-  if (key === 'systolic_bp') return 'PA';
-  if (key === 'heart_rate') return 'FC';
-  if (key === 'respiratory_rate') return 'FR';
-  if (key === 'temperature') return 'T°';
-  if (key === 'capillary_glucose') return 'Glu';
-  if (key === 'glasgow') return 'GCS';
-  if (key === 'pain_scale') return 'EVA';
-  if (key === 'allergy') return 'Alg';
+  if (key === 'spo2') return 'SpO₂↓';
+  if (key === 'systolic_bp') {
+    return Number.isFinite(numericValue) && numericValue < 100 ? 'PA↓' : 'PA↑';
+  }
+  if (key === 'heart_rate') {
+    return Number.isFinite(numericValue) && numericValue < 60 ? 'FC↓' : 'FC↑';
+  }
+  if (key === 'respiratory_rate') {
+    return Number.isFinite(numericValue) && numericValue < 8 ? 'FR↓' : 'FR↑';
+  }
+  if (key === 'temperature') {
+    return Number.isFinite(numericValue) && numericValue < 35 ? 'T°↓' : 'T°↑';
+  }
+  if (key === 'capillary_glucose') {
+    return Number.isFinite(numericValue) && numericValue < 70 ? 'Glu↓' : 'Glu↑';
+  }
+  if (key === 'glasgow') return 'GCS↓';
+  if (key === 'pain_scale') return 'EVA↑';
+  if (key === 'allergy') return 'ALG';
 
   if (alert.category === 'allergy') return 'Alg';
   if (alert.category === 'laboratory') return 'Lab';
   if (alert.category === 'diagnosis') return 'Dx';
 
-  return '⚠';
+  return 'ALT';
+}
+
+function getAlertValue(alert: ClinicalAlert) {
+  if (alert.value === null || alert.value === undefined || alert.value === '') {
+    return '!';
+  }
+
+  const value = String(alert.value);
+  const compactUnit: Record<string, string> = {
+    '%': '%',
+    lpm: '',
+    rpm: '',
+    '°C': '°',
+    'mg/dL': '',
+    mmHg: '',
+    '/10': '/10',
+  };
+
+  return `${value}${compactUnit[alert.unit || ''] ?? ''}`;
 }
 
 export default function ClinicalAlertsPanel({
@@ -202,7 +227,18 @@ export default function ClinicalAlertsPanel({
             <div className="mb-2 flex items-start justify-between gap-2">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">
-                  {severityDot[selectedAlert.severity]} {selectedAlert.title}
+                  <span
+                    className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${
+                      selectedAlert.severity === 'critical'
+                        ? 'bg-[#9f1239]'
+                        : selectedAlert.severity === 'high'
+                          ? 'bg-orange-600'
+                          : selectedAlert.severity === 'warning'
+                            ? 'bg-yellow-400'
+                            : 'bg-green-600'
+                    }`}
+                  />
+                  {selectedAlert.title}
                 </h3>
                 <p className="text-xs font-bold text-slate-600">
                   {severityLabels[selectedAlert.severity]}
@@ -256,14 +292,15 @@ export default function ClinicalAlertsPanel({
           </div>
         )}
 
-        <div className="flex w-[2cm] flex-col items-center gap-[0.5cm] rounded-l-xl border-l border-y border-slate-300 bg-white p-[0.12cm] shadow-2xl">
+        <div className="flex w-[1.15cm] flex-col items-center gap-[0.18cm] rounded-l-lg border-l border-y border-slate-300 bg-white p-[0.08cm] shadow-xl">
           <div
-            className={`mx-auto flex h-[1.65cm] w-[1.65cm] items-center justify-center rounded-full border-2 text-center text-[18px] font-black shadow-xl ${
+            className={`mx-auto flex h-[0.9cm] w-[0.9cm] flex-col items-center justify-center rounded-full border text-center text-[10px] font-black leading-none shadow-md ${
               railButtonClasses[globalRisk]
             }`}
             title={`Riesgo global: ${severityLabels[globalRisk]}`}
           >
-            ⚠
+            <span>!</span>
+            <span className="text-[7px]">{visibleAlerts.length}</span>
           </div>
 
           {loading && (
@@ -276,8 +313,8 @@ export default function ClinicalAlertsPanel({
             <button
               type="button"
               className={`
-                mx-auto flex h-[1.65cm] w-[1.65cm] items-center justify-center
-                rounded-full border-2 text-center text-[10px] font-black shadow-xl
+                mx-auto flex h-[0.9cm] w-[0.9cm] items-center justify-center
+                rounded-full border text-center text-[8px] font-black shadow-md
                 ${railButtonClasses.normal}
               `}
               title="Sin alertas clínicas relevantes"
@@ -297,16 +334,16 @@ export default function ClinicalAlertsPanel({
                   )
                 }
                 className={`
-                  mx-auto flex h-[1.65cm] w-[1.65cm] flex-col items-center justify-center
-                  rounded-full border-2 text-center text-[9px] font-black leading-tight shadow-xl
+                  mx-auto flex h-[0.9cm] w-[0.9cm] flex-col items-center justify-center
+                  rounded-full border text-center font-black leading-none shadow-md
                   ${railButtonClasses[alert.severity]}
                 `}
                 title={`${alert.title}: ${alert.message}`}
               >
-                <span className="block text-[13px]">
-                  {severityDot[alert.severity]}
+                <span className="block text-[6.5px]">{getAlertShortLabel(alert)}</span>
+                <span className="mt-[1px] block max-w-[30px] truncate text-[7.5px]">
+                  {getAlertValue(alert)}
                 </span>
-                <span className="block">{getAlertShortLabel(alert)}</span>
               </button>
             ))}
         </div>

@@ -3,7 +3,7 @@
  * Ruta: apps/web/src/pages/Catalogs.tsx
  * Función: Administración de plantillas e importaciones de catálogos maestros.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 type CatalogSystem = 'CIE10' | 'CIE11';
@@ -44,6 +44,39 @@ type PreviewResponse = {
   previewLimited?: boolean;
 };
 
+type CatalogItem = {
+  id: string;
+  code: string;
+  description: string;
+  chapter?: string | null;
+  synonyms?: string[];
+  active: boolean;
+  source?: string | null;
+  updatedAt: string;
+};
+
+type CatalogResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  items: CatalogItem[];
+};
+
+type ImportRecord = {
+  id: string;
+  sourceFileName: string;
+  status: string;
+  totalRows: number;
+  validRows: number;
+  invalidRows: number;
+  createdRows: number;
+  updatedRows: number;
+  skippedRows: number;
+  createdAt: string;
+  completedAt?: string | null;
+};
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const actionLabels: Record<ImportAction, string> = {
@@ -72,6 +105,11 @@ async function readError(response: Response, fallback: string) {
   }
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString('es-PE');
+}
+
 export default function Catalogs() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -83,6 +121,14 @@ export default function Catalogs() {
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [view, setView] = useState<'import' | 'records' | 'history'>('import');
+  const [catalogQuery, setCatalogQuery] = useState('');
+  const [catalogStatus, setCatalogStatus] = useState('all');
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [imports, setImports] = useState<ImportRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   function resetImport(nextSystem?: CatalogSystem) {
     if (nextSystem) setSystem(nextSystem);
@@ -91,7 +137,98 @@ export default function Catalogs() {
     setError('');
     setSuccess('');
     if (fileInputRef.current) fileInputRef.current.value = '';
+    setCatalogPage(1);
+    setCatalog(null);
+    setImports([]);
   }
+
+  async function loadCatalog() {
+    setCatalogLoading(true);
+    setError('');
+
+    try {
+      const params = new URLSearchParams({
+        system,
+        q: catalogQuery.trim(),
+        status: catalogStatus,
+        page: String(catalogPage),
+        pageSize: '50',
+      });
+      const response = await fetch(`${API_BASE}/diagnoses/catalog?${params}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!response.ok) {
+        throw new Error(await readError(response, 'No se pudo cargar el catálogo.'));
+      }
+      setCatalog(await response.json());
+    } catch (err: any) {
+      setError(err?.message || 'Error al cargar el catálogo.');
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  async function loadImportHistory() {
+    setHistoryLoading(true);
+    setError('');
+    try {
+      const response = await fetch(
+        `${API_BASE}/diagnoses/imports?system=${system}`,
+        { headers: { Authorization: `Bearer ${getToken()}` } },
+      );
+      if (!response.ok) {
+        throw new Error(await readError(response, 'No se pudo cargar el historial.'));
+      }
+      const result = await response.json();
+      setImports(Array.isArray(result) ? result : []);
+    } catch (err: any) {
+      setError(err?.message || 'Error al cargar el historial.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function changeCatalogStatus(item: CatalogItem) {
+    const nextActive = !item.active;
+    const confirmed = window.confirm(
+      `${nextActive ? 'Activar' : 'Inactivar'} ${item.code} - ${item.description}?`,
+    );
+    if (!confirmed) return;
+
+    setError('');
+    setSuccess('');
+    try {
+      const response = await fetch(
+        `${API_BASE}/diagnoses/catalog/${item.id}/status`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify({ active: nextActive }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await readError(response, 'No se pudo cambiar el estado.'));
+      }
+      const result = await response.json();
+      setSuccess(result?.message || 'Estado actualizado correctamente.');
+      await loadCatalog();
+    } catch (err: any) {
+      setError(err?.message || 'Error al cambiar el estado.');
+    }
+  }
+
+  useEffect(() => {
+    if (view !== 'records') return;
+    const timeout = window.setTimeout(loadCatalog, 300);
+    return () => window.clearTimeout(timeout);
+  }, [view, system, catalogQuery, catalogStatus, catalogPage]);
+
+  useEffect(() => {
+    if (view === 'history') loadImportHistory();
+  }, [view, system]);
 
   async function downloadTemplate() {
     setDownloading(true);
@@ -248,7 +385,28 @@ export default function Catalogs() {
             ))}
           </div>
 
-          <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              ['import', 'Importar Excel'],
+              ['records', 'Registros del catálogo'],
+              ['history', 'Historial de cargas'],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setView(id as typeof view)}
+                className={`rounded-lg border px-4 py-2 text-sm font-bold ${
+                  view === id
+                    ? 'border-slate-800 bg-slate-800 text-white'
+                    : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className={`${view === 'import' ? 'grid' : 'hidden'} mt-5 gap-5 lg:grid-cols-[1fr_auto] lg:items-end`}>
             <div>
               <label className="mb-2 block text-sm font-bold text-slate-700">
                 Archivo Excel
@@ -293,7 +451,7 @@ export default function Catalogs() {
           </div>
         </section>
 
-        {preview && (
+        {preview && view === 'import' && (
           <>
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               {[
@@ -390,6 +548,158 @@ export default function Catalogs() {
               )}
             </section>
           </>
+        )}
+
+        {view === 'records' && (
+          <section className="overflow-hidden rounded-lg bg-white shadow-sm">
+            <div className="grid gap-3 border-b border-slate-200 p-4 md:grid-cols-[1fr_180px_auto]">
+              <input
+                value={catalogQuery}
+                onChange={(event) => {
+                  setCatalogQuery(event.target.value);
+                  setCatalogPage(1);
+                }}
+                placeholder="Buscar código, descripción o sinónimo..."
+                className="rounded-lg border border-slate-300 p-2"
+              />
+              <select
+                value={catalogStatus}
+                onChange={(event) => {
+                  setCatalogStatus(event.target.value);
+                  setCatalogPage(1);
+                }}
+                className="rounded-lg border border-slate-300 p-2"
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+              <button
+                type="button"
+                onClick={loadCatalog}
+                disabled={catalogLoading}
+                className="rounded-lg bg-cyan-700 px-4 py-2 font-bold text-white disabled:opacity-60"
+              >
+                {catalogLoading ? 'Cargando...' : 'Actualizar'}
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50 text-left text-slate-700">
+                  <tr>
+                    <th className="px-4 py-3">Código</th>
+                    <th className="px-4 py-3">Descripción</th>
+                    <th className="px-4 py-3">Sinónimos</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {!catalogLoading && (catalog?.items.length || 0) === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                        No se encontraron registros.
+                      </td>
+                    </tr>
+                  )}
+                  {catalog?.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-3 font-extrabold text-cyan-800">{item.code}</td>
+                      <td className="px-4 py-3">{item.description}</td>
+                      <td className="max-w-sm px-4 py-3 text-xs text-slate-600">
+                        {item.synonyms?.join('; ') || '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'}`}>
+                          {item.active ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => changeCatalogStatus(item)}
+                          className={`rounded-lg px-3 py-2 text-xs font-bold text-white ${item.active ? 'bg-red-700 hover:bg-red-800' : 'bg-emerald-700 hover:bg-emerald-800'}`}
+                        >
+                          {item.active ? 'Inactivar' : 'Activar'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
+              <span>{catalog?.total || 0} registro(s)</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={catalogPage <= 1}
+                  onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}
+                  className="rounded border px-3 py-1 disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <span>Página {catalog?.page || catalogPage} de {catalog?.totalPages || 1}</span>
+                <button
+                  type="button"
+                  disabled={catalogPage >= (catalog?.totalPages || 1)}
+                  onClick={() => setCatalogPage((page) => page + 1)}
+                  className="rounded border px-3 py-1 disabled:opacity-40"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {view === 'history' && (
+          <section className="overflow-hidden rounded-lg bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h2 className="font-bold text-slate-900">Historial de importaciones</h2>
+              <button
+                type="button"
+                onClick={loadImportHistory}
+                disabled={historyLoading}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold"
+              >
+                {historyLoading ? 'Cargando...' : 'Actualizar'}
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50 text-left text-slate-700">
+                  <tr>
+                    <th className="px-4 py-3">Fecha</th>
+                    <th className="px-4 py-3">Archivo</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Total</th>
+                    <th className="px-4 py-3">Creados</th>
+                    <th className="px-4 py-3">Actualizados</th>
+                    <th className="px-4 py-3">Errores</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {!historyLoading && imports.length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Sin importaciones registradas.</td></tr>
+                  )}
+                  {imports.map((item) => (
+                    <tr key={item.id}>
+                      <td className="px-4 py-3">{formatDateTime(item.createdAt)}</td>
+                      <td className="px-4 py-3 font-semibold">{item.sourceFileName}</td>
+                      <td className="px-4 py-3">{item.status}</td>
+                      <td className="px-4 py-3">{item.totalRows}</td>
+                      <td className="px-4 py-3 text-emerald-700">{item.createdRows}</td>
+                      <td className="px-4 py-3 text-blue-700">{item.updatedRows}</td>
+                      <td className="px-4 py-3 text-red-700">{item.invalidRows}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
       </div>
     </div>

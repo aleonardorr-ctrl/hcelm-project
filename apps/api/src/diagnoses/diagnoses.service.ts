@@ -13,6 +13,7 @@ import ExcelJS from 'exceljs';
 import { PrismaService } from '../prisma/prisma.service';
 
 const REQUIRED_COLUMNS = ['codigo', 'descripcion'] as const;
+const MAX_IMPORT_ROWS = 20_000;
 const ALLOWED_COLUMNS = [
   'codigo',
   'descripcion',
@@ -87,6 +88,133 @@ export class DiagnosesService {
       ...diagnosis,
       desc: diagnosis.description,
     }));
+  }
+
+  async listCatalog(params: {
+    tenantId: string;
+    system: string;
+    query?: string;
+    status?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const system = this.normalizeSystem(params.system);
+    const query = String(params.query || '').trim();
+    const page = Number.isFinite(params.page)
+      ? Math.max(1, Math.trunc(params.page || 1))
+      : 1;
+    const pageSize = Number.isFinite(params.pageSize)
+      ? Math.min(100, Math.max(10, Math.trunc(params.pageSize || 50)))
+      : 50;
+    const normalizedStatus = String(params.status || 'all').toLowerCase();
+
+    const where: any = {
+      tenantId: params.tenantId,
+      system,
+    };
+
+    if (normalizedStatus === 'active') where.active = true;
+    if (normalizedStatus === 'inactive') where.active = false;
+    if (query) {
+      where.OR = [
+        { code: { contains: query, mode: 'insensitive' } },
+        { description: { contains: query, mode: 'insensitive' } },
+        { searchText: { contains: query, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, items] = await this.prisma.$transaction([
+      this.prisma.diagnosisCatalog.count({ where }),
+      this.prisma.diagnosisCatalog.findMany({
+        where,
+        orderBy: [{ code: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          system: true,
+          code: true,
+          description: true,
+          chapter: true,
+          group: true,
+          subgroup: true,
+          synonyms: true,
+          active: true,
+          observations: true,
+          source: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      system,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      items,
+    };
+  }
+
+  async listImports(tenantId: string, system = 'CIE10') {
+    return this.prisma.catalogImport.findMany({
+      where: {
+        tenantId,
+        catalogType: this.normalizeSystem(system),
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 50,
+      select: {
+        id: true,
+        catalogType: true,
+        sourceFileName: true,
+        source: true,
+        status: true,
+        totalRows: true,
+        validRows: true,
+        invalidRows: true,
+        createdRows: true,
+        updatedRows: true,
+        skippedRows: true,
+        errorRows: true,
+        createdAt: true,
+        completedAt: true,
+      },
+    });
+  }
+
+  async changeStatus(params: {
+    tenantId: string;
+    diagnosisId: string;
+    active: boolean;
+  }) {
+    const diagnosis = await this.prisma.diagnosisCatalog.findFirst({
+      where: { id: params.diagnosisId, tenantId: params.tenantId },
+      select: { id: true, code: true, description: true, active: true },
+    });
+
+    if (!diagnosis) throw new NotFoundException('Código diagnóstico no encontrado.');
+
+    const updated = await this.prisma.diagnosisCatalog.update({
+      where: { id: diagnosis.id },
+      data: { active: params.active },
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        active: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      message: params.active
+        ? 'Código diagnóstico activado correctamente.'
+        : 'Código diagnóstico inactivado correctamente.',
+      diagnosis: updated,
+    };
   }
 
   async generateTemplate(system: string) {
@@ -184,6 +312,13 @@ export class DiagnosesService {
       throw new BadRequestException('El archivo no contiene hojas de cálculo.');
     }
 
+    const estimatedDataRows = Math.max(sheet.actualRowCount - 1, 0);
+    if (estimatedDataRows > MAX_IMPORT_ROWS) {
+      throw new BadRequestException(
+        `El archivo supera el máximo de ${MAX_IMPORT_ROWS} registros.`,
+      );
+    }
+
     const headers = new Map<string, number>();
     sheet.getRow(1).eachCell((cell, columnNumber) => {
       const header = this.normalizeHeader(this.cellText(cell.value));
@@ -261,8 +396,10 @@ export class DiagnosesService {
       });
     });
 
-    if (rawRows.length + invalidRows.length > 5000) {
-      throw new BadRequestException('El archivo supera el máximo de 5000 registros.');
+    if (rawRows.length + invalidRows.length > MAX_IMPORT_ROWS) {
+      throw new BadRequestException(
+        `El archivo supera el máximo de ${MAX_IMPORT_ROWS} registros.`,
+      );
     }
 
     const existing = await this.prisma.diagnosisCatalog.findMany({
@@ -348,6 +485,8 @@ export class DiagnosesService {
     const createdRows = rows.filter((row) => row.action === 'CREATE').length;
     const updatedRows = rows.filter((row) => row.action === 'UPDATE').length;
     const skippedRows = rows.filter((row) => row.action === 'UNCHANGED').length;
+    const rowsToCreate = rows.filter((row) => row.action === 'CREATE');
+    const rowsToUpdate = rows.filter((row) => row.action === 'UPDATE');
 
     await this.prisma.$transaction(
       async (tx) => {
@@ -366,10 +505,32 @@ export class DiagnosesService {
           );
         }
 
-        for (const row of rows) {
-          if (row.action === 'UNCHANGED') continue;
+        if (rowsToCreate.length > 0) {
+          const batchSize = 1000;
+          for (let offset = 0; offset < rowsToCreate.length; offset += batchSize) {
+            const batch = rowsToCreate.slice(offset, offset + batchSize);
+            await tx.diagnosisCatalog.createMany({
+              data: batch.map((row) => ({
+                tenantId: params.tenantId,
+                createdById: params.userId,
+                system: row.system,
+                code: row.code,
+                description: row.description,
+                chapter: row.chapter,
+                group: row.group,
+                subgroup: row.subgroup,
+                synonyms: row.synonyms,
+                searchText: row.searchText,
+                active: row.active,
+                observations: row.observations,
+                source: catalogImport.sourceFileName,
+              })),
+            });
+          }
+        }
 
-          await tx.diagnosisCatalog.upsert({
+        for (const row of rowsToUpdate) {
+          await tx.diagnosisCatalog.update({
             where: {
               tenantId_system_code: {
                 tenantId: params.tenantId,
@@ -377,22 +538,7 @@ export class DiagnosesService {
                 code: row.code,
               },
             },
-            create: {
-              tenantId: params.tenantId,
-              createdById: params.userId,
-              system: row.system,
-              code: row.code,
-              description: row.description,
-              chapter: row.chapter,
-              group: row.group,
-              subgroup: row.subgroup,
-              synonyms: row.synonyms,
-              searchText: row.searchText,
-              active: row.active,
-              observations: row.observations,
-              source: catalogImport.sourceFileName,
-            },
-            update: {
+            data: {
               description: row.description,
               chapter: row.chapter,
               group: row.group,
@@ -417,7 +563,7 @@ export class DiagnosesService {
           },
         });
       },
-      { timeout: 60_000 },
+      { timeout: 180_000 },
     );
 
     return {

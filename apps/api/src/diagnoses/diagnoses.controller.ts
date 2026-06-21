@@ -5,9 +5,11 @@
  */
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Request,
@@ -48,6 +50,56 @@ export class DiagnosesController {
       query,
       system,
     );
+  }
+
+  @Get('catalog')
+  @ApiOperation({ summary: 'Listar y filtrar registros del catálogo CIE' })
+  listCatalog(
+    @Request() req: any,
+    @Query('system') system = 'CIE10',
+    @Query('q') query = '',
+    @Query('status') status = 'all',
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '50',
+  ) {
+    return this.diagnosesService.listCatalog({
+      tenantId: this.getTenantId(req),
+      system,
+      query,
+      status,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
+  }
+
+  @Get('imports')
+  @ApiOperation({ summary: 'Consultar historial de importaciones CIE' })
+  listImports(
+    @Request() req: any,
+    @Query('system') system = 'CIE10',
+  ) {
+    return this.diagnosesService.listImports(
+      this.getTenantId(req),
+      system,
+    );
+  }
+
+  @Patch('catalog/:id/status')
+  @ApiOperation({ summary: 'Activar o inactivar un código diagnóstico' })
+  changeStatus(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: { active?: boolean },
+  ) {
+    if (typeof body?.active !== 'boolean') {
+      throw new BadRequestException('El campo active debe ser booleano.');
+    }
+
+    return this.diagnosesService.changeStatus({
+      tenantId: this.getTenantId(req),
+      diagnosisId: id,
+      active: body.active,
+    });
   }
 
   @Get('template')

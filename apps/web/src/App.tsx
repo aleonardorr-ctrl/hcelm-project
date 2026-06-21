@@ -16,6 +16,8 @@ import ProfessionalVerification from './pages/ProfessionalVerification';
 import NewEncounter from './pages/NewEncounter';
 import Certificates from './pages/Certificates';
 import DataQuality from './pages/DataQuality';
+import Catalogs from './pages/Catalogs';
+
 
 function TokenProtected({ children }: { children: React.ReactElement }) {
   const token = localStorage.getItem('ame_token');
@@ -124,6 +126,7 @@ function Navbar() {
         <MenuLink to="/certificates" label="Certificados" />
         <MenuLink to="/institution" label="Configuración" />
         <MenuLink to="/admin/data-quality" label="Calidad de datos" />
+        <MenuLink to="/admin/catalogs" label="Catálogos maestros" />
         <MenuLink to="/professional-verification" label="Profesional" />
 
         {professionalName && (
@@ -229,6 +232,14 @@ export default function App() {
             element={
               <ClinicalProtected>
                 <InstitutionSettings />
+              </ClinicalProtected>
+            }
+          />
+          <Route
+            path="/admin/catalogs"
+            element={
+              <ClinicalProtected>
+                <Catalogs />
               </ClinicalProtected>
             }
           />

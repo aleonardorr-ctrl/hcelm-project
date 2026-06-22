@@ -10,12 +10,12 @@ datasource db {
 }
 
 model Tenant {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String               @id @default(uuid()) @db.Uuid
   name               String
-  ruc                String              @unique
-  active             Boolean             @default(true)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  ruc                String               @unique
+  active             Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
   anamnesis          Anamnesis[]
   certificates       Certificate[]
   encounters         Encounter[]
@@ -30,6 +30,7 @@ model Tenant {
   catalogImports     CatalogImport[]
   clinicalAlertRules ClinicalAlertRule[]
   laboratoryCatalogs LaboratoryCatalog[]
+  systemModules      TenantSystemModule[]
 }
 
 model User {
@@ -251,6 +252,21 @@ model HceConfig {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
   tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model TenantSystemModule {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  key       String   @db.VarChar(40)
+  enabled   Boolean  @default(false)
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, enabled])
 }
 
 model Medication {

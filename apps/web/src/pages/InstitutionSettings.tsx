@@ -1,11 +1,57 @@
 // Archivo: InstitutionSettings.tsx
 // Ruta: apps/web/src/pages/InstitutionSettings.tsx
-// Funcion: Configuracion institucional, clinica, profesionales, marca e HCE.
+// Funcion: Configuracion institucional, modulos, clinica, usuarios, marca e HCE.
 import { useEffect, useState } from 'react';
 
 const API_URL = 'http://localhost:3000/api';
 
-type TabType = 'general' | 'clinical' | 'professionals' | 'branding' | 'hce';
+type TabType =
+  | 'general'
+  | 'modules'
+  | 'clinical'
+  | 'professionals'
+  | 'branding'
+  | 'hce';
+
+type SystemModule = {
+  key: 'CLINICAL' | 'PHARMACY' | 'DRUGSTORE' | 'BILLING' | 'MANAGEMENT';
+  name: string;
+  description: string;
+  enabled: boolean;
+};
+
+const DEFAULT_SYSTEM_MODULES: SystemModule[] = [
+  {
+    key: 'CLINICAL',
+    name: 'Consultorio medico',
+    description: 'Pacientes, atenciones, HCE, recetas y documentos clinicos.',
+    enabled: true,
+  },
+  {
+    key: 'PHARMACY',
+    name: 'Farmacia',
+    description: 'Dispensacion, lotes, existencias y venta minorista.',
+    enabled: false,
+  },
+  {
+    key: 'DRUGSTORE',
+    name: 'Drogueria',
+    description: 'Almacenes, distribucion y venta mayorista.',
+    enabled: false,
+  },
+  {
+    key: 'BILLING',
+    name: 'Caja y facturacion',
+    description: 'Cobros, pagos, boletas, facturas y cierres de caja.',
+    enabled: false,
+  },
+  {
+    key: 'MANAGEMENT',
+    name: 'Gerencia',
+    description: 'Indicadores consolidados, valorizacion y reportes gerenciales.',
+    enabled: false,
+  },
+];
 
 function getSuggestedSpo2Range(altitudeMeters: number) {
   if (altitudeMeters < 1500) return { min: 95, max: 100 };
@@ -81,6 +127,10 @@ export default function InstitutionSettings() {
     customFields: [] as any[],
   });
 
+  const [systemModules, setSystemModules] = useState<SystemModule[]>(
+    DEFAULT_SYSTEM_MODULES,
+  );
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('ame_token');
 
@@ -94,10 +144,13 @@ export default function InstitutionSettings() {
     setLoading(true);
 
     try {
-      const [instRes, usersRes, hceRes] = await Promise.all([
+      const [instRes, usersRes, hceRes, modulesRes] = await Promise.all([
         fetch(`${API_URL}/institution`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/institution/users`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/institution/hce-config`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/institution/system-modules`, {
+          headers: getAuthHeaders(),
+        }),
       ]);
 
       if (instRes.ok) {
@@ -128,6 +181,14 @@ export default function InstitutionSettings() {
       if (hceRes.ok) {
         const config = await hceRes.json();
         setHceConfig((prev) => ({ ...prev, ...config }));
+      }
+
+      if (modulesRes.ok) {
+        const modules = await modulesRes.json();
+
+        if (Array.isArray(modules)) {
+          setSystemModules(modules);
+        }
       }
     } catch {
       alert('No se pudo cargar la configuración institucional.');
@@ -298,6 +359,58 @@ export default function InstitutionSettings() {
     }
   };
 
+  const toggleSystemModule = (key: SystemModule['key']) => {
+    setSystemModules((current) =>
+      current.map((module) =>
+        module.key === key ? { ...module, enabled: !module.enabled } : module,
+      ),
+    );
+  };
+
+  const saveSystemModules = async () => {
+    const hasOperationalModule = systemModules.some(
+      (module) =>
+        ['CLINICAL', 'PHARMACY', 'DRUGSTORE'].includes(module.key) &&
+        module.enabled,
+    );
+
+    if (!hasOperationalModule) {
+      alert(
+        'Debe permanecer activo al menos Consultorio medico, Farmacia o Drogueria.',
+      );
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch(`${API_URL}/institution/system-modules`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          modules: systemModules.map(({ key, enabled }) => ({ key, enabled })),
+        }),
+      });
+
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        alert(result?.message || 'No se pudo guardar la configuracion de modulos.');
+        return;
+      }
+
+      if (Array.isArray(result?.modules)) {
+        setSystemModules(result.modules);
+      }
+
+      alert('Modulos del sistema guardados correctamente.');
+    } catch {
+      alert('Error de conexion al guardar los modulos del sistema.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -372,6 +485,7 @@ export default function InstitutionSettings() {
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'general', label: 'General' },
+    { id: 'modules', label: 'Modulos' },
     { id: 'clinical', label: 'Contexto clinico' },
     { id: 'professionals', label: 'Profesionales' },
     { id: 'branding', label: 'Branding' },
@@ -433,6 +547,69 @@ export default function InstitutionSettings() {
             </div>
 
             <SaveButton saving={saving} onClick={saveInstitution} label="Guardar datos generales" />
+          </div>
+        )}
+
+        {activeTab === 'modules' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-700">
+                Modulos habilitados
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Active solamente las unidades que utiliza esta institucion. Los
+                datos compartidos conservaran el aislamiento por institucion.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {systemModules.map((module) => (
+                <label
+                  key={module.key}
+                  className={`flex cursor-pointer items-start justify-between gap-4 rounded border p-4 ${
+                    module.enabled
+                      ? 'border-emerald-400 bg-emerald-50'
+                      : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <div>
+                    <p className="font-semibold text-slate-800">{module.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {module.description}
+                    </p>
+                    <p
+                      className={`mt-2 text-xs font-semibold ${
+                        module.enabled ? 'text-emerald-700' : 'text-slate-500'
+                      }`}
+                    >
+                      {module.enabled ? 'ACTIVO' : 'INACTIVO'}
+                    </p>
+                  </div>
+
+                  <input
+                    type="checkbox"
+                    checked={module.enabled}
+                    onChange={() => toggleSystemModule(module.key)}
+                    className="mt-1 h-5 w-5"
+                  />
+                </label>
+              ))}
+            </div>
+
+            <div className="rounded border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
+              <p className="font-semibold">Reglas de funcionamiento</p>
+              <p className="mt-1">
+                Debe permanecer activo al menos Consultorio medico, Farmacia o
+                Drogueria. Caja y Gerencia consumiran informacion de los modulos
+                operativos habilitados.
+              </p>
+            </div>
+
+            <SaveButton
+              saving={saving}
+              onClick={saveSystemModules}
+              label="Guardar modulos"
+            />
           </div>
         )}
 

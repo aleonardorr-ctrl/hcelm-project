@@ -1,13 +1,48 @@
 // Archivo: institution.service.ts
 // Ruta: apps/api/src/institution/institution.service.ts
-// Funcion: Gestion institucional, contexto clinico, usuarios y configuracion HCE.
+// Funcion: Gestion institucional, contexto clinico, usuarios, HCE y modulos.
 import { BadRequestException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 
+const SYSTEM_MODULES = [
+  {
+    key: 'CLINICAL',
+    name: 'Consultorio medico',
+    description: 'Pacientes, atenciones, HCE, recetas y documentos clinicos.',
+    defaultEnabled: true,
+  },
+  {
+    key: 'PHARMACY',
+    name: 'Farmacia',
+    description: 'Dispensacion, lotes, existencias y venta minorista.',
+    defaultEnabled: false,
+  },
+  {
+    key: 'DRUGSTORE',
+    name: 'Drogueria',
+    description: 'Almacenes, distribucion y venta mayorista.',
+    defaultEnabled: false,
+  },
+  {
+    key: 'BILLING',
+    name: 'Caja y facturacion',
+    description: 'Cobros, pagos, boletas, facturas y cierres de caja.',
+    defaultEnabled: false,
+  },
+  {
+    key: 'MANAGEMENT',
+    name: 'Gerencia',
+    description: 'Indicadores consolidados, valorizacion y reportes gerenciales.',
+    defaultEnabled: false,
+  },
+] as const;
+
+const OPERATIONAL_MODULE_KEYS = ['CLINICAL', 'PHARMACY', 'DRUGSTORE'];
+
 @Injectable()
 export class InstitutionService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async getInstitution(tenantId: string) {
     const inst = await this.prisma.institution.findUnique({ where: { tenantId } });
@@ -111,6 +146,97 @@ export class InstitutionService {
         language: data.language || 'es',
       },
     });
+  }
+
+  async getSystemModules(tenantId: string) {
+    await this.prisma.tenantSystemModule.createMany({
+      data: SYSTEM_MODULES.map((module) => ({
+        tenantId,
+        key: module.key,
+        enabled: module.defaultEnabled,
+      })),
+      skipDuplicates: true,
+    });
+
+    const storedModules = await this.prisma.tenantSystemModule.findMany({
+      where: { tenantId },
+    });
+    const storedByKey = new Map(storedModules.map((module) => [module.key, module]));
+
+    return SYSTEM_MODULES.map((definition) => {
+      const stored = storedByKey.get(definition.key);
+
+      return {
+        key: definition.key,
+        name: definition.name,
+        description: definition.description,
+        enabled: stored?.enabled ?? definition.defaultEnabled,
+      };
+    });
+  }
+
+  async updateSystemModules(
+    tenantId: string,
+    body: { modules?: Array<{ key?: string; enabled?: boolean }> },
+  ) {
+    if (!Array.isArray(body?.modules)) {
+      throw new BadRequestException('Debe enviar la lista de modulos.');
+    }
+    if (body.modules.length === 0) {
+      throw new BadRequestException('La lista de modulos no puede estar vacia.');
+    }
+
+    const allowedKeys = new Set<string>(
+      SYSTEM_MODULES.map((module) => module.key),
+    );
+    const received = new Map<string, boolean>();
+
+    for (const module of body.modules) {
+      const key = String(module?.key || '').trim().toUpperCase();
+
+      if (!allowedKeys.has(key)) {
+        throw new BadRequestException(`Modulo no reconocido: ${key || '(vacio)'}.`);
+      }
+      if (typeof module.enabled !== 'boolean') {
+        throw new BadRequestException(`El estado de ${key} debe ser booleano.`);
+      }
+      if (received.has(key)) {
+        throw new BadRequestException(`El modulo ${key} esta repetido.`);
+      }
+
+      received.set(key, module.enabled);
+    }
+
+    const current = await this.getSystemModules(tenantId);
+    const merged = new Map<string, boolean>(
+      current.map((module) => [module.key, module.enabled]),
+    );
+    received.forEach((enabled, key) => merged.set(key, enabled));
+
+    const hasOperationalModule = OPERATIONAL_MODULE_KEYS.some(
+      (key) => merged.get(key) === true,
+    );
+
+    if (!hasOperationalModule) {
+      throw new BadRequestException(
+        'Debe permanecer activo al menos Consultorio medico, Farmacia o Drogueria.',
+      );
+    }
+
+    await this.prisma.$transaction(
+      [...received.entries()].map(([key, enabled]) =>
+        this.prisma.tenantSystemModule.upsert({
+          where: { tenantId_key: { tenantId, key } },
+          update: { enabled },
+          create: { tenantId, key, enabled },
+        }),
+      ),
+    );
+
+    return {
+      message: 'Modulos del sistema actualizados correctamente.',
+      modules: await this.getSystemModules(tenantId),
+    };
   }
 
   async getUsers(tenantId: string) {

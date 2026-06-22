@@ -1,11 +1,12 @@
 /**
  * Archivo: app.module.ts
  * Ruta: apps/api/src/app.module.ts
- * Función: Módulo raíz de la API HCELM.
+ * Funcion: Modulo raiz de la API HCELM.
  */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { DataQualityModule } from './admin/data-quality/data-quality.module';
 import { AnamnesisModule } from './anamnesis/anamnesis.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -16,12 +17,12 @@ import { DiagnosesModule } from './diagnoses/diagnoses.module';
 import { EncountersModule } from './encounters/encounters.module';
 import { EstablishmentModule } from './establishment/establishment.module';
 import { InstitutionModule } from './institution/institution.module';
+import { LaboratoryCatalogModule } from './laboratory-catalog/laboratory-catalog.module';
 import { MedicationsModule } from './medications/medications.module';
 import { PatientsModule } from './patients/patients.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { WaitingRoomModule } from './waiting-room/waiting-room.module';
-import { DataQualityModule } from './admin/data-quality/data-quality.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { DataQualityModule } from './admin/data-quality/data-quality.module';
     WaitingRoomModule,
     DataQualityModule,
     DiagnosesModule,
+    LaboratoryCatalogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

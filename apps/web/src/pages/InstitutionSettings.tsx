@@ -1,8 +1,19 @@
+// Archivo: InstitutionSettings.tsx
+// Ruta: apps/web/src/pages/InstitutionSettings.tsx
+// Funcion: Configuracion institucional, clinica, profesionales, marca e HCE.
 import { useEffect, useState } from 'react';
 
 const API_URL = 'http://localhost:3000/api';
 
-type TabType = 'general' | 'professionals' | 'branding' | 'hce';
+type TabType = 'general' | 'clinical' | 'professionals' | 'branding' | 'hce';
+
+function getSuggestedSpo2Range(altitudeMeters: number) {
+  if (altitudeMeters < 1500) return { min: 95, max: 100 };
+  if (altitudeMeters <= 2500) return { min: 92, max: 95 };
+  if (altitudeMeters <= 3500) return { min: 87, max: 92 };
+  if (altitudeMeters < 5500) return { min: 75, max: 87 };
+  return { min: 50, max: 74 };
+}
 
 export default function InstitutionSettings() {
   const [activeTab, setActiveTab] = useState<TabType>('general');
@@ -39,6 +50,12 @@ export default function InstitutionSettings() {
 
     timezone: 'America/Lima',
     language: 'es',
+
+    altitudeMeters: 0,
+    spo2AltitudeAdjustmentEnabled: false,
+    spo2ReferenceProfile: 'ADULT_ACCLIMATIZED',
+    spo2ExpectedMin: 95,
+    spo2ExpectedMax: 100,
   });
 
   const [users, setUsers] = useState<any[]>([]);
@@ -95,6 +112,11 @@ export default function InstitutionSettings() {
           signatureHeight: Number(inst.signatureHeight || 70),
           sealWidth: Number(inst.sealWidth || 120),
           sealHeight: Number(inst.sealHeight || 70),
+          altitudeMeters: Number(inst.altitudeMeters || 0),
+          spo2AltitudeAdjustmentEnabled:
+            inst.spo2AltitudeAdjustmentEnabled === true,
+          spo2ExpectedMin: Number(inst.spo2ExpectedMin ?? 95),
+          spo2ExpectedMax: Number(inst.spo2ExpectedMax ?? 100),
         }));
       }
 
@@ -130,11 +152,33 @@ export default function InstitutionSettings() {
       'signatureHeight',
       'sealWidth',
       'sealHeight',
+      'altitudeMeters',
+      'spo2ExpectedMin',
+      'spo2ExpectedMax',
     ];
 
     setInstitution((prev) => ({
       ...prev,
       [name]: numericFields.includes(name) || type === 'number' ? Number(value) : value,
+    }));
+  };
+
+  const handleAltitudeAdjustmentChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setInstitution((prev) => ({
+      ...prev,
+      spo2AltitudeAdjustmentEnabled: e.target.checked,
+    }));
+  };
+
+  const applySuggestedSpo2Range = () => {
+    const range = getSuggestedSpo2Range(Number(institution.altitudeMeters));
+
+    setInstitution((prev) => ({
+      ...prev,
+      spo2ExpectedMin: range.min,
+      spo2ExpectedMax: range.max,
     }));
   };
 
@@ -207,6 +251,9 @@ export default function InstitutionSettings() {
           signatureHeight: Number(institution.signatureHeight || 70),
           sealWidth: Number(institution.sealWidth || 120),
           sealHeight: Number(institution.sealHeight || 70),
+          altitudeMeters: Number(institution.altitudeMeters || 0),
+          spo2ExpectedMin: Number(institution.spo2ExpectedMin),
+          spo2ExpectedMax: Number(institution.spo2ExpectedMax),
         }),
       });
 
@@ -325,6 +372,7 @@ export default function InstitutionSettings() {
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'general', label: 'General' },
+    { id: 'clinical', label: 'Contexto clinico' },
     { id: 'professionals', label: 'Profesionales' },
     { id: 'branding', label: 'Branding' },
     { id: 'hce', label: 'HCE' },
@@ -491,6 +539,118 @@ export default function InstitutionSettings() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'clinical' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-700">
+                Altitud y referencia de oxigenacion
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                El rango es contextual para adultos sanos aclimatados. No sustituye
+                la evaluacion clinica, los sintomas, el soporte de oxigeno ni la FiO2.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-1 block font-medium text-slate-700">
+                  Altitud del establecimiento (msnm)
+                </label>
+                <input
+                  type="number"
+                  name="altitudeMeters"
+                  min={0}
+                  max={8849}
+                  value={institution.altitudeMeters}
+                  onChange={handleInstitutionChange}
+                  className="w-full rounded border p-2"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block font-medium text-slate-700">
+                  SpO2 esperada minima (%)
+                </label>
+                <input
+                  type="number"
+                  name="spo2ExpectedMin"
+                  min={50}
+                  max={100}
+                  value={institution.spo2ExpectedMin}
+                  onChange={handleInstitutionChange}
+                  className="w-full rounded border p-2"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block font-medium text-slate-700">
+                  SpO2 esperada maxima (%)
+                </label>
+                <input
+                  type="number"
+                  name="spo2ExpectedMax"
+                  min={50}
+                  max={100}
+                  value={institution.spo2ExpectedMax}
+                  onChange={handleInstitutionChange}
+                  className="w-full rounded border p-2"
+                />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-3 rounded border bg-gray-50 p-3">
+              <input
+                type="checkbox"
+                checked={institution.spo2AltitudeAdjustmentEnabled}
+                onChange={handleAltitudeAdjustmentChange}
+              />
+              <span className="text-slate-700">
+                Usar este rango como contexto en las alertas de SpO2
+              </span>
+            </label>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={applySuggestedSpo2Range}
+                className="rounded bg-slate-700 px-4 py-2 text-white hover:bg-slate-800"
+              >
+                Calcular rango orientativo por altitud
+              </button>
+              <span className="text-sm text-slate-600">
+                Perfil: adulto sano aclimatado, en reposo y sin oxigeno suplementario.
+              </span>
+            </div>
+
+            <div className="rounded border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
+              <p className="font-bold">Base bibliografica registrada</p>
+              <p className="mt-1">
+                Luks AM, Hackett PH. Medical Conditions and High-Altitude Travel.
+                N Engl J Med. 2022;386:364-373. DOI: 10.1056/NEJMra2104829.
+              </p>
+              <p className="mt-1">
+                CDC Yellow Book 2026: rango esperado de SpO2 por altitud despues de
+                1-2 dias de aclimatizacion.
+              </p>
+              <p className="mt-1">
+                Institut national de sante publique du Quebec. Altitude, tabla 1:
+                Saturation selon l'altitude. Actualizacion 2025.
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                El calculo por bandas es orientativo. En pediatria, neonatologia,
+                embarazo, enfermedad cardiopulmonar o llegada reciente se requieren
+                referencias especificas.
+              </p>
+            </div>
+
+            <SaveButton
+              saving={saving}
+              onClick={saveInstitution}
+              label="Guardar contexto clinico"
+            />
           </div>
         )}
 

@@ -1,3 +1,6 @@
+// Archivo: clinical-alert.types.ts
+// Ruta: apps/api/src/clinical-alerts/clinical-alert.types.ts
+// Funcion: Contratos de alertas, referencias y contexto clinico institucional.
 export type ClinicalAlertSeverity = 'critical' | 'high' | 'warning' | 'normal';
 
 export type ClinicalAlertCategory =
@@ -25,11 +28,20 @@ export interface ClinicalAlert {
   suggestedAction?: string | null;
 }
 
+export interface ClinicalAlertsClinicalContext {
+  altitudeMeters: number;
+  altitudeAdjustmentEnabled: boolean;
+  referenceProfile: string;
+  expectedMin: number;
+  expectedMax: number;
+}
+
 export interface ClinicalAlertsResponse {
   patientId?: string;
   encounterId?: string;
   globalRisk: ClinicalAlertSeverity;
   alerts: ClinicalAlert[];
+  clinicalContext?: ClinicalAlertsClinicalContext;
   generatedAt: string;
 }
 

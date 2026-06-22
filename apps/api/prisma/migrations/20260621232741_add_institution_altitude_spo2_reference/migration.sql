@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Institution" ADD COLUMN     "altitudeMeters" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "spo2AltitudeAdjustmentEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "spo2ExpectedMax" INTEGER NOT NULL DEFAULT 100,
+ADD COLUMN     "spo2ExpectedMin" INTEGER NOT NULL DEFAULT 95,
+ADD COLUMN     "spo2ReferenceProfile" TEXT NOT NULL DEFAULT 'ADULT_ACCLIMATIZED';

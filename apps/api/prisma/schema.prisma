@@ -29,6 +29,7 @@ model Tenant {
   diagnosisCatalogs  DiagnosisCatalog[]
   catalogImports     CatalogImport[]
   clinicalAlertRules ClinicalAlertRule[]
+  laboratoryCatalogs LaboratoryCatalog[]
 }
 
 model User {
@@ -49,6 +50,7 @@ model User {
   diagnosisCatalogsCreated  DiagnosisCatalog[]  @relation("DiagnosisCatalogCreatedBy")
   catalogImports            CatalogImport[]     @relation("CatalogImportCreatedBy")
   clinicalAlertRulesUpdated ClinicalAlertRule[] @relation("ClinicalAlertRuleUpdatedBy")
+  laboratoryCatalogsCreated LaboratoryCatalog[] @relation("LaboratoryCatalogCreatedBy")
 }
 
 model Patient {
@@ -200,35 +202,40 @@ model Anamnesis {
 }
 
 model Institution {
-  id              String   @id @default(uuid()) @db.Uuid
-  tenantId        String   @unique @db.Uuid
-  name            String?
-  legalName       String?
-  ruc             String?
-  address         String?
-  phone           String?
-  email           String?
-  city            String?  @default("Arequipa")
-  country         String?  @default("Perú")
-  logoUrl         String?
-  primaryColor    String?  @default("#0f766e")
-  secondaryColor  String?  @default("#14b8a6")
-  directorName    String?
-  directorCmp     String?
-  directorRne     String?
-  timezone        String?  @default("America/Lima")
-  language        String?  @default("es")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  sealUrl         String?
-  signatureUrl    String?
-  logoHeight      Int?     @default(70)
-  logoWidth       Int?     @default(70)
-  sealHeight      Int?     @default(70)
-  sealWidth       Int?     @default(120)
-  signatureHeight Int?     @default(70)
-  signatureWidth  Int?     @default(180)
-  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                            String   @id @default(uuid()) @db.Uuid
+  tenantId                      String   @unique @db.Uuid
+  name                          String?
+  legalName                     String?
+  ruc                           String?
+  address                       String?
+  phone                         String?
+  email                         String?
+  city                          String?  @default("Arequipa")
+  country                       String?  @default("Perú")
+  logoUrl                       String?
+  primaryColor                  String?  @default("#0f766e")
+  secondaryColor                String?  @default("#14b8a6")
+  directorName                  String?
+  directorCmp                   String?
+  directorRne                   String?
+  timezone                      String?  @default("America/Lima")
+  language                      String?  @default("es")
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  sealUrl                       String?
+  signatureUrl                  String?
+  logoHeight                    Int?     @default(70)
+  logoWidth                     Int?     @default(70)
+  sealHeight                    Int?     @default(70)
+  sealWidth                     Int?     @default(120)
+  signatureHeight               Int?     @default(70)
+  signatureWidth                Int?     @default(180)
+  altitudeMeters                Int      @default(0)
+  spo2AltitudeAdjustmentEnabled Boolean  @default(false)
+  spo2ReferenceProfile          String   @default("ADULT_ACCLIMATIZED")
+  spo2ExpectedMin               Int      @default(95)
+  spo2ExpectedMax               Int      @default(100)
+  tenant                        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
 model HceConfig {
@@ -344,6 +351,54 @@ model CatalogImport {
 
   @@index([tenantId, catalogType, createdAt])
   @@index([tenantId, status])
+}
+
+model LaboratoryCatalog {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  code            String   @db.VarChar(30)
+  name            String   @db.Text
+  nameKey         String   @db.VarChar(500)
+  category        String   @db.VarChar(150)
+  subcategory     String?  @db.VarChar(150)
+  shortName       String?  @db.VarChar(150)
+  specimenType    String?  @db.VarChar(150)
+  unit            String?  @db.VarChar(80)
+  referenceValue  String?  @db.Text
+  method          String?  @db.VarChar(255)
+  price           Decimal? @db.Decimal(10, 2)
+  requiresFasting Boolean  @default(false)
+  isProfile       Boolean  @default(false)
+  active          Boolean  @default(true)
+  observations    String?  @db.Text
+  searchText      String   @default("") @db.Text
+  source          String?  @db.VarChar(255)
+  createdById     String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant            Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser     User?                        @relation("LaboratoryCatalogCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  profileComponents LaboratoryProfileComponent[] @relation("LaboratoryProfile")
+  componentOf       LaboratoryProfileComponent[] @relation("LaboratoryComponent")
+
+  @@unique([tenantId, code, nameKey])
+  @@index([tenantId, active, category])
+  @@index([tenantId, code])
+  @@index([tenantId, nameKey])
+}
+
+model LaboratoryProfileComponent {
+  profileId   String   @db.Uuid
+  componentId String   @db.Uuid
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  profile   LaboratoryCatalog @relation("LaboratoryProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  component LaboratoryCatalog @relation("LaboratoryComponent", fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, componentId])
+  @@index([componentId])
 }
 
 model ClinicalAlertRule {

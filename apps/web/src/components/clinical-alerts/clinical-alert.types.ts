@@ -1,3 +1,6 @@
+// Archivo: clinical-alert.types.ts
+// Ruta: apps/web/src/components/clinical-alerts/clinical-alert.types.ts
+// Funcion: Contratos de alertas y contexto clinico recibidos por el frontend.
 export type ClinicalAlertSeverity = 'critical' | 'high' | 'warning' | 'normal';
 
 export type ClinicalAlertCategory =
@@ -10,7 +13,7 @@ export type ClinicalAlertCategory =
 
 export type ClinicalAlertBlinkSpeed = 'fast' | 'medium' | 'slow' | 'none';
 
-export type ClinicalAlert = {
+export interface ClinicalAlert {
   id: string;
   severity: ClinicalAlertSeverity;
   blinkSpeed: ClinicalAlertBlinkSpeed;
@@ -23,36 +26,45 @@ export type ClinicalAlert = {
   source: string;
   sourceDate?: string | null;
   suggestedAction?: string | null;
-};
+}
 
-export type ClinicalAlertsResponse = {
+export interface ClinicalAlertsClinicalContext {
+  altitudeMeters: number;
+  altitudeAdjustmentEnabled: boolean;
+  referenceProfile: string;
+  expectedMin: number;
+  expectedMax: number;
+}
+
+export interface ClinicalAlertsResponse {
   patientId?: string;
   encounterId?: string;
   globalRisk: ClinicalAlertSeverity;
   alerts: ClinicalAlert[];
+  clinicalContext?: ClinicalAlertsClinicalContext;
   generatedAt: string;
-};
+}
 
-export type ClinicalReferenceRangeItem = {
+export interface ClinicalReferenceRangeItem {
   color: 'green' | 'yellow' | 'orange' | 'red';
   severity: ClinicalAlertSeverity;
   label: string;
   criteria: string;
-};
+}
 
-export type ClinicalReferenceBibliography = {
+export interface ClinicalReferenceBibliography {
   title: string;
   institution?: string;
   year?: string | number;
   url?: string;
   note?: string;
-};
+}
 
-export type ClinicalReferenceRange = {
+export interface ClinicalReferenceRange {
   key: string;
   title: string;
   unit?: string;
   description: string;
   ranges: ClinicalReferenceRangeItem[];
   bibliography: ClinicalReferenceBibliography[];
-};
+}

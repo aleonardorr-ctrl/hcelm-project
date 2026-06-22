@@ -1,7 +1,10 @@
+// Archivo: clinical-alerts.controller.ts
+// Ruta: apps/api/src/clinical-alerts/clinical-alerts.controller.ts
+// Funcion: Expone alertas y referencias clinicas por tenant autenticado.
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ClinicalAlertsService } from './clinical-alerts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { ClinicalAlertsService } from './clinical-alerts.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('clinical-alerts')
@@ -25,12 +28,12 @@ export class ClinicalAlertsController {
   }
 
   @Get('references')
-  getReferences() {
-    return this.clinicalAlertsService.getReferences();
+  getReferences(@CurrentUser() user: any) {
+    return this.clinicalAlertsService.getReferences(user.tenantId);
   }
 
   @Get('references/:key')
-  getReferenceByKey(@Param('key') key: string) {
-    return this.clinicalAlertsService.getReferenceByKey(key);
+  getReferenceByKey(@CurrentUser() user: any, @Param('key') key: string) {
+    return this.clinicalAlertsService.getReferenceByKey(user.tenantId, key);
   }
 }

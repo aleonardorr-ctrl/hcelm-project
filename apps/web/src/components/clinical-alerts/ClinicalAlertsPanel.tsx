@@ -84,12 +84,17 @@ function getAlertShortLabel(alert: ClinicalAlert) {
   if (key === 'glasgow') return 'GCS↓';
   if (key === 'pain_scale') return 'EVA↑';
   if (key === 'allergy') return 'ALG';
+  if (key === 'chronic_disease') return 'ANT';
 
   if (alert.category === 'allergy') return 'Alg';
   if (alert.category === 'laboratory') return 'Lab';
   if (alert.category === 'diagnosis') return 'Dx';
 
   return 'ALT';
+}
+
+function hasClinicalReference(alert: ClinicalAlert) {
+  return !['allergy', 'chronic_disease'].includes(alert.referenceKey);
 }
 
 function getAlertValue(alert: ClinicalAlert) {
@@ -135,8 +140,7 @@ export default function ClinicalAlertsPanel({
   }, [data]);
 
   const visibleAlerts = alerts.filter((alert) => alert.severity !== 'normal');
-
-  const globalRisk = data?.globalRisk || 'normal';
+  const clinicalContext = data?.clinicalContext;
 
   useEffect(() => {
     const token = localStorage.getItem('ame_token');
@@ -280,28 +284,37 @@ export default function ClinicalAlertsPanel({
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => openReference(selectedAlert.referenceKey)}
-              className="mt-3 text-xs font-extrabold text-blue-700 hover:underline"
-            >
-              {referenceLoadingKey === selectedAlert.referenceKey
-                ? 'Cargando referencia...'
-                : 'Ver valores de referencia'}
-            </button>
+            {hasClinicalReference(selectedAlert) && (
+              <button
+                type="button"
+                onClick={() => openReference(selectedAlert.referenceKey)}
+                className="mt-3 text-xs font-extrabold text-blue-700 hover:underline"
+              >
+                {referenceLoadingKey === selectedAlert.referenceKey
+                  ? 'Cargando referencia...'
+                  : 'Ver valores de referencia'}
+              </button>
+            )}
           </div>
         )}
 
-        <div className="flex w-[1.15cm] flex-col items-center gap-[0.18cm] rounded-l-lg border-l border-y border-slate-300 bg-white p-[0.08cm] shadow-xl">
-          <div
-            className={`mx-auto flex h-[0.9cm] w-[0.9cm] flex-col items-center justify-center rounded-full border text-center text-[10px] font-black leading-none shadow-md ${
-              railButtonClasses[globalRisk]
-            }`}
-            title={`Riesgo global: ${severityLabels[globalRisk]}`}
-          >
-            <span>!</span>
-            <span className="text-[7px]">{visibleAlerts.length}</span>
-          </div>
+        <div className="flex w-[2.05cm] flex-col items-center gap-[0.3cm] rounded-l-lg border-l border-y border-slate-300 bg-white p-[0.12cm] shadow-xl">
+          {!loading &&
+            clinicalContext?.altitudeAdjustmentEnabled &&
+            clinicalContext.altitudeMeters > 0 && (
+              <div
+                className="w-[1.75cm] rounded border border-sky-700 px-1 py-1.5 text-center font-bold leading-none text-sky-950 bg-sky-50"
+                title={`Referencia institucional: ${clinicalContext.expectedMin}-${clinicalContext.expectedMax}% para adulto aclimatado a ${clinicalContext.altitudeMeters} msnm`}
+              >
+                <span className="block text-[9px]">ALT</span>
+                <span className="mt-[3px] block text-[10px]">
+                  {clinicalContext.altitudeMeters} m
+                </span>
+                <span className="mt-[3px] block text-[8px]">
+                  {clinicalContext.expectedMin}-{clinicalContext.expectedMax}%
+                </span>
+              </div>
+            )}
 
           {loading && (
             <div className="px-1 py-3 text-center text-[10px] font-bold text-slate-500">
@@ -313,8 +326,8 @@ export default function ClinicalAlertsPanel({
             <button
               type="button"
               className={`
-                mx-auto flex h-[0.9cm] w-[0.9cm] items-center justify-center
-                rounded-full border text-center text-[8px] font-black shadow-md
+                mx-auto flex h-[1.8cm] w-[1.8cm] items-center justify-center
+                rounded-full border text-center text-[12px] font-black shadow-md
                 ${railButtonClasses.normal}
               `}
               title="Sin alertas clínicas relevantes"
@@ -334,14 +347,14 @@ export default function ClinicalAlertsPanel({
                   )
                 }
                 className={`
-                  mx-auto flex h-[0.9cm] w-[0.9cm] flex-col items-center justify-center
+                  mx-auto flex h-[1.8cm] w-[1.8cm] flex-col items-center justify-center
                   rounded-full border text-center font-black leading-none shadow-md
                   ${railButtonClasses[alert.severity]}
                 `}
                 title={`${alert.title}: ${alert.message}`}
               >
-                <span className="block text-[6.5px]">{getAlertShortLabel(alert)}</span>
-                <span className="mt-[1px] block max-w-[30px] truncate text-[7.5px]">
+                <span className="block text-[10px]">{getAlertShortLabel(alert)}</span>
+                <span className="mt-[3px] block max-w-[58px] truncate text-[12px]">
                   {getAlertValue(alert)}
                 </span>
               </button>

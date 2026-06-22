@@ -1,3 +1,6 @@
+// Archivo: clinical-alerts.service.ts
+// Ruta: apps/api/src/clinical-alerts/clinical-alerts.service.ts
+// Funcion: Evalua alertas clinicas considerando el contexto institucional.
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -8,6 +11,14 @@ import {
 } from './clinical-alert.types';
 import { CLINICAL_REFERENCE_RANGES } from './clinical-reference-ranges';
 
+type Spo2ClinicalContext = {
+  altitudeMeters: number;
+  altitudeAdjustmentEnabled: boolean;
+  referenceProfile: string;
+  expectedMin: number;
+  expectedMax: number;
+};
+
 @Injectable()
 export class ClinicalAlertsService {
   constructor(private prisma: PrismaService) {}
@@ -16,24 +27,27 @@ export class ClinicalAlertsService {
     tenantId: string,
     patientId: string,
   ): Promise<ClinicalAlertsResponse> {
-    const patient = await this.prisma.patient.findFirst({
-      where: {
-        id: patientId,
-        tenantId,
-      },
-      include: {
-        encounters: {
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 1,
-          include: {
-            vitalSigns: true,
-            anamnesis: true,
+    const [patient, clinicalContext] = await Promise.all([
+      this.prisma.patient.findFirst({
+        where: {
+          id: patientId,
+          tenantId,
+        },
+        include: {
+          encounters: {
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+            include: {
+              vitalSigns: true,
+              anamnesis: true,
+            },
           },
         },
-      },
-    });
+      }),
+      this.getSpo2ClinicalContext(tenantId),
+    ]);
 
     if (!patient) {
       throw new NotFoundException('Paciente no encontrado.');
@@ -43,7 +57,7 @@ export class ClinicalAlertsService {
 
     const alerts: ClinicalAlert[] = [
       ...this.evaluatePatientAlerts(patient),
-      ...this.evaluateEncounterAlerts(lastEncounter),
+      ...this.evaluateEncounterAlerts(lastEncounter, clinicalContext),
     ];
 
     return {
@@ -51,6 +65,7 @@ export class ClinicalAlertsService {
       encounterId: lastEncounter?.id,
       globalRisk: this.calculateGlobalRisk(alerts),
       alerts,
+      clinicalContext,
       generatedAt: new Date().toISOString(),
     };
   }
@@ -59,17 +74,20 @@ export class ClinicalAlertsService {
     tenantId: string,
     encounterId: string,
   ): Promise<ClinicalAlertsResponse> {
-    const encounter = await this.prisma.encounter.findFirst({
-      where: {
-        id: encounterId,
-        tenantId,
-      },
-      include: {
-        patient: true,
-        vitalSigns: true,
-        anamnesis: true,
-      },
-    });
+    const [encounter, clinicalContext] = await Promise.all([
+      this.prisma.encounter.findFirst({
+        where: {
+          id: encounterId,
+          tenantId,
+        },
+        include: {
+          patient: true,
+          vitalSigns: true,
+          anamnesis: true,
+        },
+      }),
+      this.getSpo2ClinicalContext(tenantId),
+    ]);
 
     if (!encounter) {
       throw new NotFoundException('Atención no encontrada.');
@@ -77,7 +95,7 @@ export class ClinicalAlertsService {
 
     const alerts: ClinicalAlert[] = [
       ...this.evaluatePatientAlerts(encounter.patient),
-      ...this.evaluateEncounterAlerts(encounter),
+      ...this.evaluateEncounterAlerts(encounter, clinicalContext),
     ];
 
     return {
@@ -85,22 +103,32 @@ export class ClinicalAlertsService {
       encounterId,
       globalRisk: this.calculateGlobalRisk(alerts),
       alerts,
+      clinicalContext,
       generatedAt: new Date().toISOString(),
     };
   }
 
-  getReferences(): ClinicalReferenceRange[] {
-    return CLINICAL_REFERENCE_RANGES;
+  async getReferences(tenantId: string): Promise<ClinicalReferenceRange[]> {
+    const clinicalContext = await this.getSpo2ClinicalContext(tenantId);
+
+    return CLINICAL_REFERENCE_RANGES.map((reference) =>
+      this.applySpo2ContextToReference(reference, clinicalContext),
+    );
   }
 
-  getReferenceByKey(key: string): ClinicalReferenceRange {
+  async getReferenceByKey(
+    tenantId: string,
+    key: string,
+  ): Promise<ClinicalReferenceRange> {
     const reference = CLINICAL_REFERENCE_RANGES.find((item) => item.key === key);
 
     if (!reference) {
       throw new NotFoundException('Referencia clínica no encontrada.');
     }
 
-    return reference;
+    const clinicalContext = await this.getSpo2ClinicalContext(tenantId);
+
+    return this.applySpo2ContextToReference(reference, clinicalContext);
   }
 
   private evaluatePatientAlerts(patient: any): ClinicalAlert[] {
@@ -114,6 +142,8 @@ export class ClinicalAlertsService {
         category: 'allergy',
         title: 'Alergia registrada',
         message: String(patient.allergies),
+        value: 'REG',
+        unit: null,
         referenceKey: 'allergy',
         source: 'Ficha del paciente',
         sourceDate: patient.updatedAt,
@@ -133,7 +163,9 @@ export class ClinicalAlertsService {
         category: 'context',
         title: 'Antecedente crónico registrado',
         message: String(patient.chronicDiseases),
-        referenceKey: 'allergy',
+        value: 'REG',
+        unit: null,
+        referenceKey: 'chronic_disease',
         source: 'Ficha del paciente',
         sourceDate: patient.updatedAt,
         suggestedAction:
@@ -144,7 +176,10 @@ export class ClinicalAlertsService {
     return alerts;
   }
 
-  private evaluateEncounterAlerts(encounter: any): ClinicalAlert[] {
+  private evaluateEncounterAlerts(
+    encounter: any,
+    clinicalContext: Spo2ClinicalContext,
+  ): ClinicalAlert[] {
     if (!encounter) return [];
 
     const vitalSigns = encounter.vitalSigns;
@@ -152,7 +187,7 @@ export class ClinicalAlertsService {
 
     const alerts: ClinicalAlert[] = [];
 
-    alerts.push(...this.evaluateSpo2(vitalSigns, encounter));
+    alerts.push(...this.evaluateSpo2(vitalSigns, encounter, clinicalContext));
     alerts.push(...this.evaluateRespiratoryRate(vitalSigns, encounter));
     alerts.push(...this.evaluateBloodPressure(vitalSigns, encounter));
     alerts.push(...this.evaluateHeartRate(vitalSigns, encounter));
@@ -180,9 +215,29 @@ export class ClinicalAlertsService {
     return alerts;
   }
 
-  private evaluateSpo2(vs: any, encounter: any): ClinicalAlert[] {
+  private evaluateSpo2(
+    vs: any,
+    encounter: any,
+    clinicalContext: Spo2ClinicalContext,
+  ): ClinicalAlert[] {
     const value = this.toNumber(vs.oxygenSat);
     if (value === null) return [];
+
+    const hasOxygenSupport = this.hasOxygenSupport(vs.oxygenSupport);
+    const useAltitudeReference =
+      clinicalContext.altitudeAdjustmentEnabled &&
+      clinicalContext.altitudeMeters > 0 &&
+      !hasOxygenSupport;
+
+    if (useAltitudeReference && value >= clinicalContext.expectedMin) {
+      return [];
+    }
+
+    const altitudeDetail = useAltitudeReference
+      ? ` Referencia institucional a ${clinicalContext.altitudeMeters} msnm: ${clinicalContext.expectedMin}-${clinicalContext.expectedMax}%.`
+      : hasOxygenSupport
+        ? ' La referencia por altitud no se aplica porque existe soporte de oxígeno registrado.'
+        : '';
 
     if (value < 90) {
       return [
@@ -191,7 +246,7 @@ export class ClinicalAlertsService {
           'critical',
           'vital_signs',
           'SpO₂ crítica',
-          `SpO₂ ${value}% por debajo del umbral crítico.`,
+          `SpO₂ ${value}% por debajo del umbral crítico.${altitudeDetail}`,
           value,
           '%',
           'spo2',
@@ -207,7 +262,7 @@ export class ClinicalAlertsService {
           'high',
           'vital_signs',
           'SpO₂ en alto riesgo',
-          `SpO₂ ${value}% en rango de alto riesgo.`,
+          `SpO₂ ${value}% en rango de alto riesgo.${altitudeDetail}`,
           value,
           '%',
           'spo2',
@@ -223,7 +278,7 @@ export class ClinicalAlertsService {
           'warning',
           'vital_signs',
           'SpO₂ en precaución',
-          `SpO₂ ${value}% ligeramente disminuida.`,
+          `SpO₂ ${value}% ligeramente disminuida.${altitudeDetail}`,
           value,
           '%',
           'spo2',
@@ -232,7 +287,140 @@ export class ClinicalAlertsService {
       ];
     }
 
+    if (useAltitudeReference && value < clinicalContext.expectedMin) {
+      return [
+        this.buildAlert(
+          encounter,
+          'warning',
+          'vital_signs',
+          'SpO₂ menor a la esperada para la altitud',
+          `SpO₂ ${value}% por debajo del mínimo institucional.${altitudeDetail}`,
+          value,
+          '%',
+          'spo2',
+          'Confirmar la medición y correlacionar con síntomas, FR, trabajo respiratorio y tendencia.',
+        ),
+      ];
+    }
+
     return [];
+  }
+
+  private async getSpo2ClinicalContext(
+    tenantId: string,
+  ): Promise<Spo2ClinicalContext> {
+    const institution = await this.prisma.institution.findUnique({
+      where: { tenantId },
+      select: {
+        altitudeMeters: true,
+        spo2AltitudeAdjustmentEnabled: true,
+        spo2ReferenceProfile: true,
+        spo2ExpectedMin: true,
+        spo2ExpectedMax: true,
+      },
+    });
+
+    return {
+      altitudeMeters: institution?.altitudeMeters ?? 0,
+      altitudeAdjustmentEnabled:
+        institution?.spo2AltitudeAdjustmentEnabled ?? false,
+      referenceProfile:
+        institution?.spo2ReferenceProfile || 'ADULT_ACCLIMATIZED',
+      expectedMin: institution?.spo2ExpectedMin ?? 95,
+      expectedMax: institution?.spo2ExpectedMax ?? 100,
+    };
+  }
+
+  private hasOxygenSupport(value: unknown): boolean {
+    const normalized = String(value || '')
+      .trim()
+      .toLowerCase();
+
+    return ![
+      '',
+      'no',
+      'ninguno',
+      'ninguna',
+      'sin oxigeno',
+      'sin oxígeno',
+      'aire ambiente',
+    ].includes(normalized);
+  }
+
+  private applySpo2ContextToReference(
+    reference: ClinicalReferenceRange,
+    clinicalContext: Spo2ClinicalContext,
+  ): ClinicalReferenceRange {
+    if (
+      reference.key !== 'spo2' ||
+      !clinicalContext.altitudeAdjustmentEnabled ||
+      clinicalContext.altitudeMeters <= 0
+    ) {
+      return reference;
+    }
+
+    const minimum = clinicalContext.expectedMin;
+    const maximum = clinicalContext.expectedMax;
+    const ranges: ClinicalReferenceRange['ranges'] = [];
+    const criticalUpper = Math.min(89, minimum - 1);
+
+    if (criticalUpper >= 0) {
+      ranges.push({
+        color: 'red',
+        severity: 'critical',
+        label: 'Critico',
+        criteria: `< ${criticalUpper + 1}% y por debajo del rango esperado para la altitud`,
+      });
+    }
+
+    const highUpper = Math.min(92, minimum - 1);
+    if (minimum > 90 && highUpper >= 90) {
+      ranges.push({
+        color: 'orange',
+        severity: 'high',
+        label: 'Alto riesgo',
+        criteria: `90-${highUpper}% y por debajo del rango esperado para la altitud`,
+      });
+    }
+
+    const warningUpper = minimum - 1;
+    if (minimum > 93 && warningUpper >= 93) {
+      ranges.push({
+        color: 'yellow',
+        severity: 'warning',
+        label: 'Precaucion',
+        criteria: `93-${warningUpper}% y por debajo del rango esperado para la altitud`,
+      });
+    }
+
+    ranges.push({
+      color: 'green',
+      severity: 'normal',
+      label: 'Esperado para la altitud',
+      criteria: `${minimum}-${maximum}% en adulto aclimatado, en reposo y sin oxigeno suplementario`,
+    });
+
+    return {
+      ...reference,
+      description: `${reference.description} Referencia institucional activa a ${clinicalContext.altitudeMeters} msnm: ${minimum}-${maximum}%.`,
+      ranges,
+      bibliography: [
+        ...reference.bibliography,
+        {
+          title: 'Medical Conditions and High-Altitude Travel',
+          institution: 'New England Journal of Medicine',
+          year: 2022,
+          url: 'https://doi.org/10.1056/NEJMra2104829',
+          note: 'Rango esperado de SpO2 segun altitud y aclimatizacion.',
+        },
+        {
+          title: 'High-Altitude Travel and Altitude Illness',
+          institution: 'CDC Yellow Book 2026',
+          year: 2025,
+          url: 'https://www.cdc.gov/yellow-book/hcp/environmental-hazards-risks/high-altitude-travel-and-altitude-illness.html',
+        },
+      ],
+    };
   }
 
   private evaluateRespiratoryRate(vs: any, encounter: any): ClinicalAlert[] {
@@ -296,60 +484,98 @@ export class ClinicalAlertsService {
 
     if (systolic === null && diastolic === null) return [];
 
-    const alerts: ClinicalAlert[] = [];
+    const pressureValue = `${systolic ?? '-'}/${diastolic ?? '-'}`;
 
     if (systolic !== null && systolic < 90) {
-      alerts.push(
+      return [
         this.buildAlert(
           encounter,
           'critical',
           'vital_signs',
           'Hipotensión crítica',
-          `PAS ${systolic} mmHg.`,
-          systolic,
+          `PA ${pressureValue} mmHg; PAS menor de 90 mmHg.`,
+          pressureValue,
           'mmHg',
           'systolic_bp',
           'Reevaluar perfusión, shock, sangrado, sepsis, deshidratación o fármacos.',
         ),
-      );
+      ];
     }
 
     if (
       (systolic !== null && systolic >= 180) ||
       (diastolic !== null && diastolic >= 110)
     ) {
-      alerts.push(
+      return [
         this.buildAlert(
           encounter,
           'high',
           'vital_signs',
           'PA severamente elevada',
-          `PA ${systolic ?? '-'}/${diastolic ?? '-'} mmHg.`,
-          `${systolic ?? '-'}/${diastolic ?? '-'}`,
+          `PA ${pressureValue} mmHg; PAS ≥180 o PAD ≥110 mmHg.`,
+          pressureValue,
           'mmHg',
           'systolic_bp',
           'Evaluar síntomas y descartar daño de órgano blanco.',
         ),
-      );
+      ];
+    }
+
+    if (
+      (systolic !== null && systolic >= 160) ||
+      (diastolic !== null && diastolic >= 100)
+    ) {
+      return [
+        this.buildAlert(
+          encounter,
+          'high',
+          'vital_signs',
+          'Hipertensión de alto riesgo',
+          `PA ${pressureValue} mmHg; PAS 160-179 o PAD 100-109 mmHg.`,
+          pressureValue,
+          'mmHg',
+          'systolic_bp',
+          'Repetir la medición, evaluar síntomas, adherencia y posible daño de órgano blanco.',
+        ),
+      ];
+    }
+
+    if (
+      (systolic !== null && systolic >= 140) ||
+      (diastolic !== null && diastolic >= 90)
+    ) {
+      return [
+        this.buildAlert(
+          encounter,
+          'warning',
+          'vital_signs',
+          'Presión arterial elevada',
+          `PA ${pressureValue} mmHg; PAS 140-159 o PAD 90-99 mmHg.`,
+          pressureValue,
+          'mmHg',
+          'systolic_bp',
+          'Confirmar con una nueva medición en reposo y correlacionar con antecedentes y síntomas.',
+        ),
+      ];
     }
 
     if (systolic !== null && systolic >= 90 && systolic <= 99) {
-      alerts.push(
+      return [
         this.buildAlert(
           encounter,
           'warning',
           'vital_signs',
           'Presión sistólica baja',
-          `PAS ${systolic} mmHg.`,
-          systolic,
+          `PA ${pressureValue} mmHg; PAS entre 90 y 99 mmHg.`,
+          pressureValue,
           'mmHg',
           'systolic_bp',
           'Vigilar tendencia y correlacionar con perfusión clínica.',
         ),
-      );
+      ];
     }
 
-    return alerts;
+    return [];
   }
 
   private evaluateHeartRate(vs: any, encounter: any): ClinicalAlert[] {

@@ -18,6 +18,13 @@ import {
   PRODUCT_TYPES,
   UNIT_MEASURES,
 } from './medication-catalog.references';
+import {
+  buildCompanySku,
+  buildMasterCode,
+  extractSequenceFromCode,
+  resolveCompanyPrefix,
+  resolveProductTypePrefix,
+} from './medication-code-generator.util';
 
 const CATALOG_TYPE = 'MEDICATION';
 const MAX_PRODUCTS = 20_000;
@@ -137,6 +144,125 @@ export class MedicationCatalogService {
     });
     if (!result.count) throw new NotFoundException('Producto no encontrado.');
     return { message: active ? 'Producto activado.' : 'Producto inactivado.' };
+  }
+
+
+
+  async previewGeneratedCodes(params: { tenantId: string; productType: string }) {
+    const productType = this.code(params.productType || 'MEDICAMENTO');
+
+    if (!(PRODUCT_TYPES as readonly string[]).includes(productType)) {
+      throw new BadRequestException(
+        'Tipo de producto no valido. Use MEDICAMENTO, DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO u OTRO.',
+      );
+    }
+
+    return this.nextAvailableCodes(params.tenantId, productType);
+  }
+
+  async createProduct(params: {
+    tenantId: string;
+    userId: string | null;
+    data: any;
+  }) {
+    const productType = this.code(params.data.productType || params.data.tipo_producto || 'MEDICAMENTO');
+    const genericName = this.textValue(params.data.genericName || params.data.nombre_generico);
+    const presentation = this.textValue(params.data.presentation || params.data.presentacion);
+
+    if (!(PRODUCT_TYPES as readonly string[]).includes(productType)) {
+      throw new BadRequestException(
+        'Tipo de producto no valido. Use MEDICAMENTO, DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO u OTRO.',
+      );
+    }
+
+    if (!genericName) throw new BadRequestException('Nombre generico obligatorio.');
+    if (!presentation) throw new BadRequestException('Presentacion obligatoria.');
+
+    const generatedCodes = await this.nextAvailableCodes(params.tenantId, productType);
+    const internalCode = this.code(
+      params.data.internalCode || params.data.skuEmpresa || params.data.sku_empresa,
+    ) || generatedCodes.companySku;
+    const masterCode = this.nullable(
+      String(
+        params.data.masterCode ||
+          params.data.codigoMaestroHcelm ||
+          params.data.codigo_maestro_hcelm ||
+          generatedCodes.masterCode,
+      ),
+    );
+
+    const existing = await this.prisma.medication.findFirst({
+      where: {
+        tenantId: params.tenantId,
+        OR: [
+          { internalCode },
+          ...(masterCode ? [{ masterCode }] : []),
+        ],
+      },
+      select: { internalCode: true, masterCode: true },
+    });
+
+    if (existing?.internalCode === internalCode) {
+      throw new ConflictException(`Ya existe un producto con SKU ${internalCode}.`);
+    }
+
+    if (masterCode && existing?.masterCode === masterCode) {
+      throw new ConflictException(`Ya existe un producto con codigo maestro ${masterCode}.`);
+    }
+
+    const commercialName = this.nullable(String(params.data.commercialName || params.data.nombre_comercial || ''));
+    const concentration = this.nullable(String(params.data.concentration || params.data.concentracion || ''));
+    const pharmaceuticalForm = this.nullable(String(params.data.pharmaceuticalForm || params.data.forma_farmaceutica || ''));
+    const route = this.nullable(String(params.data.route || params.data.via_administracion || ''));
+    const unitMeasure = this.nullable(String(params.data.unitMeasure || params.data.unidad_medida || ''));
+    const laboratory = this.nullable(String(params.data.laboratory || params.data.laboratorio || ''));
+    const sanitaryRegistration = this.nullable(String(params.data.sanitaryRegistration || params.data.registro_sanitario || ''));
+
+    return this.prisma.medication.create({
+      data: {
+        tenantId: params.tenantId,
+        masterCode,
+        internalCode,
+        barcode: this.nullable(String(params.data.barcode || params.data.codigo_barra || '')),
+        productType,
+        genericName,
+        commercialName,
+        concentration,
+        pharmaceuticalForm,
+        presentation,
+        route,
+        unitMeasure,
+        laboratory,
+        manufacturer: this.nullable(String(params.data.manufacturer || params.data.fabricante || '')),
+        registrationHolder: this.nullable(String(params.data.registrationHolder || params.data.titular_registro || '')),
+        sanitaryRegistration,
+        atcCode: this.nullable(String(params.data.atcCode || params.data.codigo_atc || '')),
+        pnumCode: this.nullable(String(params.data.pnumCode || params.data.codigo_pnum || '')),
+        requiresPrescription: this.boolean(String(params.data.requiresPrescription ?? params.data.requiere_receta ?? ''), true),
+        controlled: this.boolean(String(params.data.controlled ?? params.data.controlado ?? ''), false),
+        coldChain: this.boolean(String(params.data.coldChain ?? params.data.cadena_frio ?? ''), false),
+        taxable: this.boolean(String(params.data.taxable ?? params.data.afecto_igv ?? ''), true),
+        active: params.data.active === false ? false : true,
+        observations: this.nullable(String(params.data.observations || params.data.observaciones || '')),
+        searchText: [
+          masterCode,
+          internalCode,
+          params.data.barcode || params.data.codigo_barra,
+          genericName,
+          commercialName,
+          concentration,
+          pharmaceuticalForm,
+          presentation,
+          route,
+          laboratory,
+          sanitaryRegistration,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        source: 'Registro manual',
+        createdById: params.userId,
+      },
+    });
   }
 
   async generateTemplate() {
@@ -358,12 +484,59 @@ export class MedicationCatalogService {
     const headers = this.headers(sheet);
     const required = ['tipo_producto', 'nombre_generico', 'presentacion'];
     const missing = required.filter((item) => !headers.has(item));
-    if (!headers.has('sku_empresa') && !headers.has('codigo_interno')) {
-      missing.unshift('sku_empresa');
-    }
     if (missing.length) {
       throw new BadRequestException({ message: 'Faltan columnas obligatorias en Productos.', missingColumns: missing });
     }
+
+    const institution = await this.prisma.institution.findUnique({
+      where: { tenantId: params.tenantId },
+    });
+
+    const companyPrefix = resolveCompanyPrefix({
+      legalName: institution?.legalName,
+      tradeName: institution?.name,
+      ruc: institution?.ruc,
+    });
+
+    const existingCodes = await this.prisma.medication.findMany({
+      where: { tenantId: params.tenantId },
+      select: { masterCode: true, internalCode: true, productType: true },
+    });
+
+    const masterCounters = new Map<string, number>();
+    const skuCounters = new Map<string, number>();
+
+    for (const item of existingCodes) {
+      const typePrefix = resolveProductTypePrefix(item.productType);
+      masterCounters.set(
+        typePrefix,
+        Math.max(
+          masterCounters.get(typePrefix) || 0,
+          extractSequenceFromCode(item.masterCode),
+        ),
+      );
+      skuCounters.set(
+        typePrefix,
+        Math.max(
+          skuCounters.get(typePrefix) || 0,
+          extractSequenceFromCode(item.internalCode),
+        ),
+      );
+    }
+
+    const nextMasterCode = (productType: string) => {
+      const typePrefix = resolveProductTypePrefix(productType);
+      const next = (masterCounters.get(typePrefix) || 0) + 1;
+      masterCounters.set(typePrefix, next);
+      return buildMasterCode(productType, next);
+    };
+
+    const nextCompanySku = (productType: string) => {
+      const typePrefix = resolveProductTypePrefix(productType);
+      const next = (skuCounters.get(typePrefix) || 0) + 1;
+      skuCounters.set(typePrefix, next);
+      return buildCompanySku({ companyPrefix, productType, sequence: next });
+    };
 
     const invalidRows: Array<{ rowNumber: number; code: string | null; name: string | null; errors: string[] }> = [];
     const parsed: Array<Omit<ProductRow, 'action'>> = [];
@@ -371,14 +544,23 @@ export class MedicationCatalogService {
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber === 1) return;
       const value = (key: string) => this.cell(row, headers, key);
-      const internalCode = this.code(this.firstValue(row, headers, ['sku_empresa', 'codigo_interno']));
-      const masterCode = this.nullable(this.firstValue(row, headers, ['codigo_maestro_hcelm', 'codigo_maestro', 'master_code']));
+      let internalCode = this.code(
+        this.firstValue(row, headers, ['sku_empresa', 'codigo_interno']),
+      );
+      let masterCode = this.nullable(
+        this.firstValue(row, headers, [
+          'codigo_maestro_hcelm',
+          'codigo_maestro',
+          'master_code',
+        ]),
+      );
       const productType = this.code(value('tipo_producto'));
       const genericName = value('nombre_generico').trim();
       const presentation = value('presentacion').trim();
-      if (!internalCode && !genericName && !presentation) return;
+      if (!productType && !genericName && !presentation && !internalCode && !masterCode) return;
+      if (!internalCode && productType) internalCode = nextCompanySku(productType);
+      if (!masterCode && productType) masterCode = nextMasterCode(productType);
       const errors: string[] = [];
-      if (!internalCode) errors.push('SKU empresa obligatorio.');
       if (codes.has(internalCode)) errors.push('SKU empresa duplicado.');
       if (!(PRODUCT_TYPES as readonly string[]).includes(productType)) {
         errors.push(
@@ -440,7 +622,7 @@ export class MedicationCatalogService {
       return { ...row, action: !current ? 'CREATE' : this.sameProduct(current, row) ? 'UNCHANGED' : 'UPDATE' };
     });
 
-    const lotResult = this.parseLots(workbook, new Set(productRows.map((row) => row.internalCode)));
+    const lotResult = this.parseLots(workbook, productRows);
     const summary = {
       totalRows: productRows.length + invalidRows.length,
       validRows: productRows.length,
@@ -528,18 +710,63 @@ export class MedicationCatalogService {
     return { message: 'Maestro corporativo de farmacia importado.', createdRows, updatedRows, skippedRows, inventoryLots: lots.length };
   }
 
-  private parseLots(workbook: ExcelJS.Workbook, productCodes: Set<string>) {
-    const sheet = workbook.getWorksheet('Inventario_Inicial');
+
+  private async nextAvailableCodes(tenantId: string, productType: string) {
+    const institution = await this.prisma.institution.findUnique({
+      where: { tenantId },
+    });
+
+    const companyPrefix = resolveCompanyPrefix({
+      legalName: institution?.legalName,
+      tradeName: institution?.name,
+      ruc: institution?.ruc,
+    });
+
+    const typePrefix = resolveProductTypePrefix(productType);
+    const existingCodes = await this.prisma.medication.findMany({
+      where: { tenantId },
+      select: { masterCode: true, internalCode: true, productType: true },
+    });
+
+    let masterSequence = 0;
+    let skuSequence = 0;
+
+    for (const item of existingCodes) {
+      if (resolveProductTypePrefix(item.productType) !== typePrefix) continue;
+      masterSequence = Math.max(masterSequence, extractSequenceFromCode(item.masterCode));
+      skuSequence = Math.max(skuSequence, extractSequenceFromCode(item.internalCode));
+    }
+
+    return {
+      productType,
+      companyPrefix,
+      masterCode: buildMasterCode(productType, masterSequence + 1),
+      companySku: buildCompanySku({
+        companyPrefix,
+        productType,
+        sequence: skuSequence + 1,
+      }),
+    };
+  }
+
+  private textValue(value: unknown) {
+    return String(value || '').trim();
+  }
+
+  private parseLots(workbook: ExcelJS.Workbook, productRows: ProductRow[]) {    const sheet = workbook.getWorksheet('Inventario_Inicial');
     if (!sheet) return { rows: [] as LotRow[], invalidRows: [] as any[] };
     if (Math.max(0, sheet.actualRowCount - 1) > MAX_LOTS) {
       throw new BadRequestException(`La hoja Inventario_Inicial supera ${MAX_LOTS} filas.`);
     }
+
+    const productCodes = new Set(productRows.map((row) => row.internalCode));
+    const productsByRowNumber = new Map(
+      productRows.map((row) => [row.rowNumber, row.internalCode]),
+    );
+
     const headers = this.headers(sheet);
     const required = ['unidad_negocio', 'almacen', 'lote'];
     const missing = required.filter((item) => !headers.has(item));
-    if (!headers.has('sku_empresa') && !headers.has('codigo_interno')) {
-      missing.unshift('sku_empresa');
-    }
     if (missing.length) throw new BadRequestException({ message: 'Faltan columnas en Inventario_Inicial.', missingColumns: missing });
     const rows: LotRow[] = [];
     const invalidRows: Array<{ rowNumber: number; errors: string[] }> = [];
@@ -547,7 +774,13 @@ export class MedicationCatalogService {
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber === 1) return;
       const value = (key: string) => this.cell(row, headers, key);
-      const internalCode = this.code(this.firstValue(row, headers, ['sku_empresa', 'codigo_interno']));
+      let internalCode = this.code(this.firstValue(row, headers, ['sku_empresa', 'codigo_interno']));
+      const generatedCodeForSameRow = productsByRowNumber.get(rowNumber);
+
+      if ((!internalCode || !productCodes.has(internalCode)) && generatedCodeForSameRow) {
+        internalCode = generatedCodeForSameRow;
+      }
+
       const businessUnit = this.code(value('unidad_negocio')) || 'FARMACIA';
       const warehouse = value('almacen').trim().toUpperCase() || 'PRINCIPAL';
       const shelfCode = this.nullable(value('andamio'))?.toUpperCase() || null;

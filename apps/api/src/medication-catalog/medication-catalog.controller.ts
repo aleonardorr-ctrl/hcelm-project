@@ -58,6 +58,26 @@ export class MedicationCatalogController {
     return this.service.listImports(this.getTenantId(req));
   }
 
+  @Get('code-preview')
+  previewGeneratedCodes(
+    @Request() req: any,
+    @Query('productType') productType = 'MEDICAMENTO',
+  ) {
+    return this.service.previewGeneratedCodes({
+      tenantId: this.getTenantId(req),
+      productType,
+    });
+  }
+
+  @Post('catalog')
+  createProduct(@Request() req: any, @Body() body: any) {
+    return this.service.createProduct({
+      tenantId: this.getTenantId(req),
+      userId: this.getUserId(req),
+      data: body,
+    });
+  }
+
   @Patch('catalog/:id/status')
   changeStatus(
     @Request() req: any,

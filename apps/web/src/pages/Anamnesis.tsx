@@ -494,20 +494,31 @@ export default function Anamnesis() {
     }));
   };
 
-  const getMedicationDisplayName = (medication: any) => {
+      const getMedicationDisplayName = (medication: any) => {
     const genericName = medication.genericName || medication.generic || "";
     const commercialName =
       medication.commercialName || medication.brandName || medication.name || "";
+    const sku = medication.sku || medication.companySku || medication.internalCode || "";
+    const masterCode = medication.masterCode || "";
 
-    if (genericName && commercialName && genericName !== commercialName) {
-      return `${genericName} (${commercialName})`;
-    }
+    const name =
+      genericName && commercialName && genericName !== commercialName
+        ? `${genericName} (${commercialName})`
+        : genericName || commercialName || "Medicamento sin nombre";
 
-    return genericName || commercialName || "Medicamento sin nombre";
+    const codes = [
+      sku ? `SKU: ${sku}` : null,
+      masterCode ? `HCELM: ${masterCode}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    return codes ? `${name} - ${codes}` : name;
   };
 
   const getMedicationStockText = (medication: any) => {
     const possibleStock =
+      medication.availableStock ??
       medication.stock ??
       medication.currentStock ??
       medication.availableStock ??
@@ -515,11 +526,20 @@ export default function Anamnesis() {
       medication.unitsAvailable ??
       null;
 
-    if (possibleStock === null || possibleStock === undefined || possibleStock === "") {
-      return "Stock no registrado";
-    }
+    const stockText =
+      possibleStock === null ||
+      possibleStock === undefined ||
+      possibleStock === ""
+        ? "Stock no registrado"
+        : `Stock: ${possibleStock}`;
 
-    return `Stock: ${possibleStock}`;
+    const locationText =
+      medication.locationText ||
+      medication.location ||
+      medication.storageLocation ||
+      "Ubicación no registrada";
+
+    return `${stockText} | ${locationText}`;
   };
 
   const selectMedicationFromDropdown = (medication: any) => {
@@ -590,8 +610,15 @@ export default function Anamnesis() {
     if (!recipeForm.durationDays)
       return alert("Ingrese número de días de tratamiento");
 
-    const item = {
+        const item = {
       medicationId: selectedMed.id,
+      masterCode: selectedMed.masterCode || "",
+      internalCode:
+        selectedMed.sku ||
+        selectedMed.companySku ||
+        selectedMed.internalCode ||
+        "",
+      barcode: selectedMed.barcode || "",
       medicationName: `${selectedMed.genericName}${selectedMed.commercialName ? ` (${selectedMed.commercialName})` : ""}`,
       concentration: selectedMed.concentration || "",
       presentation: recipeForm.presentation,
@@ -601,6 +628,12 @@ export default function Anamnesis() {
       frequency: recipeForm.frequency,
       durationDays: Number(recipeForm.durationDays),
       indications: recipeForm.indications,
+      availableStock: selectedMed.availableStock ?? selectedMed.stock ?? null,
+      locationText:
+        selectedMed.locationText ||
+        selectedMed.location ||
+        selectedMed.storageLocation ||
+        "",
     };
 
     const newItems = [...recipeItems, item];

@@ -275,6 +275,7 @@ model TenantSystemModule {
 model Medication {
   id                   String   @id @default(uuid()) @db.Uuid
   tenantId             String   @db.Uuid
+  masterCode           String?  @db.VarChar(60)
   internalCode         String?  @db.VarChar(50)
   barcode              String?  @db.VarChar(80)
   productType          String   @default("MEDICAMENTO") @db.VarChar(40)
@@ -309,6 +310,7 @@ model Medication {
   inventoryLots     MedicationInventoryLot[]
 
   @@unique([tenantId, internalCode])
+  @@index([tenantId, masterCode])
   @@index([tenantId, active, productType])
   @@index([tenantId, barcode])
   @@index([tenantId, genericName])
@@ -321,6 +323,9 @@ model MedicationInventoryLot {
   medicationId   String    @db.Uuid
   businessUnit   String    @default("FARMACIA") @db.VarChar(30)
   warehouse      String    @default("PRINCIPAL") @db.VarChar(100)
+  shelfCode      String?   @db.VarChar(60)
+  shelfLevel     String?   @db.VarChar(60)
+  locationNotes  String?   @db.VarChar(255)
   lotNumber      String    @default("SIN_LOTE") @db.VarChar(100)
   expirationDate DateTime?
   stock          Decimal   @default(0) @db.Decimal(14, 3)
@@ -342,6 +347,7 @@ model MedicationInventoryLot {
 
   @@unique([tenantId, medicationId, businessUnit, warehouse, lotNumber])
   @@index([tenantId, businessUnit, warehouse, active])
+  @@index([tenantId, businessUnit, warehouse, shelfCode, shelfLevel])
   @@index([tenantId, expirationDate])
 }
 

@@ -27,6 +27,7 @@ type Action = 'CREATE' | 'UPDATE' | 'UNCHANGED';
 
 type ProductRow = {
   rowNumber: number;
+  masterCode: string | null;
   internalCode: string;
   barcode: string | null;
   productType: string;
@@ -58,6 +59,9 @@ type LotRow = {
   internalCode: string;
   businessUnit: string;
   warehouse: string;
+  shelfCode: string | null;
+  shelfLevel: string | null;
+  locationNotes: string | null;
   lotNumber: string;
   expirationDate: string | null;
   stock: number;
@@ -91,6 +95,7 @@ export class MedicationCatalogService {
     if (params.query?.trim()) {
       const query = params.query.trim();
       where.OR = [
+        { masterCode: { contains: query, mode: 'insensitive' } },
         { internalCode: { contains: query, mode: 'insensitive' } },
         { barcode: { contains: query, mode: 'insensitive' } },
         { genericName: { contains: query, mode: 'insensitive' } },
@@ -182,7 +187,7 @@ export class MedicationCatalogService {
 
     const products = workbook.addWorksheet('Productos', { views: [{ state: 'frozen', ySplit: 1 }] });
     const productColumns: Array<[string, number]> = [
-      ['codigo_interno', 18], ['codigo_barra', 20], ['tipo_producto', 22],
+      ['codigo_maestro_hcelm', 22], ['sku_empresa', 18], ['codigo_barra', 20], ['tipo_producto', 22],
       ['nombre_generico', 34], ['nombre_comercial', 34], ['concentracion', 20],
       ['forma_farmaceutica', 24], ['presentacion', 30], ['via_administracion', 22],
       ['unidad_medida', 18], ['laboratorio', 28], ['fabricante', 28],
@@ -195,44 +200,49 @@ export class MedicationCatalogService {
       key: header,
       width,
     }));
-    this.styleHeader(products, 'FF0F766E', 'A1:V1');
-    products.autoFilter = { from: 'A1', to: 'V1' };
+    this.styleHeader(products, 'FF0F766E', 'A1:X1');
+    products.autoFilter = { from: 'A1', to: 'X1' };
     products.getColumn('A').numFmt = '@';
     products.getColumn('B').numFmt = '@';
-    products.getCell('C1').note =
+    products.getColumn('C').numFmt = '@';
+    products.getCell('A1').note =
+      'Codigo maestro global de HCELM. Puede dejarse vacio en esta fase; sirve para consolidar productos entre empresas/RUC.';
+    products.getCell('B1').note =
+      'SKU o codigo interno de la empresa/RUC. Debe ser unico dentro de la empresa.';
+    products.getCell('D1').note =
       'Clasificacion general. Seleccione MEDICAMENTO, DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO u OTRO.';
-    products.getCell('G1').note =
+    products.getCell('H1').note =
       'Forma fisica del producto. Ejemplos: TABLETA, CAPSULA, JARABE o SOLUCION INYECTABLE.';
     for (let row = 2; row <= 5000; row += 1) {
-      products.getCell(`C${row}`).dataValidation = {
+      products.getCell(`D${row}`).dataValidation = {
         type: 'list', allowBlank: false,
         formulae: ['HCELM_TIPOS_PRODUCTO'],
         showErrorMessage: true,
         errorTitle: 'Tipo de producto no valido',
         error: 'Seleccione una opcion de la lista.',
       };
-      products.getCell(`G${row}`).dataValidation = {
+      products.getCell(`H${row}`).dataValidation = {
         type: 'list', allowBlank: true,
         formulae: ['HCELM_FORMAS_FARMACEUTICAS'],
         showErrorMessage: true,
         errorTitle: 'Forma farmaceutica no valida',
         error: 'Seleccione una opcion de la lista.',
       };
-      products.getCell(`I${row}`).dataValidation = {
+      products.getCell(`J${row}`).dataValidation = {
         type: 'list', allowBlank: true,
         formulae: ['HCELM_VIAS_ADMINISTRACION'],
         showErrorMessage: true,
         errorTitle: 'Via no valida',
         error: 'Seleccione una opcion de la lista.',
       };
-      products.getCell(`J${row}`).dataValidation = {
+      products.getCell(`K${row}`).dataValidation = {
         type: 'list', allowBlank: true,
         formulae: ['HCELM_UNIDADES_MEDIDA'],
         showErrorMessage: true,
         errorTitle: 'Unidad no valida',
         error: 'Seleccione una opcion de la lista.',
       };
-      for (const column of ['Q', 'R', 'S', 'T', 'U']) {
+      for (const column of ['S', 'T', 'U', 'V', 'W']) {
         products.getCell(`${column}${row}`).dataValidation = {
           type: 'list', allowBlank: true, formulae: ['HCELM_SI_NO'],
         };
@@ -241,8 +251,9 @@ export class MedicationCatalogService {
 
     const inventory = workbook.addWorksheet('Inventario_Inicial', { views: [{ state: 'frozen', ySplit: 1 }] });
     const inventoryColumns: Array<[string, number]> = [
-      ['codigo_interno', 18], ['unidad_negocio', 18], ['almacen', 22], ['lote', 18],
-      ['fecha_vencimiento', 20], ['stock_inicial', 16], ['stock_minimo', 16],
+      ['sku_empresa', 18], ['unidad_negocio', 18], ['almacen', 22],
+      ['andamio', 18], ['nivel_andamio', 18], ['ubicacion_referencia', 34],
+      ['lote', 18], ['fecha_vencimiento', 20], ['stock_inicial', 16], ['stock_minimo', 16],
       ['precio_compra', 16], ['precio_venta', 16], ['precio_mayorista', 18],
       ['moneda', 12], ['proveedor', 30], ['activo', 12],
     ];
@@ -251,19 +262,21 @@ export class MedicationCatalogService {
       key: header,
       width,
     }));
-    this.styleHeader(inventory, 'FF2563EB', 'A1:M1');
-    inventory.autoFilter = { from: 'A1', to: 'M1' };
+    this.styleHeader(inventory, 'FF2563EB', 'A1:P1');
+    inventory.autoFilter = { from: 'A1', to: 'P1' };
     inventory.getColumn('A').numFmt = '@';
-    inventory.getColumn('E').numFmt = 'yyyy-mm-dd';
+    inventory.getColumn('D').numFmt = '@';
+    inventory.getColumn('E').numFmt = '@';
+    inventory.getColumn('H').numFmt = 'yyyy-mm-dd';
     for (let row = 2; row <= 10000; row += 1) {
       inventory.getCell(`B${row}`).dataValidation = {
         type: 'list', allowBlank: false,
         formulae: ['HCELM_UNIDADES_NEGOCIO'],
       };
-      inventory.getCell(`K${row}`).dataValidation = {
+      inventory.getCell(`N${row}`).dataValidation = {
         type: 'list', allowBlank: true, formulae: ['HCELM_MONEDAS'],
       };
-      inventory.getCell(`M${row}`).dataValidation = {
+      inventory.getCell(`P${row}`).dataValidation = {
         type: 'list', allowBlank: true, formulae: ['HCELM_SI_NO'],
       };
     }
@@ -272,14 +285,18 @@ export class MedicationCatalogService {
     instructions.columns = [{ width: 26 }, { width: 18 }, { width: 90 }];
     instructions.addRows([
       ['SECCION', 'OBLIGATORIO', 'INDICACION'],
-      ['Productos.codigo_interno', 'Si', 'Identificador unico corporativo. No reutilizarlo para otro producto.'],
+      ['Productos.codigo_maestro_hcelm', 'No', 'Codigo global para consolidar el mismo producto entre varias empresas/RUC.'],
+      ['Productos.sku_empresa', 'Si', 'SKU o codigo interno unico dentro de la empresa/RUC. Antes se llamaba codigo_interno.'],
       ['Productos.tipo_producto', 'Si', 'MEDICAMENTO, DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO u OTRO.'],
       ['Productos.forma_farmaceutica', 'Segun producto', 'Seleccione TABLETA, CAPSULA, JARABE, SOLUCION INYECTABLE u otra forma de la lista.'],
       ['Hoja Listas', 'Consulta', 'Contiene las opciones normalizadas que alimentan los desplegables de la plantilla.'],
       ['Productos.nombre_generico', 'Si', 'Denominacion comun internacional o nombre principal.'],
       ['Productos.presentacion', 'Si', 'Ejemplo: caja x 20 tabletas, frasco x 120 mL.'],
       ['Inventario_Inicial', 'No', 'Una fila por producto, unidad de negocio, almacen y lote.'],
-      ['Relacion entre hojas', 'Si usa inventario', 'Cada codigo_interno de Inventario_Inicial debe existir tambien en la hoja Productos.'],
+      ['Inventario_Inicial.andamio', 'Recomendado', 'Codigo de andamio, vitrina, anaquel o ubicacion fisica. Ejemplo: F-A01 o D-B04.'],
+      ['Inventario_Inicial.nivel_andamio', 'Recomendado', 'Nivel exacto del andamio. Ejemplo: N01, N02, SUPERIOR, INFERIOR.'],
+      ['Inventario_Inicial.ubicacion_referencia', 'Opcional', 'Detalle adicional para ubicar rapidamente el producto al escanear.'],
+      ['Relacion entre hojas', 'Si usa inventario', 'Cada sku_empresa de Inventario_Inicial debe existir tambien en la hoja Productos.'],
       ['fecha_vencimiento', 'No', 'Usar fecha real de Excel o formato AAAA-MM-DD.'],
       ['precios', 'No', 'Valores numericos sin simbolos monetarios.'],
       ['stock', 'No', 'Permite decimales para productos fraccionables.'],
@@ -292,9 +309,9 @@ export class MedicationCatalogService {
     example.columns = [{ width: 22 }, { width: 24 }, { width: 68 }];
     example.addRows([
       ['HOJA', 'CAMPO', 'EJEMPLO'],
-      ['Productos', 'Producto', 'MED-0001 | 775000000001 | MEDICAMENTO | Paracetamol | Panadol | 500 mg | Tableta | Caja x 100'],
-      ['Inventario_Inicial', 'Lote farmacia', 'MED-0001 | FARMACIA | PRINCIPAL | L24001 | 2027-12-31 | 100 | 20 | 0.10 | 0.30'],
-      ['Inventario_Inicial', 'Lote drogueria', 'MED-0001 | DROGUERIA | PRINCIPAL | L24001 | 2027-12-31 | 1000 | 100 | 0.09 | 0.25 | 0.18'],
+      ['Productos', 'Producto', 'HCELM-MED-000001 | AME-MED-0001 | 775000000001 | MEDICAMENTO | Paracetamol | Panadol | 500 mg | TABLETA | Caja x 100'],
+      ['Inventario_Inicial', 'Lote farmacia', 'AME-MED-0001 | FARMACIA | PRINCIPAL | F-A01 | N02 | Analgesicos | L24001 | 2027-12-31 | 100 | 20 | 0.10 | 0.30'],
+      ['Inventario_Inicial', 'Lote drogueria', 'AME-MED-0001 | DROGUERIA | CENTRAL | D-B04 | N03 | Zona analgesicos | L24001 | 2027-12-31 | 1000 | 100 | 0.09 | 0.25 | 0.18'],
     ]);
     this.styleHeader(example, 'FFB45309', 'A1:C1');
     example.getColumn(3).alignment = { wrapText: true, vertical: 'top' };
@@ -339,8 +356,11 @@ export class MedicationCatalogService {
     }
 
     const headers = this.headers(sheet);
-    const required = ['codigo_interno', 'tipo_producto', 'nombre_generico', 'presentacion'];
+    const required = ['tipo_producto', 'nombre_generico', 'presentacion'];
     const missing = required.filter((item) => !headers.has(item));
+    if (!headers.has('sku_empresa') && !headers.has('codigo_interno')) {
+      missing.unshift('sku_empresa');
+    }
     if (missing.length) {
       throw new BadRequestException({ message: 'Faltan columnas obligatorias en Productos.', missingColumns: missing });
     }
@@ -351,14 +371,15 @@ export class MedicationCatalogService {
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber === 1) return;
       const value = (key: string) => this.cell(row, headers, key);
-      const internalCode = this.code(value('codigo_interno'));
+      const internalCode = this.code(this.firstValue(row, headers, ['sku_empresa', 'codigo_interno']));
+      const masterCode = this.nullable(this.firstValue(row, headers, ['codigo_maestro_hcelm', 'codigo_maestro', 'master_code']));
       const productType = this.code(value('tipo_producto'));
       const genericName = value('nombre_generico').trim();
       const presentation = value('presentacion').trim();
       if (!internalCode && !genericName && !presentation) return;
       const errors: string[] = [];
-      if (!internalCode) errors.push('Codigo interno obligatorio.');
-      if (codes.has(internalCode)) errors.push('Codigo interno duplicado.');
+      if (!internalCode) errors.push('SKU empresa obligatorio.');
+      if (codes.has(internalCode)) errors.push('SKU empresa duplicado.');
       if (!(PRODUCT_TYPES as readonly string[]).includes(productType)) {
         errors.push(
           'Tipo de producto no valido. Use MEDICAMENTO, DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO u OTRO. TABLETA o CAPSULA corresponden a forma_farmaceutica.',
@@ -398,13 +419,13 @@ export class MedicationCatalogService {
         return;
       }
       parsed.push({
-        rowNumber, internalCode, barcode: this.nullable(value('codigo_barra')),
+        rowNumber, masterCode, internalCode, barcode: this.nullable(value('codigo_barra')),
         productType, genericName, commercialName, concentration, pharmaceuticalForm,
         presentation, route, unitMeasure, laboratory, manufacturer, registrationHolder,
         sanitaryRegistration, atcCode, pnumCode,
         requiresPrescription, controlled, coldChain, taxable, active,
         observations: this.nullable(value('observaciones')),
-        searchText: [internalCode, value('codigo_barra'), genericName, commercialName,
+        searchText: [masterCode, internalCode, value('codigo_barra'), genericName, commercialName,
           concentration, pharmaceuticalForm, presentation, laboratory, sanitaryRegistration]
           .filter(Boolean).join(' '),
       });
@@ -514,8 +535,11 @@ export class MedicationCatalogService {
       throw new BadRequestException(`La hoja Inventario_Inicial supera ${MAX_LOTS} filas.`);
     }
     const headers = this.headers(sheet);
-    const required = ['codigo_interno', 'unidad_negocio', 'almacen', 'lote'];
+    const required = ['unidad_negocio', 'almacen', 'lote'];
     const missing = required.filter((item) => !headers.has(item));
+    if (!headers.has('sku_empresa') && !headers.has('codigo_interno')) {
+      missing.unshift('sku_empresa');
+    }
     if (missing.length) throw new BadRequestException({ message: 'Faltan columnas en Inventario_Inicial.', missingColumns: missing });
     const rows: LotRow[] = [];
     const invalidRows: Array<{ rowNumber: number; errors: string[] }> = [];
@@ -523,9 +547,12 @@ export class MedicationCatalogService {
     sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       if (rowNumber === 1) return;
       const value = (key: string) => this.cell(row, headers, key);
-      const internalCode = this.code(value('codigo_interno'));
+      const internalCode = this.code(this.firstValue(row, headers, ['sku_empresa', 'codigo_interno']));
       const businessUnit = this.code(value('unidad_negocio')) || 'FARMACIA';
       const warehouse = value('almacen').trim().toUpperCase() || 'PRINCIPAL';
+      const shelfCode = this.nullable(value('andamio'))?.toUpperCase() || null;
+      const shelfLevel = this.nullable(value('nivel_andamio'))?.toUpperCase() || null;
+      const locationNotes = this.nullable(value('ubicacion_referencia'));
       const lotNumber = value('lote').trim().toUpperCase() || 'SIN_LOTE';
       if (!internalCode && !value('stock_inicial')) return;
       const errors: string[] = [];
@@ -560,7 +587,8 @@ export class MedicationCatalogService {
       if (errors.length) { invalidRows.push({ rowNumber, errors }); return; }
       identities.add(identity);
       rows.push({
-        rowNumber, internalCode, businessUnit, warehouse, lotNumber, expirationDate,
+        rowNumber, internalCode, businessUnit, warehouse, shelfCode, shelfLevel,
+        locationNotes, lotNumber, expirationDate,
         stock, minimumStock, purchasePrice, salePrice, wholesalePrice,
         currency, supplier: this.nullable(value('proveedor')),
         active,
@@ -571,7 +599,7 @@ export class MedicationCatalogService {
 
   private productData(row: ProductRow, source: string, createdById: string | null) {
     return {
-      internalCode: row.internalCode, barcode: row.barcode, productType: row.productType,
+      masterCode: row.masterCode, internalCode: row.internalCode, barcode: row.barcode, productType: row.productType,
       genericName: row.genericName, commercialName: row.commercialName,
       concentration: row.concentration, pharmaceuticalForm: row.pharmaceuticalForm,
       presentation: row.presentation, route: row.route, unitMeasure: row.unitMeasure,
@@ -586,7 +614,9 @@ export class MedicationCatalogService {
 
   private lotData(row: LotRow, source: string) {
     return {
-      businessUnit: row.businessUnit, warehouse: row.warehouse, lotNumber: row.lotNumber,
+      businessUnit: row.businessUnit, warehouse: row.warehouse,
+      shelfCode: row.shelfCode, shelfLevel: row.shelfLevel,
+      locationNotes: row.locationNotes, lotNumber: row.lotNumber,
       expirationDate: row.expirationDate ? new Date(`${row.expirationDate}T00:00:00`) : null,
       stock: row.stock, minimumStock: row.minimumStock, purchasePrice: row.purchasePrice,
       salePrice: row.salePrice, wholesalePrice: row.wholesalePrice,
@@ -618,6 +648,14 @@ export class MedicationCatalogService {
   private cell(row: ExcelJS.Row, headers: Map<string, number>, key: string) {
     const column = headers.get(key);
     return column ? this.text(row.getCell(column).value) : '';
+  }
+
+  private firstValue(row: ExcelJS.Row, headers: Map<string, number>, keys: string[]) {
+    for (const key of keys) {
+      const value = this.cell(row, headers, key).trim();
+      if (value) return value;
+    }
+    return '';
   }
 
   private header(value: string) {

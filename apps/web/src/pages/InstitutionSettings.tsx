@@ -403,6 +403,7 @@ export default function InstitutionSettings() {
         setSystemModules(result.modules);
       }
 
+      window.dispatchEvent(new Event('hcelm:system-modules-updated'));
       alert('Modulos del sistema guardados correctamente.');
     } catch {
       alert('Error de conexion al guardar los modulos del sistema.');

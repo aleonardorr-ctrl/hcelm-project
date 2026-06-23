@@ -10,12 +10,12 @@ datasource db {
 }
 
 model Tenant {
-  id                 String               @id @default(uuid()) @db.Uuid
+  id                 String                   @id @default(uuid()) @db.Uuid
   name               String
-  ruc                String               @unique
-  active             Boolean              @default(true)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
+  ruc                String                   @unique
+  active             Boolean                  @default(true)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
   anamnesis          Anamnesis[]
   certificates       Certificate[]
   encounters         Encounter[]
@@ -23,6 +23,7 @@ model Tenant {
   hceConfigs         HceConfig?
   institutions       Institution?
   medications        Medication[]
+  medicationLots     MedicationInventoryLot[]
   patients           Patient[]
   prescriptions      Prescription[]
   users              User[]
@@ -34,24 +35,26 @@ model Tenant {
 }
 
 model User {
-  id                        String              @id @default(uuid()) @db.Uuid
-  tenantId                  String              @db.Uuid
+  id                        String                   @id @default(uuid()) @db.Uuid
+  tenantId                  String                   @db.Uuid
   email                     String
   password                  String
   fullName                  String?
-  role                      String              @default("medico")
+  role                      String                   @default("medico")
   cmp                       String?
   rne                       String?
-  active                    Boolean             @default(true)
-  createdAt                 DateTime            @default(now())
-  updatedAt                 DateTime            @updatedAt
+  active                    Boolean                  @default(true)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
   certificates              Certificate[]
   prescriptions             Prescription[]
-  tenant                    Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  diagnosisCatalogsCreated  DiagnosisCatalog[]  @relation("DiagnosisCatalogCreatedBy")
-  catalogImports            CatalogImport[]     @relation("CatalogImportCreatedBy")
-  clinicalAlertRulesUpdated ClinicalAlertRule[] @relation("ClinicalAlertRuleUpdatedBy")
-  laboratoryCatalogsCreated LaboratoryCatalog[] @relation("LaboratoryCatalogCreatedBy")
+  tenant                    Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  diagnosisCatalogsCreated  DiagnosisCatalog[]       @relation("DiagnosisCatalogCreatedBy")
+  catalogImports            CatalogImport[]          @relation("CatalogImportCreatedBy")
+  clinicalAlertRulesUpdated ClinicalAlertRule[]      @relation("ClinicalAlertRuleUpdatedBy")
+  laboratoryCatalogsCreated LaboratoryCatalog[]      @relation("LaboratoryCatalogCreatedBy")
+  medicationsCreated        Medication[]             @relation("MedicationCreatedBy")
+  medicationLotsCreated     MedicationInventoryLot[] @relation("MedicationLotCreatedBy")
 }
 
 model Patient {
@@ -270,18 +273,76 @@ model TenantSystemModule {
 }
 
 model Medication {
-  id                String             @id @default(uuid()) @db.Uuid
-  tenantId          String             @db.Uuid
-  genericName       String
-  commercialName    String?
-  concentration     String?
-  presentation      String
-  route             String?
-  active            Boolean            @default(true)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @db.Uuid
+  internalCode         String?  @db.VarChar(50)
+  barcode              String?  @db.VarChar(80)
+  productType          String   @default("MEDICAMENTO") @db.VarChar(40)
+  genericName          String
+  commercialName       String?
+  concentration        String?
+  pharmaceuticalForm   String?  @db.VarChar(150)
+  presentation         String
+  route                String?
+  unitMeasure          String?  @db.VarChar(80)
+  laboratory           String?  @db.VarChar(180)
+  manufacturer         String?  @db.VarChar(180)
+  registrationHolder   String?  @db.VarChar(180)
+  sanitaryRegistration String?  @db.VarChar(100)
+  atcCode              String?  @db.VarChar(30)
+  pnumCode             String?  @db.VarChar(50)
+  requiresPrescription Boolean  @default(true)
+  controlled           Boolean  @default(false)
+  coldChain            Boolean  @default(false)
+  taxable              Boolean  @default(true)
+  active               Boolean  @default(true)
+  observations         String?  @db.Text
+  searchText           String   @default("") @db.Text
+  source               String?  @db.VarChar(255)
+  createdById          String?  @db.Uuid
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser     User?                    @relation("MedicationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   prescriptionItems PrescriptionItem[]
+  inventoryLots     MedicationInventoryLot[]
+
+  @@unique([tenantId, internalCode])
+  @@index([tenantId, active, productType])
+  @@index([tenantId, barcode])
+  @@index([tenantId, genericName])
+  @@index([tenantId, commercialName])
+}
+
+model MedicationInventoryLot {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenantId       String    @db.Uuid
+  medicationId   String    @db.Uuid
+  businessUnit   String    @default("FARMACIA") @db.VarChar(30)
+  warehouse      String    @default("PRINCIPAL") @db.VarChar(100)
+  lotNumber      String    @default("SIN_LOTE") @db.VarChar(100)
+  expirationDate DateTime?
+  stock          Decimal   @default(0) @db.Decimal(14, 3)
+  minimumStock   Decimal   @default(0) @db.Decimal(14, 3)
+  purchasePrice  Decimal?  @db.Decimal(14, 4)
+  salePrice      Decimal?  @db.Decimal(14, 4)
+  wholesalePrice Decimal?  @db.Decimal(14, 4)
+  currency       String    @default("PEN") @db.VarChar(3)
+  supplier       String?   @db.VarChar(180)
+  active         Boolean   @default(true)
+  source         String?   @db.VarChar(255)
+  createdById    String?   @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  medication    Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  createdByUser User?      @relation("MedicationLotCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, medicationId, businessUnit, warehouse, lotNumber])
+  @@index([tenantId, businessUnit, warehouse, active])
+  @@index([tenantId, expirationDate])
 }
 
 model Prescription {

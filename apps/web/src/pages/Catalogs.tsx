@@ -1,12 +1,13 @@
 /**
  * Archivo: Catalogs.tsx
  * Ruta: apps/web/src/pages/Catalogs.tsx
- * Funcion: Administra CIE-10, CIE-11 y el catalogo maestro de laboratorio.
+ * Funcion: Administra CIE, laboratorio y el maestro corporativo de farmacia.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MedicationCatalogPanel from '../components/MedicationCatalogPanel';
 
-type CatalogSystem = 'CIE10' | 'CIE11' | 'LABORATORY';
+type CatalogSystem = 'CIE10' | 'CIE11' | 'LABORATORY' | 'MEDICATION';
 type ImportAction = 'CREATE' | 'UPDATE' | 'UNCHANGED';
 type ViewType = 'import' | 'records' | 'history';
 
@@ -107,6 +108,7 @@ const systemLabels: Record<CatalogSystem, string> = {
   CIE10: 'CIE-10',
   CIE11: 'CIE-11',
   LABORATORY: 'Laboratorio',
+  MEDICATION: 'Farmacia',
 };
 
 const actionLabels: Record<ImportAction, string> = {
@@ -173,6 +175,7 @@ export default function Catalogs() {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const isLaboratory = system === 'LABORATORY';
+  const isMedication = system === 'MEDICATION';
   const apiRoot = isLaboratory ? 'laboratory-catalog' : 'diagnoses';
 
   function resetSystem(nextSystem: CatalogSystem) {
@@ -272,13 +275,13 @@ export default function Catalogs() {
   }
 
   useEffect(() => {
-    if (view !== 'records') return;
+    if (view !== 'records' || isMedication) return;
     const timeout = window.setTimeout(loadCatalog, 300);
     return () => window.clearTimeout(timeout);
   }, [view, system, catalogQuery, catalogStatus, catalogCategory, catalogPage]);
 
   useEffect(() => {
-    if (view === 'history') loadImportHistory();
+    if (view === 'history' && !isMedication) loadImportHistory();
   }, [view, system]);
 
   async function downloadTemplate() {
@@ -414,7 +417,7 @@ export default function Catalogs() {
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          {!isMedication && <div className="mt-4 flex flex-wrap gap-2">
             {([
               ['import', 'Importar Excel'],
               ['records', 'Registros del catálogo'],
@@ -424,9 +427,9 @@ export default function Catalogs() {
                 {label}
               </button>
             ))}
-          </div>
+          </div>}
 
-          {view === 'import' && (
+          {!isMedication && view === 'import' && (
             <div className="mt-5 grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
               <div>
                 <label className="mb-2 block text-sm font-bold text-slate-700">Archivo Excel</label>
@@ -445,7 +448,9 @@ export default function Catalogs() {
           )}
         </section>
 
-        {preview && view === 'import' && (
+        {isMedication && <MedicationCatalogPanel />}
+
+        {!isMedication && preview && view === 'import' && (
           <>
             <section className={`grid gap-3 sm:grid-cols-2 ${isLaboratory ? 'lg:grid-cols-4' : 'lg:grid-cols-6'}`}>
               {[
@@ -521,7 +526,7 @@ export default function Catalogs() {
           </>
         )}
 
-        {view === 'records' && (
+        {!isMedication && view === 'records' && (
           <section className="overflow-hidden rounded-lg bg-white shadow-sm">
             <div className={`grid gap-3 border-b border-slate-200 p-4 ${isLaboratory ? 'md:grid-cols-[1fr_220px_180px_auto]' : 'md:grid-cols-[1fr_180px_auto]'}`}>
               <input value={catalogQuery} onChange={(event) => { setCatalogQuery(event.target.value); setCatalogPage(1); }} placeholder="Buscar código o nombre..." className="rounded-lg border border-slate-300 p-2" />
@@ -544,7 +549,7 @@ export default function Catalogs() {
           </section>
         )}
 
-        {view === 'history' && (
+        {!isMedication && view === 'history' && (
           <section className="overflow-hidden rounded-lg bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3"><h2 className="font-bold">Historial de importaciones</h2><button type="button" onClick={loadImportHistory} disabled={historyLoading} className="rounded-lg border px-3 py-2 text-sm font-bold">{historyLoading ? 'Cargando...' : 'Actualizar'}</button></div>
             <div className="overflow-x-auto"><table className="min-w-full divide-y divide-slate-200 text-sm"><thead className="bg-slate-50 text-left"><tr><th className="px-4 py-3">Fecha</th><th className="px-4 py-3">Archivo</th><th className="px-4 py-3">Estado</th><th className="px-4 py-3">Total</th><th className="px-4 py-3">Creados</th><th className="px-4 py-3">Actualizados</th><th className="px-4 py-3">Errores</th></tr></thead><tbody className="divide-y divide-slate-100">{!historyLoading && imports.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Sin importaciones registradas.</td></tr>}{imports.map((item) => <tr key={item.id}><td className="px-4 py-3">{formatDateTime(item.createdAt)}</td><td className="px-4 py-3 font-semibold">{item.sourceFileName}</td><td className="px-4 py-3">{item.status}</td><td className="px-4 py-3">{item.totalRows}</td><td className="px-4 py-3 text-emerald-700">{item.createdRows}</td><td className="px-4 py-3 text-blue-700">{item.updatedRows}</td><td className="px-4 py-3 text-red-700">{item.invalidRows}</td></tr>)}</tbody></table></div>

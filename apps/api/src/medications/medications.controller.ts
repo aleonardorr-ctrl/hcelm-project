@@ -1,7 +1,12 @@
+/**
+ * Archivo: medications.controller.ts
+ * Ruta: apps/api/src/medications/medications.controller.ts
+ * Funcion: Busqueda clinica de productos activos para receta.
+ */
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { MedicationsService } from './medications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { MedicationsService } from './medications.service';
 
 @Controller('medications')
 @UseGuards(JwtAuthGuard)

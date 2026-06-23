@@ -18,6 +18,7 @@ import { EncountersModule } from './encounters/encounters.module';
 import { EstablishmentModule } from './establishment/establishment.module';
 import { InstitutionModule } from './institution/institution.module';
 import { LaboratoryCatalogModule } from './laboratory-catalog/laboratory-catalog.module';
+import { MedicationCatalogModule } from './medication-catalog/medication-catalog.module';
 import { MedicationsModule } from './medications/medications.module';
 import { PatientsModule } from './patients/patients.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
@@ -42,6 +43,7 @@ import { WaitingRoomModule } from './waiting-room/waiting-room.module';
     DataQualityModule,
     DiagnosesModule,
     LaboratoryCatalogModule,
+    MedicationCatalogModule,
   ],
   controllers: [AppController],
   providers: [AppService],

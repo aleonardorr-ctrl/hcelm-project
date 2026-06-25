@@ -5,7 +5,6 @@ import {
   getAuthToken,
   getSessionItem,
   removeSessionItem,
-  setSessionItem,
 } from '../lib/auth';
 
 const API_URL = 'http://localhost:3000/api';
@@ -49,14 +48,18 @@ export default function ProfessionalVerification() {
     const token = getAuthToken();
 
     if (!token) {
-      window.location.href = '/login';
+      clearAuthSession();
+      window.location.replace('/login');
       return;
     }
 
     fetch(`${API_URL}/institution/users`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) return [];
+        return res.json();
+      })
       .then((data) => setUsers(Array.isArray(data) ? data : []))
       .catch(() => setUsers([]));
   }, []);
@@ -95,6 +98,7 @@ export default function ProfessionalVerification() {
   };
 
   const requiresCmp = form.professionalType === 'Médico';
+
   const showsProfessionalLicense = [
     'Enfermería',
     'Psicólogo',
@@ -109,7 +113,7 @@ export default function ProfessionalVerification() {
     return 'Registro / colegiatura profesional';
   };
 
-    const validateProfessional = () => {
+  const validateProfessional = () => {
     const token = getAuthToken();
 
     if (!token) {
@@ -119,44 +123,39 @@ export default function ProfessionalVerification() {
       return;
     }
 
-    if (!form.name.trim()) return alert('Ingrese el nombre del profesional.');
-    if (!form.professionalType.trim()) return alert('Seleccione el tipo de profesional.');
-    if (!form.dni.trim()) return alert('Ingrese el DNI del profesional.');
+    if (!form.name.trim()) {
+      alert('Ingrese el nombre del profesional.');
+      return;
+    }
+
+    if (!form.professionalType.trim()) {
+      alert('Seleccione el tipo de profesional.');
+      return;
+    }
+
+    if (!form.dni.trim()) {
+      alert('Ingrese el DNI del profesional.');
+      return;
+    }
 
     if (requiresCmp && !form.cmp.trim()) {
-      return alert('Para médico se requiere CMP.');
+      alert('Para médico se requiere CMP.');
+      return;
     }
 
     sessionStorage.setItem('hcelm_professional_verified', 'true');
-    sessionStorage.setItem('hcelm_professional_name', form.name);
-    sessionStorage.setItem('hcelm_professional_dni', form.dni);
+    sessionStorage.setItem('hcelm_professional_name', form.name.trim());
+    sessionStorage.setItem('hcelm_professional_dni', form.dni.trim());
     sessionStorage.setItem('hcelm_professional_type', form.professionalType);
     sessionStorage.setItem('hcelm_professional_cmp', form.cmp || '');
     sessionStorage.setItem('hcelm_professional_rne', form.rne || '');
     sessionStorage.setItem('hcelm_professional_license', form.professionalLicense || '');
     sessionStorage.setItem('hcelm_professional_role', form.role || '');
 
+    sessionStorage.removeItem('hcelm_require_professional_verification');
+
     window.location.replace('/home');
   };
-
-      const token = getAuthToken();
-
-    if (!token) {
-      clearAuthSession();
-      window.location.replace('/login');
-      return;
-    }
-
-    setSessionItem('hcelm_professional_verified', 'true');
-    setSessionItem('hcelm_professional_name', form.name);
-    setSessionItem('hcelm_professional_dni', form.dni);
-    setSessionItem('hcelm_professional_type', form.professionalType);
-    setSessionItem('hcelm_professional_cmp', form.cmp || '');
-    setSessionItem('hcelm_professional_rne', form.rne || '');
-    setSessionItem('hcelm_professional_license', form.professionalLicense || '');
-    setSessionItem('hcelm_professional_role', form.role || '');
-
-    window.location.replace('/home');
 
   const simulateDniReader = () => {
     alert('Lector DNIe pendiente de integración. Próxima fase: servicio local HCELM DNI Reader.');
@@ -171,6 +170,7 @@ export default function ProfessionalVerification() {
     removeSessionItem('hcelm_professional_rne');
     removeSessionItem('hcelm_professional_license');
     removeSessionItem('hcelm_professional_role');
+    removeSessionItem('hcelm_require_professional_verification');
 
     setSelectedUserId('');
     setForm({

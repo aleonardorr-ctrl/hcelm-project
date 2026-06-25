@@ -40,8 +40,11 @@ export default function Login() {
         return;
       }
 
-      localStorage.removeItem('ame_token');
+      clearAuthSession();
+
       sessionStorage.setItem('ame_token', token);
+      sessionStorage.setItem('hcelm_professional_verified', 'false');
+      sessionStorage.setItem('hcelm_require_professional_verification', 'true');
 
       const savedToken = sessionStorage.getItem('ame_token');
 

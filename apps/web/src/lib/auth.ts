@@ -57,5 +57,10 @@ export function removeSessionItem(key: string) {
 }
 
 export function hasProfessionalVerification() {
+  const requireVerification =
+    sessionStorage.getItem('hcelm_require_professional_verification') === 'true';
+
+  if (requireVerification) return false;
+
   return getSessionItem('hcelm_professional_verified') === 'true';
 }

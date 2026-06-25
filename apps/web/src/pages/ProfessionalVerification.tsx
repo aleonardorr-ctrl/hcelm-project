@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  clearAuthSession,
+  getAuthToken,
+  getSessionItem,
+  removeSessionItem,
+  setSessionItem,
+} from '../lib/auth';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -32,13 +39,19 @@ export default function ProfessionalVerification() {
     role: '',
   });
 
-  const professionalVerified = localStorage.getItem('hcelm_professional_verified') === 'true';
-  const currentProfessionalName = localStorage.getItem('hcelm_professional_name');
-  const currentProfessionalType = localStorage.getItem('hcelm_professional_type');
-  const currentProfessionalCmp = localStorage.getItem('hcelm_professional_cmp');
+  const professionalVerified =
+    getSessionItem('hcelm_professional_verified') === 'true';
+  const currentProfessionalName = getSessionItem('hcelm_professional_name');
+  const currentProfessionalType = getSessionItem('hcelm_professional_type');
+  const currentProfessionalCmp = getSessionItem('hcelm_professional_cmp');
 
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = getAuthToken();
+
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
 
     fetch(`${API_URL}/institution/users`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -96,7 +109,16 @@ export default function ProfessionalVerification() {
     return 'Registro / colegiatura profesional';
   };
 
-  const validateProfessional = () => {
+    const validateProfessional = () => {
+    const token = getAuthToken();
+
+    if (!token) {
+      alert('Sesión expirada o no encontrada. Inicie sesión nuevamente.');
+      clearAuthSession();
+      window.location.replace('/login');
+      return;
+    }
+
     if (!form.name.trim()) return alert('Ingrese el nombre del profesional.');
     if (!form.professionalType.trim()) return alert('Seleccione el tipo de profesional.');
     if (!form.dni.trim()) return alert('Ingrese el DNI del profesional.');
@@ -105,31 +127,50 @@ export default function ProfessionalVerification() {
       return alert('Para médico se requiere CMP.');
     }
 
-    localStorage.setItem('hcelm_professional_verified', 'true');
-    localStorage.setItem('hcelm_professional_name', form.name);
-    localStorage.setItem('hcelm_professional_dni', form.dni);
-    localStorage.setItem('hcelm_professional_type', form.professionalType);
-    localStorage.setItem('hcelm_professional_cmp', form.cmp || '');
-    localStorage.setItem('hcelm_professional_rne', form.rne || '');
-    localStorage.setItem('hcelm_professional_license', form.professionalLicense || '');
-    localStorage.setItem('hcelm_professional_role', form.role || '');
+    sessionStorage.setItem('hcelm_professional_verified', 'true');
+    sessionStorage.setItem('hcelm_professional_name', form.name);
+    sessionStorage.setItem('hcelm_professional_dni', form.dni);
+    sessionStorage.setItem('hcelm_professional_type', form.professionalType);
+    sessionStorage.setItem('hcelm_professional_cmp', form.cmp || '');
+    sessionStorage.setItem('hcelm_professional_rne', form.rne || '');
+    sessionStorage.setItem('hcelm_professional_license', form.professionalLicense || '');
+    sessionStorage.setItem('hcelm_professional_role', form.role || '');
 
-    navigate('/home');
+    window.location.replace('/home');
   };
+
+      const token = getAuthToken();
+
+    if (!token) {
+      clearAuthSession();
+      window.location.replace('/login');
+      return;
+    }
+
+    setSessionItem('hcelm_professional_verified', 'true');
+    setSessionItem('hcelm_professional_name', form.name);
+    setSessionItem('hcelm_professional_dni', form.dni);
+    setSessionItem('hcelm_professional_type', form.professionalType);
+    setSessionItem('hcelm_professional_cmp', form.cmp || '');
+    setSessionItem('hcelm_professional_rne', form.rne || '');
+    setSessionItem('hcelm_professional_license', form.professionalLicense || '');
+    setSessionItem('hcelm_professional_role', form.role || '');
+
+    window.location.replace('/home');
 
   const simulateDniReader = () => {
     alert('Lector DNIe pendiente de integración. Próxima fase: servicio local HCELM DNI Reader.');
   };
 
   const clearProfessional = () => {
-    localStorage.removeItem('hcelm_professional_verified');
-    localStorage.removeItem('hcelm_professional_name');
-    localStorage.removeItem('hcelm_professional_dni');
-    localStorage.removeItem('hcelm_professional_type');
-    localStorage.removeItem('hcelm_professional_cmp');
-    localStorage.removeItem('hcelm_professional_rne');
-    localStorage.removeItem('hcelm_professional_license');
-    localStorage.removeItem('hcelm_professional_role');
+    removeSessionItem('hcelm_professional_verified');
+    removeSessionItem('hcelm_professional_name');
+    removeSessionItem('hcelm_professional_dni');
+    removeSessionItem('hcelm_professional_type');
+    removeSessionItem('hcelm_professional_cmp');
+    removeSessionItem('hcelm_professional_rne');
+    removeSessionItem('hcelm_professional_license');
+    removeSessionItem('hcelm_professional_role');
 
     setSelectedUserId('');
     setForm({
@@ -152,8 +193,7 @@ export default function ProfessionalVerification() {
   };
 
   const logout = () => {
-    localStorage.removeItem('ame_token');
-    clearProfessional();
+    clearAuthSession();
     window.location.href = '/login';
   };
 

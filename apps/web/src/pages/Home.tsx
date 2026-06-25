@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Home() {
   const navigate = useNavigate();
 
-  // ✅ Verificación de seguridad al cargar la página
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
+
     if (!token) {
       navigate('/login', { replace: true });
     }
@@ -21,7 +21,8 @@ export default function Home() {
         </div>
         <button 
           onClick={() => { 
-            localStorage.removeItem('ame_token'); 
+            sessionStorage.removeItem('ame_token');
+            localStorage.removeItem('ame_token');
             navigate('/login'); 
           }} 
           className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"

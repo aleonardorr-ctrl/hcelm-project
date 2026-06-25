@@ -34,6 +34,13 @@ import Login from './pages/Login';
 import NewEncounter from './pages/NewEncounter';
 import Patients from './pages/Patients';
 import ProfessionalVerification from './pages/ProfessionalVerification';
+import {
+  clearAuthSession,
+  getAuthToken,
+  getSessionItem,
+  hasProfessionalVerification,
+  hasValidToken,
+} from './lib/auth';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -68,8 +75,8 @@ const SystemModulesContext = createContext<SystemModulesContextValue>({
 
 function SystemModulesProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const token = useMemo(
-    () => localStorage.getItem('ame_token'),
+    const token = useMemo(
+    () => getAuthToken(),
     [location.pathname],
   );
   const [modules, setModules] = useState<SystemModulesState>(DEFAULT_MODULES);
@@ -147,20 +154,27 @@ function useSystemModules() {
 }
 
 function TokenProtected({ children }: { children: ReactElement }) {
-  const token = localStorage.getItem('ame_token');
+  const token = sessionStorage.getItem('ame_token');
 
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) {
+    return (
+      <div style={{ padding: 24, color: '#991b1b', background: '#fee2e2' }}>
+        <h1>Error de seguridad HCELM</h1>
+        <p>No existe ame_token en sessionStorage.</p>
+        <p>La ruta protegida no puede abrirse.</p>
+      </div>
+    );
+  }
 
   return children;
 }
 
 function ProfessionalProtected({ children }: { children: ReactElement }) {
-  const token = localStorage.getItem('ame_token');
-  const professionalVerified =
-    localStorage.getItem('hcelm_professional_verified') === 'true';
+  if (!hasValidToken()) {
+    return <Navigate to="/login" replace />;
+  }
 
-  if (!token) return <Navigate to="/login" replace />;
-  if (!professionalVerified) {
+  if (!hasProfessionalVerification()) {
     return <Navigate to="/professional-verification" replace />;
   }
 
@@ -201,8 +215,15 @@ function SharedCatalogProtected({ children }: { children: ReactElement }) {
 }
 
 function RootRedirect() {
-  const token = localStorage.getItem('ame_token');
-  return <Navigate to={token ? '/home' : '/login'} replace />;
+  if (!hasValidToken()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!hasProfessionalVerification()) {
+    return <Navigate to="/professional-verification" replace />;
+  }
+
+  return <Navigate to="/home" replace />;
 }
 
 function LoadingModules() {
@@ -238,8 +259,8 @@ function Navbar() {
     return null;
   }
 
-  const professionalName = localStorage.getItem('hcelm_professional_name');
-  const professionalCmp = localStorage.getItem('hcelm_professional_cmp');
+  const professionalName = getSessionItem('hcelm_professional_name');
+  const professionalCmp = getSessionItem('hcelm_professional_cmp');
 
   const isActive = (path: string) => {
     if (path === '/home') return location.pathname === '/home';
@@ -273,17 +294,7 @@ function Navbar() {
   };
 
   const logout = () => {
-    localStorage.removeItem('ame_token');
-    localStorage.removeItem('hcelm_professional_verified');
-    localStorage.removeItem('hcelm_professional_name');
-    localStorage.removeItem('hcelm_professional_dni');
-    localStorage.removeItem('hcelm_professional_type');
-    localStorage.removeItem('hcelm_professional_cmp');
-    localStorage.removeItem('hcelm_professional_rne');
-    localStorage.removeItem('hcelm_professional_license');
-    localStorage.removeItem('hcelm_professional_role');
-    localStorage.removeItem('selectedPatient');
-    localStorage.removeItem('selectedEncounter');
+    clearAuthSession();
     window.location.href = '/login';
   };
 

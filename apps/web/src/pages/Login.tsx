@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { clearAuthSession } from '../lib/auth';
+
+const API_URL = 'http://localhost:3000/api';
 
 export default function Login() {
   const [ruc, setRuc] = useState('20611138777');
@@ -8,16 +10,8 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const navigate = useNavigate();
-
   useEffect(() => {
-    localStorage.removeItem('ame_token');
-    localStorage.removeItem('hcelm_professional_verified');
-    localStorage.removeItem('hcelm_professional_name');
-    localStorage.removeItem('hcelm_professional_dni');
-    localStorage.removeItem('hcelm_professional_cmp');
-    localStorage.removeItem('hcelm_professional_rne');
-    localStorage.removeItem('hcelm_professional_role');
+    clearAuthSession();
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -26,27 +20,37 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:3000/api/auth/login', {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ruc, email, password }),
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const token = data.access_token || data.accessToken || data.token;
+      const data = await res.json().catch(() => ({}));
 
-        if (!token) {
-          setError('El backend respondió, pero no envió token válido.');
-          return;
-        }
-
-        localStorage.setItem('ame_token', token);
-        navigate('/professional-verification');
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setError(errData.message || 'Credenciales inválidas.');
+      if (!res.ok) {
+        setError(data.message || 'Credenciales inválidas.');
+        return;
       }
+
+      const token = data.access_token || data.accessToken || data.token;
+
+      if (!token) {
+        setError('Login correcto, pero el backend no envió token.');
+        return;
+      }
+
+      localStorage.removeItem('ame_token');
+      sessionStorage.setItem('ame_token', token);
+
+      const savedToken = sessionStorage.getItem('ame_token');
+
+      if (!savedToken) {
+        setError('No se pudo guardar la sesión en el navegador.');
+        return;
+      }
+
+      window.location.href = '/professional-verification';
     } catch {
       setError('Error de conexión. Verifique que el backend esté activo.');
     } finally {

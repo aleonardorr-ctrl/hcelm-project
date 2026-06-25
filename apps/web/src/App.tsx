@@ -41,6 +41,7 @@ import {
   hasProfessionalVerification,
   hasValidToken,
 } from './lib/auth';
+import Pharmacy from './pages/Pharmacy';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -458,10 +459,7 @@ function AppRoutes() {
           path="/pharmacy"
           element={
             <ModuleProtected moduleKey="PHARMACY">
-              <ModulePlaceholder
-                title="Farmacia"
-                description="Modulo habilitado. El maestro de productos, lotes, dispensacion y ventas se implementara en los siguientes bloques."
-              />
+              <Pharmacy />
             </ModuleProtected>
           }
         />

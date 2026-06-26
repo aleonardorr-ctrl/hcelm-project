@@ -39,6 +39,7 @@ import {
   hasValidToken,
 } from './lib/auth';
 import Pharmacy from './pages/Pharmacy';
+import ClinicalNavigation from './components/clinical/ClinicalNavigation';
 
 const API_URL = 'http://localhost:3000/api';
 
@@ -326,6 +327,32 @@ function Navbar() {
   );
 }
 
+function ClinicalNavigationSlot() {
+  const location = useLocation();
+
+  const clinicalPaths = [
+    '/patients',
+    '/encounters/new',
+    '/anamnesis',
+    '/certificates',
+  ];
+
+  const shouldShowClinicalNavigation = clinicalPaths.some(
+    (path) =>
+      location.pathname === path || location.pathname.startsWith(`${path}/`),
+  );
+
+  if (!shouldShowClinicalNavigation) {
+    return null;
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 pt-4">
+      <ClinicalNavigation />
+    </div>
+  );
+}
+
 function AppRoutes() {
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
@@ -466,6 +493,7 @@ export default function App() {
     <Router>
       <SystemModulesProvider>
         <Navbar />
+        <ClinicalNavigationSlot />
         <AppRoutes />
       </SystemModulesProvider>
     </Router>

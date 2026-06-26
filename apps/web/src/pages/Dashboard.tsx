@@ -6,7 +6,7 @@ export default function Dashboard() {
   const doctor = 'Dr. Alfonso Rodriguez Rojas';
 
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     if (!token) navigate('/');
   }, [navigate]);
 

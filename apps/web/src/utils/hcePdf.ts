@@ -254,6 +254,12 @@ export function generateHcePdf({
   const professionalCmp = cleanPrefix(professionalCmpRaw, 'CMP');
   const professionalRne = cleanPrefix(professionalRneRaw, 'RNE');
   const hceNumber = getPatientHceNumber(patient);
+  const encounterNumber =
+    safeText(
+      formData?.encounterNumber ||
+        formData?.attentionNumber ||
+        formData?.encounterId,
+    ) || '-';
 
   const primaryColor = institution?.primaryColor || '#0f766e';
 
@@ -543,6 +549,7 @@ export function generateHcePdf({
         <div class="section-title">Datos de atención</div>
         <div class="grid">
           <p class="field"><span class="label">Fecha de atención:</span> ${safeText(formData?.fechaAtencion)}</p>
+          <p class="field"><span class="label">N.&deg; de atenci&oacute;n:</span> ${encounterNumber}</p>
           <p class="field"><span class="label">Destino final:</span> ${safeText(formData?.destinoFinal)}</p>
           <p class="field"><span class="label">Profesional:</span> ${professionalName}</p>
           <p class="field"><span class="label">Tipo profesional:</span> ${professionalType || '-'}</p>

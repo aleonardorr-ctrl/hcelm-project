@@ -265,6 +265,101 @@ export class MedicationCatalogService {
     });
   }
 
+  async createOrUpdateLot(params: {
+    tenantId: string;
+    userId: string | null;
+    medicationId: string;
+    data: any;
+  }) {
+    const medication = await this.prisma.medication.findFirst({
+      where: { id: params.medicationId, tenantId: params.tenantId },
+      select: { id: true, internalCode: true, genericName: true },
+    });
+
+    if (!medication) {
+      throw new NotFoundException('Producto no encontrado.');
+    }
+
+    const businessUnit = this.code(params.data.businessUnit || params.data.unidad_negocio || 'FARMACIA');
+    const warehouse = this.textValue(params.data.warehouse || params.data.almacen || 'PRINCIPAL').toUpperCase();
+    const lotNumber = this.textValue(params.data.lotNumber || params.data.lote || 'SIN_LOTE').toUpperCase();
+    const currency = this.code(params.data.currency || params.data.moneda || 'PEN');
+
+    if (!['FARMACIA', 'DROGUERIA', 'CONSULTORIO'].includes(businessUnit)) {
+      throw new BadRequestException('Unidad de negocio no valida. Use FARMACIA, DROGUERIA o CONSULTORIO.');
+    }
+
+    if (!warehouse) throw new BadRequestException('Almacen obligatorio.');
+    if (!lotNumber) throw new BadRequestException('Lote obligatorio.');
+    if (!['PEN', 'USD'].includes(currency)) throw new BadRequestException('Moneda no valida. Use PEN o USD.');
+
+    const stock = this.number(String(params.data.stock ?? params.data.stock_inicial ?? ''), 0);
+    const minimumStock = this.number(String(params.data.minimumStock ?? params.data.stock_minimo ?? ''), 0);
+    const purchasePrice = this.nullableNumber(String(params.data.purchasePrice ?? params.data.precio_compra ?? ''));
+    const salePrice = this.nullableNumber(String(params.data.salePrice ?? params.data.precio_venta ?? ''));
+    const wholesalePrice = this.nullableNumber(String(params.data.wholesalePrice ?? params.data.precio_mayorista ?? ''));
+
+    if (stock < 0 || minimumStock < 0) {
+      throw new BadRequestException('Stock y stock minimo no pueden ser negativos.');
+    }
+
+    if ([purchasePrice, salePrice, wholesalePrice].some((price) => price !== null && price < 0)) {
+      throw new BadRequestException('Los precios no pueden ser negativos.');
+    }
+
+    let expirationDate: Date | null = null;
+    const expirationDateText = this.textValue(params.data.expirationDate || params.data.fecha_vencimiento);
+
+    if (expirationDateText) {
+      const parsed = this.date(expirationDateText);
+      expirationDate = parsed ? new Date(`${parsed}T00:00:00`) : null;
+    }
+
+    const lotData = {
+      businessUnit,
+      warehouse,
+      shelfCode: this.nullable(String(params.data.shelfCode || params.data.andamio || ''))?.toUpperCase() || null,
+      shelfLevel: this.nullable(String(params.data.shelfLevel || params.data.nivel_andamio || ''))?.toUpperCase() || null,
+      locationNotes: this.nullable(String(params.data.locationNotes || params.data.ubicacion_referencia || '')),
+      lotNumber,
+      expirationDate,
+      stock,
+      minimumStock,
+      purchasePrice,
+      salePrice,
+      wholesalePrice,
+      currency,
+      supplier: this.nullable(String(params.data.supplier || params.data.proveedor || '')),
+      active: params.data.active === false ? false : true,
+      source: 'Registro manual de lote',
+    };
+
+    const lot = await this.prisma.medicationInventoryLot.upsert({
+      where: {
+        tenantId_medicationId_businessUnit_warehouse_lotNumber: {
+          tenantId: params.tenantId,
+          medicationId: medication.id,
+          businessUnit,
+          warehouse,
+          lotNumber,
+        },
+      },
+      update: lotData,
+      create: {
+        tenantId: params.tenantId,
+        medicationId: medication.id,
+        createdById: params.userId,
+        ...lotData,
+      },
+    });
+
+    return {
+      message: 'Lote/stock registrado correctamente.',
+      product: medication,
+      lot,
+    };
+  }
+
   async generateTemplate() {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'HCELM - AME HEALTH SAC';

@@ -35,7 +35,7 @@ export default function IssueCertificate() {
 
   // Cargar pacientes al iniciar
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     fetch('http://localhost:3000/patients', { headers: { Authorization: `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => setPatients(Array.isArray(data) ? data : []));
@@ -72,7 +72,7 @@ export default function IssueCertificate() {
     if (diagnoses.length === 0) return alert('Agregue al menos un diagnóstico');
 
     setLoading(true);
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
 
     // Buscar los datos completos del paciente seleccionado
     const patientData = patients.find(p => p.id === selectedPatient);

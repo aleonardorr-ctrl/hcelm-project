@@ -1,4 +1,4 @@
-// HCELM - pages/NewEncounter.tsx
+﻿// HCELM - pages/NewEncounter.tsx
 // Módulo de nueva atención y registro de funciones vitales.
 
 import { useEffect, useMemo, useState } from "react";
@@ -67,7 +67,7 @@ const emptyForm: EncounterForm = {
 
 function getAuthToken() {
   return (
-    localStorage.getItem("ame_token") ||
+    sessionStorage.getItem('ame_token') ||
     localStorage.getItem("token") ||
     localStorage.getItem("access_token") ||
     localStorage.getItem("accessToken") ||
@@ -315,7 +315,17 @@ function calculateGlasgowTotal(
 }
 
 function getHceNumber(patient?: SelectedPatient | null): string {
-  const value = String(patient?.hceNumber || "").trim();
+  const value = String(
+    patient?.hceNumber ||
+      (patient as any)?.medicalRecordNumber ||
+      (patient as any)?.clinicalRecordNumber ||
+      (patient as any)?.historyNumber ||
+      sessionStorage.getItem("selectedHceNumber") ||
+      localStorage.getItem("selectedHceNumber") ||
+      patient?.documentNumber ||
+      "",
+  ).trim();
+
   return value || "HCE pendiente de generar";
 }
 
@@ -585,11 +595,66 @@ export default function NewEncounter() {
 
       const savedEncounter = await response.json();
 
-      localStorage.setItem("selectedEncounter", JSON.stringify(savedEncounter));
+const savedEncounterId = String(
+  savedEncounter?.id || savedEncounter?.encounterId || "",
+);
 
-      setSuccess("Atención y funciones vitales guardadas correctamente.");
+const savedPatientId = String(
+  savedEncounter?.patientId ||
+    payload.patientId ||
+    getBestPatientId(resolvedPatient) ||
+    patientIdFromUrl ||
+    "",
+);
 
-      navigate(`/anamnesis?encounterId=${savedEncounter.id}`);
+const normalizedEncounter = {
+  ...savedEncounter,
+  id: savedEncounterId,
+  encounterId: savedEncounterId,
+  patientId: savedPatientId,
+};
+
+localStorage.setItem("selectedEncounter", JSON.stringify(normalizedEncounter));
+sessionStorage.setItem("selectedEncounter", JSON.stringify(normalizedEncounter));
+
+localStorage.setItem("selectedEncounterId", savedEncounterId);
+sessionStorage.setItem("selectedEncounterId", savedEncounterId);
+
+localStorage.setItem("selectedPatientId", savedPatientId);
+sessionStorage.setItem("selectedPatientId", savedPatientId);
+
+if (resolvedPatient) {
+  const resolvedHceNumber = String(
+    resolvedPatient.hceNumber ||
+      (resolvedPatient as any).medicalRecordNumber ||
+      (resolvedPatient as any).clinicalRecordNumber ||
+      (resolvedPatient as any).historyNumber ||
+      (resolvedPatient as any).documentNumber ||
+      "",
+  ).trim();
+
+  const normalizedPatient = {
+    ...resolvedPatient,
+    id: savedPatientId,
+    patientId: savedPatientId,
+    hceNumber: resolvedHceNumber,
+    medicalRecordNumber: resolvedHceNumber,
+  };
+
+  localStorage.setItem("selectedPatient", JSON.stringify(normalizedPatient));
+  sessionStorage.setItem("selectedPatient", JSON.stringify(normalizedPatient));
+
+  if (resolvedHceNumber) {
+    localStorage.setItem("selectedHceNumber", resolvedHceNumber);
+    sessionStorage.setItem("selectedHceNumber", resolvedHceNumber);
+  }
+}
+
+setSuccess("Atenci\u00f3n y funciones vitales guardadas correctamente.");
+
+navigate(
+  `/anamnesis?patientId=${savedPatientId}&encounterId=${savedEncounterId}`,
+);
     } catch (err) {
       console.error(err);
       setError(
@@ -680,7 +745,7 @@ export default function NewEncounter() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-blue-700">
-              🩺 Nueva atención + funciones vitales
+              Nueva atención + funciones vitales
             </h2>
             <p className="text-sm text-gray-500 mt-1">
               Registro inicial de atención, triaje y signos vitales.
@@ -1143,3 +1208,4 @@ export default function NewEncounter() {
     </div>
   );
 }
+

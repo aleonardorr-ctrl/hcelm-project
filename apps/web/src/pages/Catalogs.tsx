@@ -124,7 +124,7 @@ const actionClasses: Record<ImportAction, string> = {
 };
 
 function getToken() {
-  return localStorage.getItem('ame_token') || '';
+  return sessionStorage.getItem('ame_token') || '';
 }
 
 async function readError(response: Response, fallback: string) {
@@ -559,3 +559,4 @@ export default function Catalogs() {
     </div>
   );
 }
+

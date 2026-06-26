@@ -14,7 +14,7 @@ export default function Consultas() {
   const [loadingPatients, setLoadingPatients] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     if (!token) {
       window.location.href = '/';
       return;
@@ -37,7 +37,7 @@ export default function Consultas() {
    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
 
     const payload = {
       patientId: selectedPatient,

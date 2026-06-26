@@ -143,7 +143,7 @@ export default function ClinicalAlertsPanel({
   const clinicalContext = data?.clinicalContext;
 
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
 
     if (!token) return;
 
@@ -186,7 +186,7 @@ export default function ClinicalAlertsPanel({
   }, [patientId, encounterId]);
 
   const openReference = async (referenceKey: string) => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
 
     if (!token) return;
 
@@ -369,3 +369,4 @@ export default function ClinicalAlertsPanel({
     </>
   );
 }
+

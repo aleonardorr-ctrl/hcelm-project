@@ -332,7 +332,7 @@ function ClinicalNavigationSlot() {
 
   const clinicalPaths = [
     '/patients',
-    '/encounters/new',
+    '/new-encounter',
     '/anamnesis',
     '/certificates',
   ];

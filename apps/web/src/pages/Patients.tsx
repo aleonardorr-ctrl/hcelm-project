@@ -111,7 +111,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 function getAuthToken() {
   return (
-    localStorage.getItem("ame_token") ||
+    sessionStorage.getItem('ame_token') ||
     localStorage.getItem("token") ||
     localStorage.getItem("access_token") ||
     localStorage.getItem("accessToken") ||
@@ -1003,7 +1003,7 @@ export default function Patients() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-2xl font-bold text-blue-700">
-              👥 Módulo de Pacientes
+              Módulo de Pacientes
             </h2>
             <p className="text-sm text-gray-500 mt-1">
               Registro, búsqueda, edición, selección e historial de atenciones.
@@ -1103,7 +1103,7 @@ export default function Patients() {
             <div className="flex flex-col gap-2 border-b bg-slate-50 px-6 py-4 md:flex-row md:items-start md:justify-between rounded-t-xl">
               <div>
                 <h3 className="text-xl font-bold text-gray-800">
-                  📋 Historial clínico de{" "}
+                  Historial clínico de{" "}
                   {historyPatient
                     ? getFullName(historyPatient)
                     : "paciente seleccionado"}
@@ -1225,7 +1225,7 @@ export default function Patients() {
             <div className="flex flex-col gap-2 border-b bg-cyan-50 px-6 py-4 md:flex-row md:items-start md:justify-between rounded-t-xl">
               <div>
                 <h3 className="text-xl font-bold text-cyan-900">
-                  🩺 Resumen clínico de {getFullName(summaryPatient)}
+                  Resumen clínico de {getFullName(summaryPatient)}
                 </h3>
                 <p className="text-sm text-cyan-800">
                   Información rápida para orientar la atención antes de abrir la
@@ -1798,3 +1798,4 @@ export default function Patients() {
     </div>
   );
 }
+

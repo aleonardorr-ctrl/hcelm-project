@@ -32,7 +32,7 @@ type DiagnosisSearchResult = {
 };
 
 function getSelectedEncounter() {
-  const raw = localStorage.getItem("selectedEncounter");
+  const raw = sessionStorage.getItem("selectedEncounter") || localStorage.getItem("selectedEncounter");
 
   if (!raw) return null;
 
@@ -221,9 +221,9 @@ export default function Anamnesis() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("ame_token");
+    const token = sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
 
-    const selectedPatientRaw = localStorage.getItem("selectedPatient");
+    const selectedPatientRaw = sessionStorage.getItem("selectedPatient") || localStorage.getItem("selectedPatient");
     const selectedEncounter = getSelectedEncounter();
     const selectedPatient = selectedPatientRaw
       ? JSON.parse(selectedPatientRaw)
@@ -283,7 +283,7 @@ export default function Anamnesis() {
   useEffect(() => {
     if (!encounterIdFromUrl) return;
 
-    const token = localStorage.getItem("ame_token");
+    const token = sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
 
     fetch(`${API_URL}/anamnesis/by-encounter/${encounterIdFromUrl}`, {
       headers: {
@@ -390,7 +390,7 @@ export default function Anamnesis() {
       return;
     }
 
-    const token = localStorage.getItem("ame_token");
+    const token = sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
     if (!token) return;
 
     const controller = new AbortController();
@@ -441,7 +441,7 @@ export default function Anamnesis() {
       return;
     }
 
-    const token = localStorage.getItem("ame_token");
+    const token = sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
 
     if (!token) {
       setMedResults([]);
@@ -559,7 +559,7 @@ export default function Anamnesis() {
   const searchMedication = async () => {
   if (!medSearch.trim()) return alert("Ingrese un medicamento para buscar");
 
-  const token = localStorage.getItem("ame_token");
+  const token = sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
 
   if (!token) {
     alert("No hay token de sesión. Vuelva a iniciar sesión.");
@@ -824,7 +824,7 @@ export default function Anamnesis() {
     setSaving(true);
 
     try {
-      const token = localStorage.getItem("ame_token");
+      const token = sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
 
       const res = await fetch(`${API_URL}/anamnesis`, {
         method: "POST",
@@ -870,11 +870,72 @@ export default function Anamnesis() {
 
     if (!confirmFinish) return;
 
-    const ok = await saveAnamnesis();
+    const encounterId = String(
+      formData.encounterId ||
+        encounterIdFromUrl ||
+        getSelectedEncounter()?.id ||
+        "",
+    ).trim();
 
-    if (ok) {
+    if (!encounterId) {
+      alert("No se encontró el número de atención. No se puede finalizar.");
+      return;
+    }
+
+    const saved = await saveAnamnesis();
+    if (!saved) return;
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        alert("La sesión ha vencido. Ingrese nuevamente.");
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/encounters/${encounterId}/attended`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "No se pudo finalizar la atención.",
+        );
+      }
+
+      const keysToClear = [
+        "selectedPatient",
+        "selectedPatientId",
+        "selectedEncounter",
+        "selectedEncounterId",
+        "selectedHceNumber",
+      ];
+
+      keysToClear.forEach((key) => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+
+      window.dispatchEvent(new Event("waiting-room-refresh"));
       alert("Atención finalizada correctamente.");
-      window.location.href = "/patients";
+      navigate("/patients", { replace: true });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo finalizar la atención.";
+
+      alert(message);
     }
   };
 
@@ -883,14 +944,69 @@ export default function Anamnesis() {
     await handleSaveChanges();
   };
 
-  const currentPatient =
+  const selectedPatientFromStorage: any = (() => {
+    const raw =
+      sessionStorage.getItem("selectedPatient") ||
+      localStorage.getItem("selectedPatient");
+
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  })();
+
+  const currentPatientFromList =
     patients.find((p) => String(p.id) === String(formData.patientId)) || null;
 
-  const currentHceNumber =
+  const currentPatient =
+    currentPatientFromList ||
+    (selectedPatientFromStorage
+      ? {
+          ...selectedPatientFromStorage,
+          id: selectedPatientFromStorage.id || selectedPatientFromStorage.patientId,
+          fullName:
+            selectedPatientFromStorage.fullName ||
+            selectedPatientFromStorage.name ||
+            [
+              selectedPatientFromStorage.lastName,
+              selectedPatientFromStorage.secondLastName,
+              selectedPatientFromStorage.firstName,
+            ]
+              .filter(Boolean)
+              .join(" ") ||
+            [
+              selectedPatientFromStorage.paternalSurname,
+              selectedPatientFromStorage.maternalSurname,
+              selectedPatientFromStorage.names,
+            ]
+              .filter(Boolean)
+              .join(" ") ||
+            "Paciente sin nombre",
+        }
+      : null);
+
+  const currentHceNumber = String(
     currentPatient?.hceNumber ||
-    currentPatient?.hce ||
-    currentPatient?.hceDigital ||
-    "HCE pendiente de generar";
+      (currentPatient as any)?.medicalRecordNumber ||
+      (currentPatient as any)?.clinicalRecordNumber ||
+      (currentPatient as any)?.historyNumber ||
+      (currentPatient as any)?.hce ||
+      (currentPatient as any)?.hceDigital ||
+      selectedPatientFromStorage?.hceNumber ||
+      selectedPatientFromStorage?.medicalRecordNumber ||
+      selectedPatientFromStorage?.clinicalRecordNumber ||
+      selectedPatientFromStorage?.historyNumber ||
+      selectedPatientFromStorage?.hce ||
+      selectedPatientFromStorage?.hceDigital ||
+      sessionStorage.getItem("selectedHceNumber") ||
+      localStorage.getItem("selectedHceNumber") ||
+      currentPatient?.documentNumber ||
+      selectedPatientFromStorage?.documentNumber ||
+      "HCE pendiente de generar",
+  ).trim();
 
   const currentPatientDocument = currentPatient
     ? `${currentPatient.documentType || "Documento"}: ${

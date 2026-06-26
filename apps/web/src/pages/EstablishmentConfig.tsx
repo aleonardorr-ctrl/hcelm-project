@@ -11,7 +11,7 @@ export default function EstablishmentConfig() {
   }, []);
 
   const fetchConfig = async () => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     try {
       const res = await fetch('http://localhost:3000/establishment', {
         headers: { Authorization: `Bearer ${token}` }
@@ -48,7 +48,7 @@ export default function EstablishmentConfig() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     
     try {
       const res = await fetch('http://localhost:3000/establishment', {

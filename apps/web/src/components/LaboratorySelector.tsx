@@ -29,7 +29,7 @@ type LaboratorySelectorProps = {
 };
 
 function getToken() {
-  return localStorage.getItem('ame_token') || '';
+  return sessionStorage.getItem('ame_token') || '';
 }
 
 function normalize(value: string) {
@@ -274,3 +274,4 @@ export default function LaboratorySelector({
     </div>
   );
 }
+

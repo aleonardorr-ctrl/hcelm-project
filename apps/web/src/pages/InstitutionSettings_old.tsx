@@ -43,7 +43,7 @@ export default function InstitutionSettings() {
 
   // Cargar datos al iniciar
   useEffect(() => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     Promise.all([
       fetch('http://localhost:3000/institution', { headers: { Authorization: `Bearer ${token}` } }),
       fetch('http://localhost:3000/institution/users', { headers: { Authorization: `Bearer ${token}` } }),
@@ -74,7 +74,7 @@ export default function InstitutionSettings() {
     
     setSaving(true);
     try {
-      const token = localStorage.getItem('ame_token');
+      const token = sessionStorage.getItem('ame_token');
       const res = await fetch('http://localhost:3000/institution/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -97,7 +97,7 @@ export default function InstitutionSettings() {
   };
 
   const toggleUserActive = async (userId: string, current: boolean) => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     await fetch(`http://localhost:3000/institution/users/${userId}/toggle`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
@@ -108,7 +108,7 @@ export default function InstitutionSettings() {
 
   const saveAll = async () => {
     setSaving(true);
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
     
     try {
       // Guardar datos institucionales

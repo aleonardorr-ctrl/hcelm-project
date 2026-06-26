@@ -78,6 +78,20 @@ export class MedicationCatalogController {
     });
   }
 
+  @Post('catalog/:id/lots')
+  createOrUpdateLot(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.service.createOrUpdateLot({
+      tenantId: this.getTenantId(req),
+      userId: this.getUserId(req),
+      medicationId: id,
+      data: body,
+    });
+  }
+
   @Patch('catalog/:id/status')
   changeStatus(
     @Request() req: any,

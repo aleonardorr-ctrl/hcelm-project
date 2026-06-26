@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 type ClinicalNavigationProps = {
   patientId?: string;
@@ -10,7 +10,49 @@ type ClinicalNavItem = {
   label: string;
   to: string;
   emoji: string;
+  disabled?: boolean;
+  helper?: string;
 };
+
+function getStoredObjectId(storageKey: string): string {
+  const raw =
+    sessionStorage.getItem(storageKey) || localStorage.getItem(storageKey);
+
+  if (!raw) return '';
+
+  try {
+    const parsed = JSON.parse(raw);
+
+    return String(parsed?.id || parsed?.patientId || parsed?.encounterId || '');
+  } catch {
+    return '';
+  }
+}
+
+function getStoredPatientName(): string {
+  const raw =
+    sessionStorage.getItem('selectedPatient') ||
+    localStorage.getItem('selectedPatient');
+
+  if (!raw) return '';
+
+  try {
+    const patient = JSON.parse(raw);
+
+    const fullName =
+      patient?.fullName ||
+      [patient?.lastName, patient?.secondLastName, patient?.firstName]
+        .filter(Boolean)
+        .join(' ') ||
+      [patient?.paternalSurname, patient?.maternalSurname, patient?.names]
+        .filter(Boolean)
+        .join(' ');
+
+    return fullName || '';
+  } catch {
+    return '';
+  }
+}
 
 export default function ClinicalNavigation({
   patientId,
@@ -19,18 +61,30 @@ export default function ClinicalNavigation({
 }: ClinicalNavigationProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const patientIdFromUrl = searchParams.get('patientId') || '';
+  const encounterIdFromUrl = searchParams.get('encounterId') || '';
 
   const selectedPatientId =
     patientId ||
+    patientIdFromUrl ||
     sessionStorage.getItem('selectedPatientId') ||
     localStorage.getItem('selectedPatientId') ||
+    getStoredObjectId('selectedPatient') ||
     '';
 
   const selectedEncounterId =
     encounterId ||
+    encounterIdFromUrl ||
     sessionStorage.getItem('selectedEncounterId') ||
     localStorage.getItem('selectedEncounterId') ||
+    getStoredObjectId('selectedEncounter') ||
     '';
+
+  const activePatientName = patientName || getStoredPatientName();
+
+  const hasPatient = Boolean(selectedPatientId);
 
   const clinicalItems: ClinicalNavItem[] = [
     {
@@ -40,23 +94,29 @@ export default function ClinicalNavigation({
     },
     {
       label: 'Nueva atención',
-      to: selectedPatientId
-        ? `/encounters/new?patientId=${selectedPatientId}`
+      to: hasPatient
+        ? `/new-encounter?patientId=${selectedPatientId}`
         : '/patients',
       emoji: '➕',
+      disabled: !hasPatient,
+      helper: 'Primero seleccione un paciente',
     },
     {
       label: 'Anamnesis / HCE',
-      to: selectedPatientId
+      to: hasPatient
         ? `/anamnesis?patientId=${selectedPatientId}${
             selectedEncounterId ? `&encounterId=${selectedEncounterId}` : ''
           }`
         : '/patients',
       emoji: '🩺',
+      disabled: !hasPatient,
+      helper: 'Primero seleccione un paciente',
     },
     {
       label: 'Certificados',
-      to: '/certificates',
+      to: hasPatient
+        ? `/certificates?patientId=${selectedPatientId}`
+        : '/certificates',
       emoji: '📄',
     },
     {
@@ -88,33 +148,52 @@ export default function ClinicalNavigation({
           </h2>
 
           <p className="text-sm text-slate-500 mt-1">
-            Pacientes, nueva atención, anamnesis, recetas, órdenes y
-            certificados.
+            Pacientes, nueva atención, anamnesis, recetas, órdenes y certificados.
           </p>
 
-          {patientName ? (
+          {hasPatient ? (
             <p className="text-sm text-emerald-700 font-semibold mt-2">
-              Paciente activo: {patientName}
+              Paciente activo:{' '}
+              {activePatientName || `ID ${selectedPatientId}`}
             </p>
-          ) : null}
+          ) : (
+            <p className="text-sm text-amber-700 font-semibold mt-2">
+              No hay paciente activo. Seleccione un paciente para abrir nueva atención o anamnesis.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
           {clinicalItems.map((item) => {
+            const basePath = item.to.split('?')[0];
+
             const isActive =
-              location.pathname === item.to ||
-              location.pathname.startsWith(item.to.split('?')[0]);
+              location.pathname === basePath ||
+              location.pathname.startsWith(`${basePath}/`);
+
+            const className = item.disabled
+              ? 'px-3 py-2 rounded-lg bg-slate-100 text-slate-400 text-sm font-semibold cursor-not-allowed'
+              : isActive
+                ? 'px-3 py-2 rounded-lg bg-cyan-700 text-white text-sm font-semibold shadow-sm'
+                : 'px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition';
+
+            if (item.disabled) {
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  className={className}
+                  title={item.helper}
+                  onClick={() => navigate('/patients')}
+                >
+                  <span className="mr-1">{item.emoji}</span>
+                  {item.label}
+                </button>
+              );
+            }
 
             return (
-              <Link
-                key={item.label}
-                to={item.to}
-                className={
-                  isActive
-                    ? 'px-3 py-2 rounded-lg bg-cyan-700 text-white text-sm font-semibold shadow-sm'
-                    : 'px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition'
-                }
-              >
+              <Link key={item.label} to={item.to} className={className}>
                 <span className="mr-1">{item.emoji}</span>
                 {item.label}
               </Link>

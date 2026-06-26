@@ -67,7 +67,7 @@ const issueLabels: Record<string, string> = {
 
 function getAuthHeaders(): HeadersInit {
   const token =
-    localStorage.getItem('ame_token') ||
+    sessionStorage.getItem('ame_token') ||
     localStorage.getItem('token') ||
     localStorage.getItem('accessToken') ||
     localStorage.getItem('hcelm_token') ||
@@ -677,3 +677,4 @@ export default function DataQuality() {
     </div>
   );
 }
+

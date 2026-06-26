@@ -132,7 +132,7 @@ export default function InstitutionSettings() {
   );
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('ame_token');
+    const token = sessionStorage.getItem('ame_token');
 
     return {
       'Content-Type': 'application/json',
@@ -1181,3 +1181,4 @@ function SaveButton({
     </div>
   );
 }
+

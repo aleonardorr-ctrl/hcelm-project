@@ -153,7 +153,7 @@ export default function WaitingRoomPanel({
   const [showFinished, setShowFinished] = useState(false);
   const [error, setError] = useState("");
 
-  const token = localStorage.getItem("ame_token");
+  const token = sessionStorage.getItem("ame_token");
 
   const loadWaitingRoom = async () => {
     if (!token) return;
@@ -213,25 +213,47 @@ export default function WaitingRoomPanel({
   const openEncounter = async (row: WaitingRoomPatient) => {
     if (!row.encounterId || !row.patientId) return;
 
-    if (row.patient) {
-      localStorage.setItem(
-        "selectedPatient",
-        JSON.stringify({
-          ...row.patient,
-          id: row.patient.id || row.patientId,
-        }),
-      );
-    }
+    const hceNumber = String(
+      (row.patient as any)?.hceNumber ||
+        (row.patient as any)?.medicalRecordNumber ||
+        (row.patient as any)?.clinicalRecordNumber ||
+        (row.patient as any)?.historyNumber ||
+        row.patient?.documentNumber ||
+        "",
+    ).trim();
 
-    localStorage.setItem(
-      "selectedEncounter",
-      JSON.stringify({
-        id: row.encounterId,
-        patientId: row.patientId,
-        reason: row.reason || "",
-        vitalSigns: normalizeVitalSigns(row),
-      }),
-    );
+    const normalizedPatient = {
+      ...(row.patient || {}),
+      id: row.patient?.id || row.patientId,
+      patientId: row.patientId,
+      hceNumber,
+      medicalRecordNumber: hceNumber,
+    };
+
+    const normalizedEncounter = {
+      id: row.encounterId,
+      encounterId: row.encounterId,
+      patientId: row.patientId,
+      reason: row.reason || "",
+      vitalSigns: normalizeVitalSigns(row),
+    };
+
+    localStorage.setItem("selectedPatient", JSON.stringify(normalizedPatient));
+    sessionStorage.setItem("selectedPatient", JSON.stringify(normalizedPatient));
+
+    localStorage.setItem("selectedPatientId", row.patientId);
+    sessionStorage.setItem("selectedPatientId", row.patientId);
+
+    localStorage.setItem("selectedEncounter", JSON.stringify(normalizedEncounter));
+    sessionStorage.setItem("selectedEncounter", JSON.stringify(normalizedEncounter));
+
+    localStorage.setItem("selectedEncounterId", row.encounterId);
+    sessionStorage.setItem("selectedEncounterId", row.encounterId);
+
+    if (hceNumber) {
+      localStorage.setItem("selectedHceNumber", hceNumber);
+      sessionStorage.setItem("selectedHceNumber", hceNumber);
+    }
 
     if (row.status === "triado") {
       try {
@@ -244,11 +266,11 @@ export default function WaitingRoomPanel({
 
         window.dispatchEvent(new Event("waiting-room-refresh"));
       } catch (err) {
-        console.warn("No se pudo marcar la atención como en atención:", err);
+        console.warn("No se pudo marcar la atencion como en atencion:", err);
       }
     }
 
-    navigate(`/anamnesis?encounterId=${row.encounterId}`);
+    navigate(`/anamnesis?patientId=${row.patientId}&encounterId=${row.encounterId}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -456,6 +478,39 @@ export default function WaitingRoomPanel({
       )}
 
       <div className="mt-4 space-y-3">
+        {activePatients.length > 0 && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <label className="mb-1 block text-sm font-bold text-slate-700">
+              Seleccionar paciente en espera
+            </label>
+            <select
+              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+              defaultValue=""
+              onChange={(event) => {
+                const encounterId = event.target.value;
+                if (!encounterId) return;
+
+                const selected = activePatients.find(
+                  (item) => String(item.encounterId) === String(encounterId),
+                );
+
+                if (selected) {
+                  openEncounter(selected);
+                }
+              }}
+            >
+              <option value="">-- Seleccione paciente de la lista de espera --</option>
+              {activePatients.map((row) => (
+                <option key={row.encounterId} value={row.encounterId}>
+                  #{row.priorityPosition || row.position || "-"} - {row.patient?.fullName || "Paciente sin nombre"} - {row.statusLabel || row.status || "TRIADO"}
+                {" | Hora: "}
+                {formatTime(row.triageTime || row.createdAt)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {activePatients.length === 0 ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
             No hay pacientes pendientes o activos en la lista de espera.
@@ -492,3 +547,4 @@ export default function WaitingRoomPanel({
     </section>
   );
 }
+

@@ -10,8 +10,6 @@ import {
   useState,
 } from 'react';
 import type {
-  CSSProperties,
-  MouseEvent as ReactMouseEvent,
   ReactElement,
   ReactNode,
 } from 'react';
@@ -37,7 +35,6 @@ import ProfessionalVerification from './pages/ProfessionalVerification';
 import {
   clearAuthSession,
   getAuthToken,
-  getSessionItem,
   hasProfessionalVerification,
   hasValidToken,
 } from './lib/auth';
@@ -251,145 +248,81 @@ function ModulePlaceholder({ title, description }: { title: string; description:
 
 function Navbar() {
   const location = useLocation();
-  const { loading, modules } = useSystemModules();
 
-  if (
+  const isAuthPage =
     location.pathname === '/login' ||
-    location.pathname === '/professional-verification'
-  ) {
+    location.pathname === '/professional-verification';
+
+  if (isAuthPage) {
     return null;
   }
 
-  const professionalName = getSessionItem('hcelm_professional_name');
-  const professionalCmp = getSessionItem('hcelm_professional_cmp');
+  const userName =
+    sessionStorage.getItem('hcelm_professional_name') ||
+    sessionStorage.getItem('hcelm_user_name') ||
+    'Usuario HCELM';
 
-  const isActive = (path: string) => {
-    if (path === '/home') return location.pathname === '/home';
-    return location.pathname.startsWith(path);
-  };
+  const tenantName =
+    sessionStorage.getItem('hcelm_tenant_name') || 'Tenant activo';
 
-  const linkStyle = (path: string): CSSProperties => ({
-    color: 'white',
-    textDecoration: 'none',
-    padding: '8px 12px',
-    borderRadius: '8px',
-    fontWeight: isActive(path) ? 'bold' : 'normal',
-    background: isActive(path) ? 'rgba(255,255,255,0.28)' : 'transparent',
-    borderBottom: isActive(path) ? '2px solid white' : '2px solid transparent',
-    transition: 'all 0.2s ease',
-  });
+  const companyName =
+    sessionStorage.getItem('hcelm_company_name') || 'Empresa activa';
 
-  const handleMouseEnter = (event: ReactMouseEvent<HTMLAnchorElement>) => {
-    event.currentTarget.style.background = 'rgba(255,255,255,0.20)';
-    event.currentTarget.style.transform = 'translateY(-1px)';
-  };
+  const roleName =
+    sessionStorage.getItem('hcelm_professional_role') ||
+    sessionStorage.getItem('hcelm_user_role') ||
+    'Rol operativo';
 
-  const handleMouseLeave = (
-    event: ReactMouseEvent<HTMLAnchorElement>,
-    path: string,
-  ) => {
-    event.currentTarget.style.background = isActive(path)
-      ? 'rgba(255,255,255,0.28)'
-      : 'transparent';
-    event.currentTarget.style.transform = 'translateY(0)';
-  };
-
-  const logout = () => {
+  const handleLogout = () => {
     clearAuthSession();
     window.location.href = '/login';
   };
 
-  const MenuLink = ({ to, label }: { to: string; label: string }) => (
-    <Link
-      to={to}
-      style={linkStyle(to)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={(event) => handleMouseLeave(event, to)}
-    >
-      {label}
-    </Link>
-  );
-
-  const catalogsEnabled =
-    modules.CLINICAL || modules.PHARMACY || modules.DRUGSTORE;
-
   return (
-    <nav style={{ background: '#0f766e', padding: '14px', color: 'white' }}>
-      <div
-        style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-        }}
-      >
-        <span style={{ fontWeight: 'bold', fontSize: '18px', marginRight: '8px' }}>
-          AME HEALTH
-        </span>
+    <header className="bg-slate-950 text-white border-b border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link to="/home" className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-cyan-500 flex items-center justify-center font-black text-slate-950">
+              H
+            </div>
 
-        <MenuLink to="/home" label="Inicio" />
+            <div>
+              <p className="font-bold leading-5">HCELM Plataforma</p>
+              <p className="text-xs text-slate-300">
+                Sistema integral multiempresa
+              </p>
+            </div>
+          </Link>
+        </div>
 
-        {!loading && modules.CLINICAL && (
-          <>
-            <MenuLink to="/patients" label="Pacientes" />
-            <MenuLink to="/anamnesis" label="Anamnesis" />
-            <MenuLink to="/certificates" label="Certificados" />
-          </>
-        )}
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 text-xs md:text-sm">
+          <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
+            <span className="text-slate-400">Tenant:</span>{' '}
+            <span className="font-semibold">{tenantName}</span>
+          </div>
 
-        {!loading && modules.PHARMACY && (
-          <MenuLink to="/pharmacy" label="Farmacia" />
-        )}
-        {!loading && modules.DRUGSTORE && (
-          <MenuLink to="/drugstore" label="Drogueria" />
-        )}
-        {!loading && modules.BILLING && (
-          <MenuLink to="/billing" label="Caja" />
-        )}
-        {!loading && modules.MANAGEMENT && (
-          <MenuLink to="/management" label="Gerencia" />
-        )}
+          <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
+            <span className="text-slate-400">Empresa:</span>{' '}
+            <span className="font-semibold">{companyName}</span>
+          </div>
 
-        {!loading && catalogsEnabled && (
-          <MenuLink to="/admin/catalogs" label="Catalogos maestros" />
-        )}
-        {!loading && modules.CLINICAL && (
-          <MenuLink to="/admin/data-quality" label="Calidad de datos" />
-        )}
+          <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
+            <span className="text-slate-400">Usuario:</span>{' '}
+            <span className="font-semibold">{userName}</span>
+            <span className="text-slate-500"> / {roleName}</span>
+          </div>
 
-        <MenuLink to="/institution" label="Configuracion" />
-        <MenuLink to="/professional-verification" label="Profesional" />
-
-        {professionalName && (
-          <span style={{ marginLeft: 'auto', fontSize: '13px', opacity: 0.95 }}>
-            {professionalName} {professionalCmp ? `| ${professionalCmp}` : ''}
-          </span>
-        )}
-
-        <button
-          onClick={logout}
-          style={{
-            background: 'rgba(255,255,255,0.2)',
-            border: '1px solid white',
-            color: 'white',
-            padding: '7px 14px',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-          }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.background = 'rgba(255,255,255,0.32)';
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-          }}
-        >
-          Salir
-        </button>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2 font-semibold transition"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </div>
-    </nav>
+    </header>
   );
 }
 

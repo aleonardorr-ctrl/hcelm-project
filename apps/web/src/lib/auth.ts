@@ -9,6 +9,11 @@ const PROFESSIONAL_KEYS = [
   'hcelm_professional_rne',
   'hcelm_professional_license',
   'hcelm_professional_role',
+  'hcelm_require_professional_verification',
+  'hcelm_tenant_name',
+  'hcelm_company_name',
+  'hcelm_user_name',
+  'hcelm_user_role',
 ];
 
 export function clearAuthSession() {

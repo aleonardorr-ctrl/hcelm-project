@@ -5,11 +5,12 @@ import { Module } from '@nestjs/common';
 import { SystemModuleAccessModule } from '../common/system-modules/system-module-access.module';
 import { MedicationCatalogController } from './medication-catalog.controller';
 import { MedicationCatalogService } from './medication-catalog.service';
+import { MedicationInventoryService } from './medication-inventory.service';
 
 @Module({
   imports: [SystemModuleAccessModule],
   controllers: [MedicationCatalogController],
-  providers: [MedicationCatalogService],
-  exports: [MedicationCatalogService],
+  providers: [MedicationCatalogService, MedicationInventoryService],
+  exports: [MedicationCatalogService, MedicationInventoryService],
 })
 export class MedicationCatalogModule {}

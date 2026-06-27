@@ -19,12 +19,18 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequireSystemModules } from '../common/system-modules/require-system-modules.decorator';
 import { SystemModuleGuard } from '../common/system-modules/system-module.guard';
 import { MedicationCatalogService } from './medication-catalog.service';
+import { MedicationInventoryService } from './medication-inventory.service';
 
 @ApiTags('Maestro corporativo de farmacia')
 @ApiBearerAuth('access-token')
@@ -32,7 +38,10 @@ import { MedicationCatalogService } from './medication-catalog.service';
 @RequireSystemModules('PHARMACY', 'DRUGSTORE')
 @Controller('medication-catalog')
 export class MedicationCatalogController {
-  constructor(private readonly service: MedicationCatalogService) {}
+  constructor(
+    private readonly service: MedicationCatalogService,
+    private readonly inventoryService: MedicationInventoryService,
+  ) {}
 
   @Get('catalog')
   listCatalog(
@@ -48,6 +57,36 @@ export class MedicationCatalogController {
       query,
       status,
       productType,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
+  }
+
+  @Get('catalog/:id/kardex')
+  getMedicationKardex(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '50',
+  ) {
+    return this.inventoryService.listKardex({
+      tenantId: this.getTenantId(req),
+      medicationId: id,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
+  }
+
+  @Get('lots/:lotId/kardex')
+  getLotKardex(
+    @Request() req: any,
+    @Param('lotId') lotId: string,
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '50',
+  ) {
+    return this.inventoryService.listKardex({
+      tenantId: this.getTenantId(req),
+      lotId,
       page: Number(page),
       pageSize: Number(pageSize),
     });
@@ -106,7 +145,9 @@ export class MedicationCatalogController {
   }
 
   @Get('template')
-  @ApiOperation({ summary: 'Descargar plantilla corporativa de productos y lotes' })
+  @ApiOperation({
+    summary: 'Descargar plantilla corporativa de productos y lotes',
+  })
   async downloadTemplate(@Res({ passthrough: true }) response: Response) {
     const template = await this.service.generateTemplate();
 

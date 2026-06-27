@@ -10,28 +10,33 @@ datasource db {
 }
 
 model Tenant {
-  id                 String                   @id @default(uuid()) @db.Uuid
-  name               String
-  ruc                String                   @unique
-  active             Boolean                  @default(true)
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-  anamnesis          Anamnesis[]
-  certificates       Certificate[]
-  encounters         Encounter[]
-  establishments     Establishment?
-  hceConfigs         HceConfig?
-  institutions       Institution?
-  medications        Medication[]
-  medicationLots     MedicationInventoryLot[]
-  patients           Patient[]
-  prescriptions      Prescription[]
-  users              User[]
-  diagnosisCatalogs  DiagnosisCatalog[]
-  catalogImports     CatalogImport[]
-  clinicalAlertRules ClinicalAlertRule[]
-  laboratoryCatalogs LaboratoryCatalog[]
-  systemModules      TenantSystemModule[]
+  id                     String                   @id @default(uuid()) @db.Uuid
+  name                   String
+  ruc                    String                   @unique
+  active                 Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  anamnesis              Anamnesis[]
+  certificates           Certificate[]
+  encounters             Encounter[]
+  establishments         Establishment?
+  hceConfigs             HceConfig?
+  institutions           Institution?
+  medications            Medication[]
+  medicationLots         MedicationInventoryLot[]
+  patients               Patient[]
+  prescriptions          Prescription[]
+  users                  User[]
+  diagnosisCatalogs      DiagnosisCatalog[]
+  catalogImports         CatalogImport[]
+  clinicalAlertRules     ClinicalAlertRule[]
+  laboratoryCatalogs     LaboratoryCatalog[]
+  systemModules          TenantSystemModule[]
+  companies              Company[]
+  businessUnits          BusinessUnit[]
+  warehouses             Warehouse[]
+  companyMedications     CompanyMedication[]
+  userCompanyMemberships UserCompanyMembership[]
 }
 
 model User {
@@ -55,6 +60,7 @@ model User {
   laboratoryCatalogsCreated LaboratoryCatalog[]      @relation("LaboratoryCatalogCreatedBy")
   medicationsCreated        Medication[]             @relation("MedicationCreatedBy")
   medicationLotsCreated     MedicationInventoryLot[] @relation("MedicationLotCreatedBy")
+  companyMemberships        UserCompanyMembership[]
 }
 
 model Patient {
@@ -308,6 +314,7 @@ model Medication {
   createdByUser     User?                    @relation("MedicationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   prescriptionItems PrescriptionItem[]
   inventoryLots     MedicationInventoryLot[]
+  companyProfiles   CompanyMedication[]
 
   @@unique([tenantId, internalCode])
   @@index([tenantId, masterCode])
@@ -341,9 +348,17 @@ model MedicationInventoryLot {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  medication    Medication @relation(fields: [medicationId], references: [id], onDelete: Cascade)
-  createdByUser User?      @relation("MedicationLotCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  medication          Medication         @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  createdByUser       User?              @relation("MedicationLotCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  companyId           String?            @db.Uuid
+  businessUnitId      String?            @db.Uuid
+  warehouseId         String?            @db.Uuid
+  companyMedicationId String?            @db.Uuid
+  company             Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  businessUnitEntity  BusinessUnit?      @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  warehouseEntity     Warehouse?         @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  companyMedication   CompanyMedication? @relation(fields: [companyMedicationId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, medicationId, businessUnit, warehouse, lotNumber])
   @@index([tenantId, businessUnit, warehouse, active])
@@ -549,4 +564,109 @@ model ClinicalAlertCondition {
   band ClinicalAlertBand @relation(fields: [bandId], references: [id], onDelete: Cascade)
 
   @@index([bandId, order])
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  code      String   @db.VarChar(30)
+  legalName String   @db.VarChar(180)
+  tradeName String?  @db.VarChar(180)
+  ruc       String   @db.VarChar(11)
+  active    Boolean  @default(true)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  businessUnits      BusinessUnit[]
+  warehouses         Warehouse[]
+  medicationProfiles CompanyMedication[]
+  userMemberships    UserCompanyMembership[]
+  inventoryLots      MedicationInventoryLot[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, ruc])
+  @@index([tenantId, active])
+}
+
+model BusinessUnit {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  companyId String   @db.Uuid
+  code      String   @db.VarChar(40)
+  name      String   @db.VarChar(160)
+  type      String   @db.VarChar(40)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouses    Warehouse[]
+  inventoryLots MedicationInventoryLot[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId, active])
+}
+
+model Warehouse {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  companyId      String   @db.Uuid
+  businessUnitId String   @db.Uuid
+  code           String   @db.VarChar(60)
+  name           String   @db.VarChar(160)
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit  BusinessUnit             @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  inventoryLots MedicationInventoryLot[]
+
+  @@unique([businessUnitId, code])
+  @@index([tenantId, companyId, businessUnitId, active])
+}
+
+model CompanyMedication {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  companyId    String   @db.Uuid
+  medicationId String   @db.Uuid
+  companySku   String?  @db.VarChar(60)
+  barcode      String?  @db.VarChar(80)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  medication    Medication               @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+  inventoryLots MedicationInventoryLot[]
+
+  @@unique([companyId, medicationId])
+  @@unique([companyId, companySku])
+  @@index([tenantId, companyId, active])
+  @@index([tenantId, barcode])
+}
+
+model UserCompanyMembership {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  companyId String   @db.Uuid
+  role      String   @default("USER") @db.VarChar(40)
+  isDefault Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([tenantId, companyId, active])
 }

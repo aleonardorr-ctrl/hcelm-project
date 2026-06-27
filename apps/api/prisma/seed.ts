@@ -41,6 +41,88 @@ async function main() {
     console.log('✅ Tenant creado');
   }
 
+  // HCELM_MULTIEMPRESA_SEED: organizacion predeterminada de AME HEALTH SAC.
+  const company = await prisma.company.upsert({
+    where: {
+      tenantId_ruc: {
+        tenantId,
+        ruc: '20611138777',
+      },
+    },
+    update: {
+      code: 'AME',
+      legalName: 'AME HEALTH SAC',
+      tradeName: 'AME HEALTH SAC',
+      active: true,
+      isDefault: true,
+    },
+    create: {
+      tenantId,
+      code: 'AME',
+      legalName: 'AME HEALTH SAC',
+      tradeName: 'AME HEALTH SAC',
+      ruc: '20611138777',
+      active: true,
+      isDefault: true,
+    },
+  });
+
+  const defaultBusinessUnits = [
+    {
+      code: 'CONSULTORIO',
+      name: 'Consultorio Medico y Topico Las Mercedes',
+      type: 'CLINICAL',
+    },
+    {
+      code: 'DROGUERIA',
+      name: 'Drogueria AME HEALTH SAC',
+      type: 'DRUGSTORE',
+    },
+  ];
+
+  for (const unitData of defaultBusinessUnits) {
+    const businessUnit = await prisma.businessUnit.upsert({
+      where: {
+        companyId_code: {
+          companyId: company.id,
+          code: unitData.code,
+        },
+      },
+      update: {
+        name: unitData.name,
+        type: unitData.type,
+        active: true,
+      },
+      create: {
+        tenantId,
+        companyId: company.id,
+        ...unitData,
+        active: true,
+      },
+    });
+
+    await prisma.warehouse.upsert({
+      where: {
+        businessUnitId_code: {
+          businessUnitId: businessUnit.id,
+          code: 'PRINCIPAL',
+        },
+      },
+      update: {
+        name: 'Almacen principal',
+        active: true,
+      },
+      create: {
+        tenantId,
+        companyId: company.id,
+        businessUnitId: businessUnit.id,
+        code: 'PRINCIPAL',
+        name: 'Almacen principal',
+        active: true,
+      },
+    });
+  }
+
   const existingUser = await prisma.user.findFirst({
     where: { email: 'admin@amehealth.pe' },
   });
@@ -60,6 +142,34 @@ async function main() {
     });
 
     console.log('✅ Usuario Admin creado');
+  }
+
+  const adminUser = await prisma.user.findFirst({
+    where: { tenantId, email: 'admin@amehealth.pe' },
+  });
+
+  if (adminUser) {
+    await prisma.userCompanyMembership.upsert({
+      where: {
+        userId_companyId: {
+          userId: adminUser.id,
+          companyId: company.id,
+        },
+      },
+      update: {
+        role: adminUser.role,
+        isDefault: true,
+        active: true,
+      },
+      create: {
+        tenantId,
+        userId: adminUser.id,
+        companyId: company.id,
+        role: adminUser.role,
+        isDefault: true,
+        active: true,
+      },
+    });
   }
 
   const existingPatient = await prisma.patient.findFirst({
@@ -200,6 +310,34 @@ async function main() {
         },
       });
     }
+  }
+
+  const tenantMedications = await prisma.medication.findMany({
+    where: { tenantId },
+  });
+
+  for (const medication of tenantMedications) {
+    await prisma.companyMedication.upsert({
+      where: {
+        companyId_medicationId: {
+          companyId: company.id,
+          medicationId: medication.id,
+        },
+      },
+      update: {
+        companySku: medication.internalCode,
+        barcode: medication.barcode,
+        active: medication.active,
+      },
+      create: {
+        tenantId,
+        companyId: company.id,
+        medicationId: medication.id,
+        companySku: medication.internalCode,
+        barcode: medication.barcode,
+        active: medication.active,
+      },
+    });
   }
 
   console.log('✅ Medicamentos iniciales cargados');

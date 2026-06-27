@@ -1,13 +1,13 @@
-import { defineConfig } from 'prisma/config';
-
-const connectionString =
-  'postgresql://hcelm_admin:hcelm_secure_2026@localhost:5432/hcelm_dev?schema=public';
+import 'dotenv/config';
+import { defineConfig, env } from 'prisma/config';
 
 export default defineConfig({
+  schema: 'prisma/schema.prisma',
   datasource: {
-    url: connectionString,
+    url: env('DATABASE_URL'),
   },
   migrations: {
+    path: 'prisma/migrations',
     seed: 'tsx prisma/seed.ts',
   },
 });

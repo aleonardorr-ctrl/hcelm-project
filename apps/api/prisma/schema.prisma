@@ -10,12 +10,12 @@ datasource db {
 }
 
 model Tenant {
-  id                     String                   @id @default(uuid()) @db.Uuid
+  id                     String                        @id @default(uuid()) @db.Uuid
   name                   String
-  ruc                    String                   @unique
-  active                 Boolean                  @default(true)
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
+  ruc                    String                        @unique
+  active                 Boolean                       @default(true)
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
   anamnesis              Anamnesis[]
   certificates           Certificate[]
   encounters             Encounter[]
@@ -37,30 +37,32 @@ model Tenant {
   warehouses             Warehouse[]
   companyMedications     CompanyMedication[]
   userCompanyMemberships UserCompanyMembership[]
+  inventoryMovements     MedicationInventoryMovement[]
 }
 
 model User {
-  id                        String                   @id @default(uuid()) @db.Uuid
-  tenantId                  String                   @db.Uuid
+  id                        String                        @id @default(uuid()) @db.Uuid
+  tenantId                  String                        @db.Uuid
   email                     String
   password                  String
   fullName                  String?
-  role                      String                   @default("medico")
+  role                      String                        @default("medico")
   cmp                       String?
   rne                       String?
-  active                    Boolean                  @default(true)
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
+  active                    Boolean                       @default(true)
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
   certificates              Certificate[]
   prescriptions             Prescription[]
-  tenant                    Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  diagnosisCatalogsCreated  DiagnosisCatalog[]       @relation("DiagnosisCatalogCreatedBy")
-  catalogImports            CatalogImport[]          @relation("CatalogImportCreatedBy")
-  clinicalAlertRulesUpdated ClinicalAlertRule[]      @relation("ClinicalAlertRuleUpdatedBy")
-  laboratoryCatalogsCreated LaboratoryCatalog[]      @relation("LaboratoryCatalogCreatedBy")
-  medicationsCreated        Medication[]             @relation("MedicationCreatedBy")
-  medicationLotsCreated     MedicationInventoryLot[] @relation("MedicationLotCreatedBy")
+  tenant                    Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  diagnosisCatalogsCreated  DiagnosisCatalog[]            @relation("DiagnosisCatalogCreatedBy")
+  catalogImports            CatalogImport[]               @relation("CatalogImportCreatedBy")
+  clinicalAlertRulesUpdated ClinicalAlertRule[]           @relation("ClinicalAlertRuleUpdatedBy")
+  laboratoryCatalogsCreated LaboratoryCatalog[]           @relation("LaboratoryCatalogCreatedBy")
+  medicationsCreated        Medication[]                  @relation("MedicationCreatedBy")
+  medicationLotsCreated     MedicationInventoryLot[]      @relation("MedicationLotCreatedBy")
   companyMemberships        UserCompanyMembership[]
+  inventoryMovementsCreated MedicationInventoryMovement[] @relation("InventoryMovementCreatedBy")
 }
 
 model Patient {
@@ -310,11 +312,12 @@ model Medication {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdByUser     User?                    @relation("MedicationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  prescriptionItems PrescriptionItem[]
-  inventoryLots     MedicationInventoryLot[]
-  companyProfiles   CompanyMedication[]
+  tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdByUser      User?                         @relation("MedicationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  prescriptionItems  PrescriptionItem[]
+  inventoryLots      MedicationInventoryLot[]
+  companyProfiles    CompanyMedication[]
+  inventoryMovements MedicationInventoryMovement[]
 
   @@unique([tenantId, internalCode])
   @@index([tenantId, masterCode])
@@ -348,17 +351,18 @@ model MedicationInventoryLot {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  medication          Medication         @relation(fields: [medicationId], references: [id], onDelete: Cascade)
-  createdByUser       User?              @relation("MedicationLotCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  companyId           String?            @db.Uuid
-  businessUnitId      String?            @db.Uuid
-  warehouseId         String?            @db.Uuid
-  companyMedicationId String?            @db.Uuid
-  company             Company?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  businessUnitEntity  BusinessUnit?      @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
-  warehouseEntity     Warehouse?         @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
-  companyMedication   CompanyMedication? @relation(fields: [companyMedicationId], references: [id], onDelete: SetNull)
+  tenant              Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  medication          Medication                    @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+  createdByUser       User?                         @relation("MedicationLotCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  companyId           String?                       @db.Uuid
+  businessUnitId      String?                       @db.Uuid
+  warehouseId         String?                       @db.Uuid
+  companyMedicationId String?                       @db.Uuid
+  company             Company?                      @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  businessUnitEntity  BusinessUnit?                 @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  warehouseEntity     Warehouse?                    @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  companyMedication   CompanyMedication?            @relation(fields: [companyMedicationId], references: [id], onDelete: SetNull)
+  inventoryMovements  MedicationInventoryMovement[]
 
   @@unique([tenantId, medicationId, businessUnit, warehouse, lotNumber])
   @@index([tenantId, businessUnit, warehouse, active])
@@ -578,12 +582,13 @@ model Company {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   businessUnits      BusinessUnit[]
   warehouses         Warehouse[]
   medicationProfiles CompanyMedication[]
   userMemberships    UserCompanyMembership[]
   inventoryLots      MedicationInventoryLot[]
+  inventoryMovements MedicationInventoryMovement[]
 
   @@unique([tenantId, code])
   @@unique([tenantId, ruc])
@@ -601,10 +606,11 @@ model BusinessUnit {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  warehouses    Warehouse[]
-  inventoryLots MedicationInventoryLot[]
+  tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company            Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  warehouses         Warehouse[]
+  inventoryLots      MedicationInventoryLot[]
+  inventoryMovements MedicationInventoryMovement[]
 
   @@unique([companyId, code])
   @@index([tenantId, companyId, active])
@@ -621,10 +627,11 @@ model Warehouse {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  businessUnit  BusinessUnit             @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
-  inventoryLots MedicationInventoryLot[]
+  tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company            Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit       BusinessUnit                  @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  inventoryLots      MedicationInventoryLot[]
+  inventoryMovements MedicationInventoryMovement[]
 
   @@unique([businessUnitId, code])
   @@index([tenantId, companyId, businessUnitId, active])
@@ -641,10 +648,11 @@ model CompanyMedication {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tenant        Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  medication    Medication               @relation(fields: [medicationId], references: [id], onDelete: Restrict)
-  inventoryLots MedicationInventoryLot[]
+  tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company            Company                       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  medication         Medication                    @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+  inventoryLots      MedicationInventoryLot[]
+  inventoryMovements MedicationInventoryMovement[]
 
   @@unique([companyId, medicationId])
   @@unique([companyId, companySku])
@@ -669,4 +677,72 @@ model UserCompanyMembership {
 
   @@unique([userId, companyId])
   @@index([tenantId, companyId, active])
+}
+
+enum MedicationInventoryMovementType {
+  INITIAL_STOCK
+  PURCHASE
+  SALE
+  PRESCRIPTION_DISPENSING
+  POSITIVE_ADJUSTMENT
+  NEGATIVE_ADJUSTMENT
+  CUSTOMER_RETURN
+  SUPPLIER_RETURN
+  TRANSFER_IN
+  TRANSFER_OUT
+  REVERSAL
+}
+
+enum MedicationInventoryMovementDirection {
+  IN
+  OUT
+}
+
+model MedicationInventoryMovement {
+  id                  String                               @id @default(uuid()) @db.Uuid
+  tenantId            String                               @db.Uuid
+  companyId           String                               @db.Uuid
+  businessUnitId      String                               @db.Uuid
+  warehouseId         String                               @db.Uuid
+  medicationId        String                               @db.Uuid
+  companyMedicationId String                               @db.Uuid
+  lotId               String                               @db.Uuid
+  movementType        MedicationInventoryMovementType
+  direction           MedicationInventoryMovementDirection
+  quantity            Decimal                              @db.Decimal(14, 3)
+  stockBefore         Decimal                              @db.Decimal(14, 3)
+  stockAfter          Decimal                              @db.Decimal(14, 3)
+  unitCost            Decimal?                             @db.Decimal(14, 4)
+  unitPrice           Decimal?                             @db.Decimal(14, 4)
+  currency            String                               @default("PEN") @db.VarChar(3)
+  operationId         String                               @db.Uuid
+  idempotencyKey      String                               @db.VarChar(180)
+  sourceType          String?                              @db.VarChar(40)
+  sourceId            String?                              @db.VarChar(100)
+  sourceLineId        String?                              @db.VarChar(100)
+  documentType        String?                              @db.VarChar(40)
+  documentNumber      String?                              @db.VarChar(100)
+  reason              String?                              @db.Text
+  metadata            Json?
+  reversalOfId        String?                              @unique @db.Uuid
+  createdById         String?                              @db.Uuid
+  createdAt           DateTime                             @default(now())
+
+  tenant            Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company           Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit      BusinessUnit                 @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  warehouse         Warehouse                    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  medication        Medication                   @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+  companyMedication CompanyMedication            @relation(fields: [companyMedicationId], references: [id], onDelete: Restrict)
+  lot               MedicationInventoryLot       @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  createdBy         User?                        @relation("InventoryMovementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  reversalOf        MedicationInventoryMovement? @relation("InventoryMovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy        MedicationInventoryMovement? @relation("InventoryMovementReversal")
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, companyId, warehouseId, createdAt])
+  @@index([tenantId, medicationId, createdAt])
+  @@index([tenantId, lotId, createdAt])
+  @@index([tenantId, operationId])
+  @@index([tenantId, sourceType, sourceId])
 }

@@ -39,6 +39,7 @@ import {
   hasValidToken,
 } from './lib/auth';
 import Pharmacy from './pages/Pharmacy';
+import PharmacyCatalogs from './pages/PharmacyCatalogs';
 import ClinicalNavigation from './components/clinical/ClinicalNavigation';
 
 const API_URL = 'http://localhost:3000/api';
@@ -424,6 +425,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/pharmacy/catalogs"
+          element={
+            <ModuleProtected moduleKey="PHARMACY">
+              <PharmacyCatalogs />
+            </ModuleProtected>
+          }
+        />
+        <Route
           path="/drugstore"
           element={
             <ModuleProtected moduleKey="DRUGSTORE">
@@ -466,10 +475,18 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/clinical/catalogs"
+          element={
+            <ModuleProtected moduleKey="CLINICAL">
+              <Catalogs />
+            </ModuleProtected>
+          }
+        />
+        <Route
           path="/admin/catalogs"
           element={
             <SharedCatalogProtected>
-              <Catalogs />
+              <Navigate to="/clinical/catalogs" replace />
             </SharedCatalogProtected>
           }
         />

@@ -2,6 +2,7 @@
 // Ruta: apps/web/src/components/MedicationCatalogPanel.tsx
 // Funcion: Importa, consulta y registra manualmente el maestro corporativo de Farmacia y Drogueria.
 import { useEffect, useRef, useState } from 'react';
+import JsBarcode from 'jsbarcode';
 
 type ViewType = 'import' | 'create' | 'records' | 'history';
 type ImportAction = 'CREATE' | 'UPDATE' | 'UNCHANGED';
@@ -150,6 +151,24 @@ type ProductForm = {
   observations: string;
 };
 
+type LotForm = {
+  businessUnit: string;
+  warehouse: string;
+  shelfCode: string;
+  shelfLevel: string;
+  locationNotes: string;
+  lotNumber: string;
+  expirationDate: string;
+  stock: string;
+  minimumStock: string;
+  purchasePrice: string;
+  salePrice: string;
+  wholesalePrice: string;
+  currency: string;
+  supplier: string;
+  active: boolean;
+};
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const PRODUCT_TYPE_OPTIONS = [
@@ -216,6 +235,24 @@ const EMPTY_PRODUCT_FORM: ProductForm = {
   observations: '',
 };
 
+const EMPTY_LOT_FORM: LotForm = {
+  businessUnit: 'FARMACIA',
+  warehouse: 'PRINCIPAL',
+  shelfCode: '',
+  shelfLevel: '',
+  locationNotes: '',
+  lotNumber: '',
+  expirationDate: '',
+  stock: '0',
+  minimumStock: '0',
+  purchasePrice: '',
+  salePrice: '',
+  wholesalePrice: '',
+  currency: 'PEN',
+  supplier: '',
+  active: true,
+};
+
 const actionLabels: Record<ImportAction, string> = {
   CREATE: 'Crear',
   UPDATE: 'Actualizar',
@@ -250,9 +287,13 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString('es-PE');
 }
 
-export default function MedicationCatalogPanel() {
+export default function MedicationCatalogPanel({
+  initialView = 'import',
+}: {
+  initialView?: ViewType;
+}) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [view, setView] = useState<ViewType>('import');
+  const [view, setView] = useState<ViewType>(initialView);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -272,6 +313,9 @@ export default function MedicationCatalogPanel() {
   const [codeLoading, setCodeLoading] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
   const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT_FORM);
+  const [selectedLotProduct, setSelectedLotProduct] = useState<Product | null>(null);
+  const [lotForm, setLotForm] = useState<LotForm>(EMPTY_LOT_FORM);
+  const [savingLot, setSavingLot] = useState(false);
 
   async function loadCodePreview(nextProductType = productForm.productType) {
     setCodeLoading(true);
@@ -530,6 +574,118 @@ export default function MedicationCatalogPanel() {
     }
   }
 
+  function openLotForm(product: Product) {
+    setSelectedLotProduct(product);
+    setLotForm({ ...EMPTY_LOT_FORM });
+    setError('');
+    setSuccess('');
+  }
+
+  function closeLotForm() {
+    if (savingLot) return;
+    setSelectedLotProduct(null);
+    setLotForm({ ...EMPTY_LOT_FORM });
+  }
+
+  function updateLotForm<K extends keyof LotForm>(key: K, value: LotForm[K]) {
+    setLotForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function saveLot() {
+    if (!selectedLotProduct) return;
+
+    if (!lotForm.warehouse.trim()) {
+      setError('Ingrese el almacen.');
+      return;
+    }
+    if (!lotForm.lotNumber.trim()) {
+      setError('Ingrese el numero de lote.');
+      return;
+    }
+
+    const requiredNumbers: Array<[string, string]> = [
+      ['Stock', lotForm.stock],
+      ['Stock minimo', lotForm.minimumStock],
+    ];
+    const optionalNumbers: Array<[string, string]> = [
+      ['Precio de compra', lotForm.purchasePrice],
+      ['Precio de venta', lotForm.salePrice],
+      ['Precio mayorista', lotForm.wholesalePrice],
+    ];
+
+    for (const [label, value] of requiredNumbers) {
+      if (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0) {
+        setError(`${label} debe ser un numero igual o mayor que cero.`);
+        return;
+      }
+    }
+    for (const [label, value] of optionalNumbers) {
+      if (value.trim() && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
+        setError(`${label} debe ser un numero igual o mayor que cero.`);
+        return;
+      }
+    }
+
+    setSavingLot(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const payload = {
+        ...lotForm,
+        warehouse: lotForm.warehouse.trim(),
+        shelfCode: lotForm.shelfCode.trim(),
+        shelfLevel: lotForm.shelfLevel.trim(),
+        locationNotes: lotForm.locationNotes.trim(),
+        lotNumber: lotForm.lotNumber.trim(),
+        stock: Number(lotForm.stock),
+        minimumStock: Number(lotForm.minimumStock),
+        purchasePrice: lotForm.purchasePrice.trim()
+          ? Number(lotForm.purchasePrice)
+          : null,
+        salePrice: lotForm.salePrice.trim()
+          ? Number(lotForm.salePrice)
+          : null,
+        wholesalePrice: lotForm.wholesalePrice.trim()
+          ? Number(lotForm.wholesalePrice)
+          : null,
+        supplier: lotForm.supplier.trim(),
+      };
+
+      const response = await fetch(
+        `${API_BASE}/medication-catalog/catalog/${selectedLotProduct.id}/lots`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, 'No se pudo registrar el lote y stock.'),
+        );
+      }
+
+      const result = await response.json();
+      setSelectedLotProduct(null);
+      setLotForm({ ...EMPTY_LOT_FORM });
+      await loadCatalog();
+      setSuccess(result?.message || 'Lote y stock registrados correctamente.');
+    } catch (reason: any) {
+      setError(reason?.message || 'Error al registrar el lote y stock.');
+    } finally {
+      setSavingLot(false);
+    }
+  }
+
+  useEffect(() => {
+    setView(initialView);
+  }, [initialView]);
+
   useEffect(() => {
     if (view !== 'records') return;
     const timeout = window.setTimeout(loadCatalog, 300);
@@ -688,6 +844,18 @@ export default function MedicationCatalogPanel() {
           onPreviousPage={() => setPage((current) => Math.max(1, current - 1))}
           onNextPage={() => setPage((current) => current + 1)}
           onChangeStatus={changeStatus}
+          onAddLot={openLotForm}
+        />
+      )}
+
+      {selectedLotProduct && (
+        <LotModal
+          product={selectedLotProduct}
+          form={lotForm}
+          saving={savingLot}
+          onChange={updateLotForm}
+          onSave={saveLot}
+          onClose={closeLotForm}
         />
       )}
 
@@ -795,7 +963,36 @@ function CreateProductPanel({
 
         <TextInput label="Codigo maestro HCELM" value={productForm.masterCode} onChange={(value) => onChange('masterCode', value)} placeholder={codePreview?.masterCode || 'Automatico'} />
         <TextInput label="SKU empresa" value={productForm.internalCode} onChange={(value) => onChange('internalCode', value)} placeholder={codePreview?.companySku || 'Automatico'} />
-        <TextInput label="Codigo de barras" value={productForm.barcode} onChange={(value) => onChange('barcode', value)} />
+        <div className="rounded-lg border border-slate-200 p-3">
+          <TextInput
+            label="Código de barras"
+            value={productForm.barcode}
+            onChange={(value) => onChange('barcode', value)}
+            placeholder="Código comercial real o código interno"
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!(productForm.internalCode || codePreview?.companySku)}
+              onClick={() =>
+                onChange(
+                  'barcode',
+                  productForm.internalCode || codePreview?.companySku || '',
+                )
+              }
+              className="rounded border border-cyan-700 px-3 py-2 text-xs font-bold text-cyan-800 disabled:opacity-40"
+            >
+              Generar Code 128 interno
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Si el fabricante ya asignó un código de barras, regístrelo. Si no existe,
+            HCELM puede codificar el SKU interno en formato Code 128.
+          </p>
+          {productForm.barcode ? (
+            <BarcodePreview value={productForm.barcode} />
+          ) : null}
+        </div>
         <TextInput label="Nombre generico / principal *" value={productForm.genericName} onChange={(value) => onChange('genericName', value)} />
         <TextInput label="Nombre comercial" value={productForm.commercialName} onChange={(value) => onChange('commercialName', value)} />
         <TextInput label="Concentracion" value={productForm.concentration} onChange={(value) => onChange('concentration', value)} placeholder="Ej. 500 mg" />
@@ -1006,6 +1203,7 @@ function RecordsPanel({
   onPreviousPage,
   onNextPage,
   onChangeStatus,
+  onAddLot,
 }: {
   query: string;
   status: string;
@@ -1020,6 +1218,7 @@ function RecordsPanel({
   onPreviousPage: () => void;
   onNextPage: () => void;
   onChangeStatus: (product: Product) => void;
+  onAddLot: (product: Product) => void;
 }) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-sm">
@@ -1080,18 +1279,40 @@ function RecordsPanel({
                   <td className="px-4 py-3">
                     <strong>{totalStock}</strong>
                     <div className="text-xs text-slate-500">{product.inventoryLots.length} lote(s)</div>
-                    {product.inventoryLots.slice(0, 2).map((lot) => (
+                    {product.inventoryLots.slice(0, 3).map((lot) => (
                       <div key={lot.id} className="mt-1 text-xs text-slate-600">
-                        {lot.businessUnit} / {lot.warehouse}
-                        {lot.shelfCode || lot.shelfLevel ? ` / ${[lot.shelfCode, lot.shelfLevel].filter(Boolean).join(' / ')}` : ''}
+                        <span className="font-semibold">Lote {lot.lotNumber}</span>
+                        {` | Stock ${lot.stock} | ${lot.businessUnit} / ${lot.warehouse}`}
+                        {lot.shelfCode || lot.shelfLevel
+                          ? ` / ${[lot.shelfCode, lot.shelfLevel].filter(Boolean).join(' / ')}`
+                          : ''}
+                        {lot.expirationDate
+                          ? ` | Vence ${new Date(lot.expirationDate).toLocaleDateString('es-PE')}`
+                          : ''}
+                        {lot.locationNotes ? ` | Ubicación ${lot.locationNotes}` : ''}
                       </div>
                     ))}
                   </td>
                   <td className="px-4 py-3">{product.active ? 'Activo' : 'Inactivo'}</td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => onChangeStatus(product)} className={`rounded px-3 py-2 text-xs font-bold text-white ${product.active ? 'bg-red-700' : 'bg-emerald-700'}`}>
-                      {product.active ? 'Inactivar' : 'Activar'}
-                    </button>
+                    <div className="flex min-w-40 flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onAddLot(product)}
+                        className="rounded bg-blue-700 px-3 py-2 text-xs font-bold text-white hover:bg-blue-800"
+                      >
+                        Agregar lote / stock
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onChangeStatus(product)}
+                        className={`rounded px-3 py-2 text-xs font-bold text-white ${
+                          product.active ? 'bg-red-700' : 'bg-emerald-700'
+                        }`}
+                      >
+                        {product.active ? 'Inactivar' : 'Activar'}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -1108,6 +1329,160 @@ function RecordsPanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function LotModal({
+  product,
+  form,
+  saving,
+  onChange,
+  onSave,
+  onClose,
+}: {
+  product: Product;
+  form: LotForm;
+  saving: boolean;
+  onChange: <K extends keyof LotForm>(key: K, value: LotForm[K]) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Agregar lote y stock"
+        className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-2xl"
+      >
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b bg-white p-5">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Agregar lote / stock</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              {product.internalCode || '-'} - {product.genericName}
+              {product.concentration ? ` ${product.concentration}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="rounded border px-3 py-2 text-sm font-bold text-slate-700 disabled:opacity-50"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        <div className="space-y-5 p-5">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            Registre cada lote por unidad de negocio y almacen. Si repite la misma
+            combinacion de producto, unidad, almacen y lote, HCELM actualizara ese registro.
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <label className="text-sm font-semibold text-slate-700">
+              Unidad de negocio *
+              <select
+                value={form.businessUnit}
+                onChange={(event) => onChange('businessUnit', event.target.value)}
+                className="mt-1 w-full rounded-lg border p-2"
+              >
+                <option value="FARMACIA">Farmacia</option>
+                <option value="DROGUERIA">Drogueria</option>
+                <option value="CONSULTORIO">Consultorio</option>
+              </select>
+            </label>
+
+            <TextInput label="Almacen *" value={form.warehouse} onChange={(value) => onChange('warehouse', value)} placeholder="PRINCIPAL" />
+            <TextInput label="Numero de lote *" value={form.lotNumber} onChange={(value) => onChange('lotNumber', value)} placeholder="Ej. L24001" />
+            <TextInput label="Andamio" value={form.shelfCode} onChange={(value) => onChange('shelfCode', value)} placeholder="Ej. F-A01" />
+            <TextInput label="Nivel de andamio" value={form.shelfLevel} onChange={(value) => onChange('shelfLevel', value)} placeholder="Ej. N02" />
+            <TextInput label="Ubicacion de referencia" value={form.locationNotes} onChange={(value) => onChange('locationNotes', value)} placeholder="Ej. Zona de analgesicos" />
+
+            <label className="text-sm font-semibold text-slate-700">
+              Fecha de vencimiento
+              <input
+                type="date"
+                value={form.expirationDate}
+                onChange={(event) => onChange('expirationDate', event.target.value)}
+                className="mt-1 w-full rounded-lg border p-2"
+              />
+            </label>
+
+            <NumberInput label="Stock *" value={form.stock} onChange={(value) => onChange('stock', value)} step="0.001" />
+            <NumberInput label="Stock minimo *" value={form.minimumStock} onChange={(value) => onChange('minimumStock', value)} step="0.001" />
+            <NumberInput label="Precio de compra" value={form.purchasePrice} onChange={(value) => onChange('purchasePrice', value)} step="0.0001" />
+            <NumberInput label="Precio de venta" value={form.salePrice} onChange={(value) => onChange('salePrice', value)} step="0.0001" />
+            <NumberInput label="Precio mayorista" value={form.wholesalePrice} onChange={(value) => onChange('wholesalePrice', value)} step="0.0001" />
+
+            <label className="text-sm font-semibold text-slate-700">
+              Moneda
+              <select
+                value={form.currency}
+                onChange={(event) => onChange('currency', event.target.value)}
+                className="mt-1 w-full rounded-lg border p-2"
+              >
+                <option value="PEN">PEN - Soles</option>
+                <option value="USD">USD - Dolares</option>
+              </select>
+            </label>
+
+            <TextInput label="Proveedor" value={form.supplier} onChange={(value) => onChange('supplier', value)} />
+
+            <CheckboxInput
+              label="Lote activo"
+              checked={form.active}
+              onChange={(value) => onChange('active', value)}
+            />
+          </div>
+
+          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-lg border border-slate-300 px-5 py-2 text-sm font-bold text-slate-700 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              className="rounded-lg bg-emerald-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {saving ? 'Guardando...' : 'Guardar lote y stock'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  onChange,
+  step,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  step: string;
+}) {
+  return (
+    <label className="text-sm font-semibold text-slate-700">
+      {label}
+      <input
+        type="number"
+        min="0"
+        step={step}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-lg border p-2"
+      />
+    </label>
   );
 }
 
@@ -1160,6 +1535,29 @@ function HistoryPanel({
         </table>
       </div>
     </section>
+  );
+}
+
+function BarcodePreview({ value }: { value: string }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  useEffect(() => {
+    if (!svgRef.current || !value.trim()) return;
+
+    JsBarcode(svgRef.current, value.trim(), {
+      format: 'CODE128',
+      displayValue: true,
+      width: 1.6,
+      height: 48,
+      margin: 8,
+      fontSize: 13,
+    });
+  }, [value]);
+
+  return (
+    <div className="mt-3 overflow-x-auto rounded bg-white p-2">
+      <svg ref={svgRef} aria-label={`Código de barras ${value}`} />
+    </div>
   );
 }
 

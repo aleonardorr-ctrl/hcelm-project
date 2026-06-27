@@ -121,7 +121,7 @@ export default function ClinicalNavigation({
     },
     {
       label: 'Catálogos clínicos',
-      to: '/admin/catalogs',
+      to: '/clinical/catalogs',
       emoji: '📚',
     },
   ];

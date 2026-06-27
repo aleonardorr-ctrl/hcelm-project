@@ -21,9 +21,17 @@ export default function Pharmacy() {
             </p>
           </div>
 
-          <div className="bg-white/15 rounded-xl px-4 py-3 text-sm">
-            <p className="font-semibold">Estado del módulo</p>
-            <p className="text-emerald-50">Dashboard inicial activo</p>
+          <div className="flex flex-col items-stretch gap-2 sm:items-end">
+            <div className="bg-white/15 rounded-lg px-4 py-3 text-sm">
+              <p className="font-semibold">Estado del módulo</p>
+              <p className="text-emerald-50">Dashboard inicial activo</p>
+            </div>
+            <Link
+              to="/home"
+              className="rounded-lg border border-white/40 bg-white/10 px-4 py-2 text-center text-sm font-bold text-white hover:bg-white/20"
+            >
+              ← Volver a Plataforma
+            </Link>
           </div>
         </div>
       </section>
@@ -44,7 +52,7 @@ export default function Pharmacy() {
             emoji="💊"
             title="Productos y lotes"
             description="Consultar el maestro corporativo, SKU, códigos, lotes, vencimientos y stock disponible."
-            to="/admin/catalogs"
+            to="/pharmacy/catalogs?view=records"
             status="activo"
           />
 
@@ -52,7 +60,7 @@ export default function Pharmacy() {
             emoji="➕"
             title="Nuevo producto"
             description="Registrar productos manualmente con código maestro HCELM y SKU empresarial sugerido."
-            to="/admin/catalogs"
+            to="/pharmacy/catalogs?view=create"
             status="activo"
           />
 
@@ -60,7 +68,15 @@ export default function Pharmacy() {
             emoji="📦"
             title="Agregar lote / stock"
             description="Ingresar lote, vencimiento, almacén, andamio, nivel, precios, proveedor y stock mínimo."
-            to="/admin/catalogs"
+            to="/pharmacy/catalogs?view=lots"
+            status="activo"
+          />
+
+          <PharmacyCard
+            emoji="📚"
+            title="Catálogos maestros de Farmacia"
+            description="Importar productos y lotes desde Excel, revisar registros y consultar el historial de cargas."
+            to="/pharmacy/catalogs?view=import"
             status="activo"
           />
 

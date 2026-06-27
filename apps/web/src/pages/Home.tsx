@@ -35,16 +35,6 @@ const platformModules: PlatformModule[] = [
     moduleKey: 'PHARMACY',
   },
   {
-    title: 'Catálogos maestros',
-    subtitle: 'Base de datos del sistema',
-    description:
-      'Medicamentos, CIE, laboratorio, imágenes, productos, presentaciones y plantillas Excel.',
-    emoji: '📚',
-    to: '/admin/catalogs',
-    status: 'activo',
-    moduleKey: 'CATALOGS',
-  },
-  {
     title: 'Droguería',
     subtitle: 'Distribución y almacenes',
     description:

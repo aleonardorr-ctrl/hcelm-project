@@ -6,6 +6,8 @@ export const PRODUCT_TYPES = [
   'MEDICAMENTO',
   'DISPOSITIVO_MEDICO',
   'PRODUCTO_SANITARIO',
+  'MATERIAL_MEDICO',
+  'COSMETICO',
   'OTRO',
 ] as const;
 

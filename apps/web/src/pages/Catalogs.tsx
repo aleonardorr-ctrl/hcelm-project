@@ -111,6 +111,8 @@ const systemLabels: Record<CatalogSystem, string> = {
   MEDICATION: 'Farmacia',
 };
 
+const clinicalSystems: CatalogSystem[] = ['CIE10', 'CIE11', 'LABORATORY'];
+
 const actionLabels: Record<ImportAction, string> = {
   CREATE: 'Crear',
   UPDATE: 'Actualizar',
@@ -397,11 +399,11 @@ export default function Catalogs() {
       <div className="mx-auto max-w-7xl space-y-5">
         <header className="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase text-cyan-700">Administración</p>
-            <h1 className="text-2xl font-bold text-slate-900">Catálogos maestros</h1>
+            <p className="text-sm font-bold uppercase text-cyan-700">Módulo clínico</p>
+            <h1 className="text-2xl font-bold text-slate-900">Catálogos maestros clínicos</h1>
           </div>
           <button type="button" onClick={() => navigate('/home')} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-            Volver al inicio
+            Volver a Plataforma
           </button>
         </header>
 
@@ -410,7 +412,7 @@ export default function Catalogs() {
 
         <section className="rounded-lg bg-white p-5 shadow-sm">
           <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-            {(Object.keys(systemLabels) as CatalogSystem[]).map((item) => (
+            {clinicalSystems.map((item) => (
               <button key={item} type="button" onClick={() => resetSystem(item)} className={`rounded-lg px-4 py-2 text-sm font-bold ${system === item ? 'bg-cyan-700 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}>
                 {systemLabels[item]}
               </button>

@@ -186,6 +186,9 @@ export class MedicationInventoryService {
     medicationId: string;
     businessUnit: string;
     warehouse: string;
+    companyId?: string;
+    businessUnitId?: string;
+    warehouseId?: string;
     quantity: number | string;
     movementType: MedicationInventoryMovementType;
     idempotencyKey: string;
@@ -195,6 +198,32 @@ export class MedicationInventoryService {
     reason: string;
     prescriptionId?: string | null;
   }) {
+    return this.runSerializable((tx) =>
+      this.decreaseStockFefoInTransaction(tx, params),
+    );
+  }
+
+  async decreaseStockFefoInTransaction(
+    tx: TransactionClient,
+    params: {
+      tenantId: string;
+      userId: string | null;
+      medicationId: string;
+      businessUnit: string;
+      warehouse: string;
+      companyId?: string;
+      businessUnitId?: string;
+      warehouseId?: string;
+      quantity: number | string;
+      movementType: MedicationInventoryMovementType;
+      idempotencyKey: string;
+      sourceType: string;
+      sourceId: string;
+      sourceLineId?: string | null;
+      reason: string;
+      prescriptionId?: string | null;
+    },
+  ) {
     const quantity = this.positiveQuantity(params.quantity);
     if (!params.idempotencyKey.trim()) {
       throw new BadRequestException(
@@ -215,149 +244,163 @@ export class MedicationInventoryService {
         'FEFO solo admite ventas o dispensaciones de receta.',
       );
     }
+
+    const duplicate = await tx.medicationInventoryMovement.findMany({
+      where: {
+        tenantId: params.tenantId,
+        idempotencyKey: { startsWith: params.idempotencyKey + ':LOT:' },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (duplicate.length) {
+      return {
+        operationId: duplicate[0].operationId,
+        movements: duplicate,
+        idempotent: true,
+      };
+    }
+
+    const medication = await tx.medication.findFirst({
+      where: {
+        id: params.medicationId,
+        tenantId: params.tenantId,
+        active: true,
+      },
+      select: { id: true, requiresPrescription: true },
+    });
+    if (!medication)
+      throw new NotFoundException('Producto no encontrado o inactivo.');
+    if (medication.requiresPrescription && !params.prescriptionId) {
+      throw new BadRequestException(
+        'Este medicamento requiere una receta valida para descontar stock.',
+      );
+    }
+
+    const companyId =
+      params.companyId ||
+      (await this.findActiveCompanyId(tx, params.tenantId, params.userId));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lots = await tx.medicationInventoryLot.findMany({
+      where: {
+        tenantId: params.tenantId,
+        companyId,
+        ...(params.businessUnitId
+          ? { businessUnitId: params.businessUnitId }
+          : {}),
+        ...(params.warehouseId ? { warehouseId: params.warehouseId } : {}),
+        medicationId: params.medicationId,
+        businessUnit: params.businessUnit,
+        warehouse: params.warehouse,
+        active: true,
+        stock: { gt: 0 },
+        OR: [{ expirationDate: null }, { expirationDate: { gte: today } }],
+      },
+      orderBy: [
+        { expirationDate: { sort: 'asc', nulls: 'last' } },
+        { createdAt: 'asc' },
+        { id: 'asc' },
+      ],
+    });
+
+    const available = lots.reduce(
+      (total, lot) => total.plus(lot.stock),
+      new Prisma.Decimal(0),
+    );
+    if (available.lt(quantity)) {
+      throw new ConflictException(
+        'Stock insuficiente. Disponible: ' +
+          available.toString() +
+          '; solicitado: ' +
+          quantity.toString() +
+          '.',
+      );
+    }
+
     const operationId = randomUUID();
-
-    return this.runSerializable(async (tx) => {
-      const duplicate = await tx.medicationInventoryMovement.findMany({
-        where: {
-          tenantId: params.tenantId,
-          idempotencyKey: { startsWith: params.idempotencyKey + ':LOT:' },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
-      if (duplicate.length) {
-        return {
-          operationId: duplicate[0].operationId,
-          movements: duplicate,
-          idempotent: true,
-        };
+    let remaining = quantity;
+    const movements = [];
+    for (const lot of lots) {
+      if (remaining.isZero()) break;
+      if (
+        !lot.companyId ||
+        !lot.businessUnitId ||
+        !lot.warehouseId ||
+        !lot.companyMedicationId
+      ) {
+        throw new ConflictException(
+          'El lote no tiene asignacion organizacional completa.',
+        );
       }
-
-      const medication = await tx.medication.findFirst({
-        where: {
-          id: params.medicationId,
-          tenantId: params.tenantId,
-          active: true,
-        },
-        select: { id: true, requiresPrescription: true },
-      });
-      if (!medication)
-        throw new NotFoundException('Producto no encontrado o inactivo.');
-      if (medication.requiresPrescription && !params.prescriptionId) {
-        throw new BadRequestException(
-          'Este medicamento requiere una receta valida para descontar stock.',
+      if (
+        (params.businessUnitId &&
+          lot.businessUnitId !== params.businessUnitId) ||
+        (params.warehouseId && lot.warehouseId !== params.warehouseId)
+      ) {
+        throw new ConflictException(
+          'El lote no pertenece a la unidad y almacen solicitados.',
         );
       }
 
-      const companyId = await this.findActiveCompanyId(
-        tx,
-        params.tenantId,
-        params.userId,
-      );
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const lots = await tx.medicationInventoryLot.findMany({
+      const stockBefore = new Prisma.Decimal(lot.stock);
+      const allocated = Prisma.Decimal.min(stockBefore, remaining);
+      const stockAfter = stockBefore.minus(allocated);
+      const updated = await tx.medicationInventoryLot.updateMany({
         where: {
+          id: lot.id,
           tenantId: params.tenantId,
           companyId,
-          medicationId: params.medicationId,
-          businessUnit: params.businessUnit,
-          warehouse: params.warehouse,
+          ...(params.businessUnitId
+            ? { businessUnitId: params.businessUnitId }
+            : {}),
+          ...(params.warehouseId ? { warehouseId: params.warehouseId } : {}),
           active: true,
-          stock: { gt: 0 },
-          OR: [{ expirationDate: null }, { expirationDate: { gte: today } }],
+          stock: { gte: allocated },
         },
-        orderBy: [
-          { expirationDate: { sort: 'asc', nulls: 'last' } },
-          { createdAt: 'asc' },
-          { id: 'asc' },
-        ],
+        data: { stock: { decrement: allocated } },
       });
-
-      const available = lots.reduce(
-        (total, lot) => total.plus(lot.stock),
-        new Prisma.Decimal(0),
-      );
-      if (available.lt(quantity)) {
-        throw new ConflictException(
-          'Stock insuficiente. Disponible: ' +
-            available.toString() +
-            '; solicitado: ' +
-            quantity.toString() +
-            '.',
-        );
+      if (updated.count !== 1) {
+        const retryError = new Error('Conflicto concurrente de inventario.');
+        retryError.name = 'HCELM_INVENTORY_RETRY';
+        throw retryError;
       }
 
-      let remaining = quantity;
-      const movements = [];
-      for (const lot of lots) {
-        if (remaining.isZero()) break;
-        if (
-          !lot.companyId ||
-          !lot.businessUnitId ||
-          !lot.warehouseId ||
-          !lot.companyMedicationId
-        ) {
-          throw new ConflictException(
-            'El lote no tiene asignacion organizacional completa.',
-          );
-        }
-
-        const stockBefore = new Prisma.Decimal(lot.stock);
-        const allocated = Prisma.Decimal.min(stockBefore, remaining);
-        const stockAfter = stockBefore.minus(allocated);
-        const updated = await tx.medicationInventoryLot.updateMany({
-          where: {
-            id: lot.id,
-            tenantId: params.tenantId,
-            active: true,
-            stock: { gte: allocated },
+      const movement = await tx.medicationInventoryMovement.create({
+        data: {
+          tenantId: params.tenantId,
+          companyId: lot.companyId,
+          businessUnitId: lot.businessUnitId,
+          warehouseId: lot.warehouseId,
+          medicationId: params.medicationId,
+          companyMedicationId: lot.companyMedicationId,
+          lotId: lot.id,
+          movementType: params.movementType,
+          direction: MedicationInventoryMovementDirection.OUT,
+          quantity: allocated,
+          stockBefore,
+          stockAfter,
+          unitCost: lot.purchasePrice,
+          unitPrice: lot.salePrice,
+          currency: lot.currency,
+          operationId,
+          idempotencyKey: params.idempotencyKey + ':LOT:' + lot.id,
+          sourceType: params.sourceType,
+          sourceId: params.sourceId,
+          sourceLineId: params.sourceLineId || null,
+          reason: params.reason,
+          createdById: params.userId,
+          metadata: {
+            strategy: 'FEFO',
+            prescriptionId: params.prescriptionId || null,
+            lotNumber: lot.lotNumber,
           },
-          data: { stock: { decrement: allocated } },
-        });
-        if (updated.count !== 1) {
-          const retryError = new Error('Conflicto concurrente de inventario.');
-          retryError.name = 'HCELM_INVENTORY_RETRY';
-          throw retryError;
-        }
+        },
+      });
+      movements.push(movement);
+      remaining = remaining.minus(allocated);
+    }
 
-        const movement = await tx.medicationInventoryMovement.create({
-          data: {
-            tenantId: params.tenantId,
-            companyId: lot.companyId,
-            businessUnitId: lot.businessUnitId,
-            warehouseId: lot.warehouseId,
-            medicationId: params.medicationId,
-            companyMedicationId: lot.companyMedicationId,
-            lotId: lot.id,
-            movementType: params.movementType,
-            direction: MedicationInventoryMovementDirection.OUT,
-            quantity: allocated,
-            stockBefore,
-            stockAfter,
-            unitCost: lot.purchasePrice,
-            unitPrice: lot.salePrice,
-            currency: lot.currency,
-            operationId,
-            idempotencyKey: params.idempotencyKey + ':LOT:' + lot.id,
-            sourceType: params.sourceType,
-            sourceId: params.sourceId,
-            sourceLineId: params.sourceLineId || null,
-            reason: params.reason,
-            createdById: params.userId,
-            metadata: {
-              strategy: 'FEFO',
-              prescriptionId: params.prescriptionId || null,
-              lotNumber: lot.lotNumber,
-            },
-          },
-        });
-        movements.push(movement);
-        remaining = remaining.minus(allocated);
-      }
-
-      return { operationId, movements, idempotent: false };
-    });
+    return { operationId, movements, idempotent: false };
   }
 
   async listKardex(params: {

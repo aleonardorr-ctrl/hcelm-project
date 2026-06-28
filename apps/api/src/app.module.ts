@@ -21,6 +21,7 @@ import { LaboratoryCatalogModule } from './laboratory-catalog/laboratory-catalog
 import { MedicationCatalogModule } from './medication-catalog/medication-catalog.module';
 import { MedicationsModule } from './medications/medications.module';
 import { PatientsModule } from './patients/patients.module';
+import { PharmacySalesModule } from './pharmacy-sales/pharmacy-sales.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { WaitingRoomModule } from './waiting-room/waiting-room.module';
@@ -44,6 +45,7 @@ import { WaitingRoomModule } from './waiting-room/waiting-room.module';
     DiagnosesModule,
     LaboratoryCatalogModule,
     MedicationCatalogModule,
+    PharmacySalesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

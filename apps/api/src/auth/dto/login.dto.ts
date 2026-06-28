@@ -19,8 +19,9 @@ export class LoginDto {
   email: string;
 
   @ApiProperty({
-    description: 'Contraseña del usuario',
-    example: 'AME2026',
+    description: 'Contrasena privada del usuario',
+    format: 'password',
+    writeOnly: true,
   })
   @IsString({ message: 'La contraseña debe ser un texto' })
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })

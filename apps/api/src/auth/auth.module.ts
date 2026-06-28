@@ -12,12 +12,18 @@ import { JwtStrategy } from './jwt.strategy';
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        secret:
-          configService.get<string>('JWT_SECRET') ||
-          'hcelm_jwt_secret_dev_2026_cambiar_en_produccion',
-        signOptions: { expiresIn: '24h' },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const secret = configService.get<string>('JWT_SECRET') || '';
+        if (secret.length < 32) {
+          throw new Error(
+            'JWT_SECRET debe estar configurado con al menos 32 caracteres.',
+          );
+        }
+        return {
+          secret,
+          signOptions: { expiresIn: '24h' },
+        };
+      },
       inject: [ConfigService],
     }),
   ],

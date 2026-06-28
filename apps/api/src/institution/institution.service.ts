@@ -33,7 +33,8 @@ const SYSTEM_MODULES = [
   {
     key: 'MANAGEMENT',
     name: 'Gerencia',
-    description: 'Indicadores consolidados, valorizacion y reportes gerenciales.',
+    description:
+      'Indicadores consolidados, valorizacion y reportes gerenciales.',
     defaultEnabled: false,
   },
 ] as const;
@@ -45,7 +46,9 @@ export class InstitutionService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getInstitution(tenantId: string) {
-    const inst = await this.prisma.institution.findUnique({ where: { tenantId } });
+    const inst = await this.prisma.institution.findUnique({
+      where: { tenantId },
+    });
 
     if (inst) return inst;
 
@@ -87,8 +90,18 @@ export class InstitutionService {
 
   async updateInstitution(tenantId: string, data: any) {
     const altitudeMeters = this.integerInRange(data.altitudeMeters, 0, 8849, 0);
-    const spo2ExpectedMin = this.integerInRange(data.spo2ExpectedMin, 50, 100, 95);
-    const spo2ExpectedMax = this.integerInRange(data.spo2ExpectedMax, 50, 100, 100);
+    const spo2ExpectedMin = this.integerInRange(
+      data.spo2ExpectedMin,
+      50,
+      100,
+      95,
+    );
+    const spo2ExpectedMax = this.integerInRange(
+      data.spo2ExpectedMax,
+      50,
+      100,
+      100,
+    );
 
     if (spo2ExpectedMin > spo2ExpectedMax) {
       throw new BadRequestException(
@@ -161,7 +174,9 @@ export class InstitutionService {
     const storedModules = await this.prisma.tenantSystemModule.findMany({
       where: { tenantId },
     });
-    const storedByKey = new Map(storedModules.map((module) => [module.key, module]));
+    const storedByKey = new Map(
+      storedModules.map((module) => [module.key, module]),
+    );
 
     return SYSTEM_MODULES.map((definition) => {
       const stored = storedByKey.get(definition.key);
@@ -183,7 +198,9 @@ export class InstitutionService {
       throw new BadRequestException('Debe enviar la lista de modulos.');
     }
     if (body.modules.length === 0) {
-      throw new BadRequestException('La lista de modulos no puede estar vacia.');
+      throw new BadRequestException(
+        'La lista de modulos no puede estar vacia.',
+      );
     }
 
     const allowedKeys = new Set<string>(
@@ -192,10 +209,14 @@ export class InstitutionService {
     const received = new Map<string, boolean>();
 
     for (const module of body.modules) {
-      const key = String(module?.key || '').trim().toUpperCase();
+      const key = String(module?.key || '')
+        .trim()
+        .toUpperCase();
 
       if (!allowedKeys.has(key)) {
-        throw new BadRequestException(`Modulo no reconocido: ${key || '(vacio)'}.`);
+        throw new BadRequestException(
+          `Modulo no reconocido: ${key || '(vacio)'}.`,
+        );
       }
       if (typeof module.enabled !== 'boolean') {
         throw new BadRequestException(`El estado de ${key} debe ser booleano.`);
@@ -256,8 +277,13 @@ export class InstitutionService {
   }
 
   async createUser(tenantId: string, data: any) {
-    const tempPassword = data.password || 'AME2026';
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const temporaryPassword = String(data?.password || '');
+    if (temporaryPassword.length < 12) {
+      throw new BadRequestException(
+        'La contrasena temporal es obligatoria y debe tener al menos 12 caracteres.',
+      );
+    }
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
     return this.prisma.user.create({
       data: {
@@ -290,7 +316,9 @@ export class InstitutionService {
   }
 
   async getHceConfig(tenantId: string) {
-    const config = await this.prisma.hceConfig.findUnique({ where: { tenantId } });
+    const config = await this.prisma.hceConfig.findUnique({
+      where: { tenantId },
+    });
 
     if (config) return config;
 

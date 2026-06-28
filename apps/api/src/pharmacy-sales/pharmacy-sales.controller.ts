@@ -16,6 +16,7 @@ import { AuditInterceptor } from '../common/interceptors/audit.interceptor';
 import { RequireSystemModules } from '../common/system-modules/require-system-modules.decorator';
 import { SystemModuleGuard } from '../common/system-modules/system-module.guard';
 import { CreatePharmacySaleDto } from './dto/create-pharmacy-sale.dto';
+import { VoidPharmacySaleDto } from './dto/void-pharmacy-sale.dto';
 import { PharmacySalesService } from './pharmacy-sales.service';
 
 @ApiTags('Ventas de farmacia')
@@ -32,6 +33,20 @@ export class PharmacySalesController {
     return this.service.createOtcSale({
       tenantId: this.tenantId(user),
       userId: this.userId(user),
+      data: body,
+    });
+  }
+
+  @Post(':id/void')
+  voidSale(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: VoidPharmacySaleDto,
+  ) {
+    return this.service.voidSale({
+      tenantId: this.tenantId(user),
+      userId: this.userId(user),
+      saleId: id,
       data: body,
     });
   }

@@ -1,11 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
+  MedicationInventoryMovementDirection,
   MedicationInventoryMovementType,
   PharmacyDocumentType,
   PharmacyPaymentMethod,
@@ -18,6 +20,7 @@ import { randomUUID } from 'crypto';
 import { MedicationInventoryService } from '../medication-catalog/medication-inventory.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePharmacySaleDto } from './dto/create-pharmacy-sale.dto';
+import { VoidPharmacySaleDto } from './dto/void-pharmacy-sale.dto';
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -324,6 +327,229 @@ export class PharmacySalesService {
         include: this.saleInclude,
       });
       return { sale, idempotent: false };
+    });
+  }
+
+  async voidSale(params: {
+    tenantId: string;
+    userId: string;
+    saleId: string;
+    data: VoidPharmacySaleDto;
+  }) {
+    return this.runSerializable(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: {
+          id: params.userId,
+          tenantId: params.tenantId,
+          active: true,
+        },
+        select: { id: true, role: true },
+      });
+      if (!user) throw new UnauthorizedException('Usuario no autorizado.');
+      const allowedRoles = [
+        'admin',
+        'administrator',
+        'superadmin',
+        'pharmacy_admin',
+      ];
+      if (!allowedRoles.includes(user.role.trim().toLowerCase())) {
+        throw new ForbiddenException(
+          'Solo un usuario administrador puede anular ventas.',
+        );
+      }
+
+      const companyId = await this.findActiveCompanyId(
+        tx,
+        params.tenantId,
+        params.userId,
+      );
+      const sale = await tx.pharmacySale.findFirst({
+        where: {
+          id: params.saleId,
+          tenantId: params.tenantId,
+          companyId,
+        },
+        include: {
+          items: {
+            include: {
+              allocations: { include: { inventoryMovement: true } },
+            },
+          },
+        },
+      });
+      if (!sale) throw new NotFoundException('Venta no encontrada.');
+
+      const allocations = sale.items.flatMap((item) => item.allocations);
+      if (!allocations.length) {
+        throw new ConflictException(
+          'La venta no tiene asignaciones de inventario para revertir.',
+        );
+      }
+      const originalMovementIds = allocations.map(
+        (allocation) => allocation.inventoryMovementId,
+      );
+      const existingReversals = await tx.medicationInventoryMovement.findMany({
+        where: {
+          tenantId: params.tenantId,
+          reversalOfId: { in: originalMovementIds },
+        },
+      });
+
+      if (sale.status === PharmacySaleStatus.VOIDED) {
+        if (existingReversals.length !== allocations.length) {
+          throw new ConflictException(
+            'La venta anulada tiene una reversión de inventario incompleta.',
+          );
+        }
+        const voidedSale = await tx.pharmacySale.findUniqueOrThrow({
+          where: { id: sale.id },
+          include: this.saleInclude,
+        });
+        return {
+          sale: voidedSale,
+          reversals: existingReversals,
+          idempotent: true,
+        };
+      }
+      if (sale.status !== PharmacySaleStatus.COMPLETED) {
+        throw new ConflictException(
+          'Solo se pueden anular ventas completadas.',
+        );
+      }
+      if (existingReversals.length) {
+        throw new ConflictException(
+          'La venta tiene movimientos revertidos sin estar anulada.',
+        );
+      }
+
+      const reason = params.data.reason.trim();
+      const operationId = randomUUID();
+      const reversals = [];
+      for (const allocation of allocations) {
+        const original = allocation.inventoryMovement;
+        if (
+          original.direction !== MedicationInventoryMovementDirection.OUT ||
+          original.movementType !== MedicationInventoryMovementType.SALE ||
+          original.sourceType !== 'PHARMACY_SALE' ||
+          original.sourceId !== sale.id
+        ) {
+          throw new ConflictException(
+            'La venta contiene un movimiento de inventario que no puede revertirse.',
+          );
+        }
+        if (
+          original.companyId !== sale.companyId ||
+          original.businessUnitId !== sale.businessUnitId ||
+          original.warehouseId !== sale.warehouseId
+        ) {
+          throw new ConflictException(
+            'El movimiento original no pertenece al contexto de la venta.',
+          );
+        }
+
+        const lot = await tx.medicationInventoryLot.findFirst({
+          where: {
+            id: allocation.lotId,
+            tenantId: params.tenantId,
+            companyId: sale.companyId,
+            businessUnitId: sale.businessUnitId,
+            warehouseId: sale.warehouseId,
+            medicationId: original.medicationId,
+          },
+        });
+        if (!lot) {
+          throw new ConflictException(
+            'No se encontró el lote original de la venta.',
+          );
+        }
+
+        const stockBefore = new Prisma.Decimal(lot.stock);
+        const quantity = new Prisma.Decimal(allocation.quantity);
+        const stockAfter = stockBefore.plus(quantity);
+        const updated = await tx.medicationInventoryLot.updateMany({
+          where: {
+            id: lot.id,
+            tenantId: params.tenantId,
+            companyId: sale.companyId,
+            businessUnitId: sale.businessUnitId,
+            warehouseId: sale.warehouseId,
+            stock: stockBefore,
+          },
+          data: { stock: { increment: quantity } },
+        });
+        if (updated.count !== 1) {
+          const retryError = new Error('Conflicto concurrente de inventario.');
+          retryError.name = 'HCELM_INVENTORY_RETRY';
+          throw retryError;
+        }
+
+        const reversal = await tx.medicationInventoryMovement.create({
+          data: {
+            tenantId: params.tenantId,
+            companyId: original.companyId,
+            businessUnitId: original.businessUnitId,
+            warehouseId: original.warehouseId,
+            medicationId: original.medicationId,
+            companyMedicationId: original.companyMedicationId,
+            lotId: original.lotId,
+            movementType: MedicationInventoryMovementType.REVERSAL,
+            direction: MedicationInventoryMovementDirection.IN,
+            quantity,
+            stockBefore,
+            stockAfter,
+            unitCost: original.unitCost,
+            unitPrice: original.unitPrice,
+            currency: original.currency,
+            operationId,
+            idempotencyKey:
+              'SALE_VOID:' + sale.id + ':ALLOCATION:' + allocation.id,
+            sourceType: 'PHARMACY_SALE_VOID',
+            sourceId: sale.id,
+            sourceLineId: allocation.id,
+            documentType: 'INTERNAL_SALE',
+            documentNumber: sale.saleNumber,
+            reason: 'Anulación de venta ' + sale.saleNumber + ': ' + reason,
+            reversalOfId: original.id,
+            createdById: params.userId,
+            metadata: {
+              requestIdempotencyKey: params.data.idempotencyKey.trim(),
+              originalMovementId: original.id,
+              saleNumber: sale.saleNumber,
+            },
+          },
+        });
+        reversals.push(reversal);
+      }
+
+      const voidedAt = new Date();
+      const updatedSale = await tx.pharmacySale.updateMany({
+        where: {
+          id: sale.id,
+          tenantId: params.tenantId,
+          companyId,
+          status: PharmacySaleStatus.COMPLETED,
+        },
+        data: {
+          status: PharmacySaleStatus.VOIDED,
+          paymentStatus: PharmacyPaymentStatus.REFUNDED,
+          voidedAt,
+          voidedById: params.userId,
+          voidReason: reason,
+        },
+      });
+      if (updatedSale.count !== 1) {
+        const retryError = new Error(
+          'Conflicto concurrente al anular la venta.',
+        );
+        retryError.name = 'HCELM_INVENTORY_RETRY';
+        throw retryError;
+      }
+
+      const result = await tx.pharmacySale.findUniqueOrThrow({
+        where: { id: sale.id },
+        include: this.saleInclude,
+      });
+      return { sale: result, reversals, idempotent: false };
     });
   }
 

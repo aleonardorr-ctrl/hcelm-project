@@ -22,7 +22,6 @@ async function main() {
   console.log('🌱 Iniciando seed...');
 
   const tenantId = '00000000-0000-0000-0000-000000000001';
-  const hashedPassword = await bcrypt.hash('AME2026', 10);
 
   let tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
@@ -128,6 +127,14 @@ async function main() {
   });
 
   if (!existingUser) {
+    const initialAdminPassword = process.env.HCELM_SEED_ADMIN_PASSWORD || '';
+    if (initialAdminPassword.length < 12) {
+      throw new Error(
+        'Defina HCELM_SEED_ADMIN_PASSWORD con al menos 12 caracteres para crear el administrador inicial.',
+      );
+    }
+    const hashedPassword = await bcrypt.hash(initialAdminPassword, 12);
+
     await prisma.user.create({
       data: {
         id: '00000000-0000-0000-0000-000000000002',

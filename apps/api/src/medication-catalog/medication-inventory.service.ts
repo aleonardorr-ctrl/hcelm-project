@@ -94,6 +94,272 @@ export class MedicationInventoryService {
     });
   }
 
+  async previewFefo(params: {
+    tenantId: string;
+    userId: string | null;
+    medicationId: string;
+    businessUnit: string;
+    warehouse: string;
+    quantity: number | string;
+  }) {
+    const quantity = this.positiveQuantity(params.quantity);
+    const companyId = await this.findActiveCompanyId(
+      this.prisma,
+      params.tenantId,
+      params.userId,
+    );
+    const medication = await this.prisma.medication.findFirst({
+      where: {
+        id: params.medicationId,
+        tenantId: params.tenantId,
+        active: true,
+      },
+      select: {
+        id: true,
+        genericName: true,
+        commercialName: true,
+        concentration: true,
+        presentation: true,
+        requiresPrescription: true,
+      },
+    });
+    if (!medication)
+      throw new NotFoundException('Producto no encontrado o inactivo.');
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lots = await this.prisma.medicationInventoryLot.findMany({
+      where: {
+        tenantId: params.tenantId,
+        companyId,
+        medicationId: params.medicationId,
+        businessUnit: params.businessUnit,
+        warehouse: params.warehouse,
+        active: true,
+        stock: { gt: 0 },
+        OR: [{ expirationDate: null }, { expirationDate: { gte: today } }],
+      },
+      orderBy: [
+        { expirationDate: { sort: 'asc', nulls: 'last' } },
+        { createdAt: 'asc' },
+        { id: 'asc' },
+      ],
+    });
+
+    let remaining = quantity;
+    const allocations = lots
+      .map((lot) => {
+        const available = new Prisma.Decimal(lot.stock);
+        const allocated = Prisma.Decimal.min(available, remaining);
+        remaining = Prisma.Decimal.max(remaining.minus(allocated), 0);
+        return {
+          lotId: lot.id,
+          lotNumber: lot.lotNumber,
+          expirationDate: lot.expirationDate,
+          availableStock: available,
+          allocatedQuantity: allocated,
+          salePrice: lot.salePrice,
+          currency: lot.currency,
+        };
+      })
+      .filter((item) => item.allocatedQuantity.gt(0));
+
+    const availableQuantity = lots.reduce(
+      (total, lot) => total.plus(lot.stock),
+      new Prisma.Decimal(0),
+    );
+
+    return {
+      medication,
+      requestedQuantity: quantity,
+      availableQuantity,
+      sufficientStock: remaining.isZero(),
+      missingQuantity: remaining,
+      strategy: 'FEFO',
+      allocations,
+    };
+  }
+
+  async decreaseStockFefo(params: {
+    tenantId: string;
+    userId: string | null;
+    medicationId: string;
+    businessUnit: string;
+    warehouse: string;
+    quantity: number | string;
+    movementType: MedicationInventoryMovementType;
+    idempotencyKey: string;
+    sourceType: string;
+    sourceId: string;
+    sourceLineId?: string | null;
+    reason: string;
+    prescriptionId?: string | null;
+  }) {
+    const quantity = this.positiveQuantity(params.quantity);
+    if (!params.idempotencyKey.trim()) {
+      throw new BadRequestException(
+        'La operacion requiere una clave de idempotencia.',
+      );
+    }
+    if (!params.reason.trim()) {
+      throw new BadRequestException(
+        'La salida de inventario requiere un motivo.',
+      );
+    }
+    if (
+      params.movementType !== MedicationInventoryMovementType.SALE &&
+      params.movementType !==
+        MedicationInventoryMovementType.PRESCRIPTION_DISPENSING
+    ) {
+      throw new BadRequestException(
+        'FEFO solo admite ventas o dispensaciones de receta.',
+      );
+    }
+    const operationId = randomUUID();
+
+    return this.runSerializable(async (tx) => {
+      const duplicate = await tx.medicationInventoryMovement.findMany({
+        where: {
+          tenantId: params.tenantId,
+          idempotencyKey: { startsWith: params.idempotencyKey + ':LOT:' },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (duplicate.length) {
+        return {
+          operationId: duplicate[0].operationId,
+          movements: duplicate,
+          idempotent: true,
+        };
+      }
+
+      const medication = await tx.medication.findFirst({
+        where: {
+          id: params.medicationId,
+          tenantId: params.tenantId,
+          active: true,
+        },
+        select: { id: true, requiresPrescription: true },
+      });
+      if (!medication)
+        throw new NotFoundException('Producto no encontrado o inactivo.');
+      if (medication.requiresPrescription && !params.prescriptionId) {
+        throw new BadRequestException(
+          'Este medicamento requiere una receta valida para descontar stock.',
+        );
+      }
+
+      const companyId = await this.findActiveCompanyId(
+        tx,
+        params.tenantId,
+        params.userId,
+      );
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const lots = await tx.medicationInventoryLot.findMany({
+        where: {
+          tenantId: params.tenantId,
+          companyId,
+          medicationId: params.medicationId,
+          businessUnit: params.businessUnit,
+          warehouse: params.warehouse,
+          active: true,
+          stock: { gt: 0 },
+          OR: [{ expirationDate: null }, { expirationDate: { gte: today } }],
+        },
+        orderBy: [
+          { expirationDate: { sort: 'asc', nulls: 'last' } },
+          { createdAt: 'asc' },
+          { id: 'asc' },
+        ],
+      });
+
+      const available = lots.reduce(
+        (total, lot) => total.plus(lot.stock),
+        new Prisma.Decimal(0),
+      );
+      if (available.lt(quantity)) {
+        throw new ConflictException(
+          'Stock insuficiente. Disponible: ' +
+            available.toString() +
+            '; solicitado: ' +
+            quantity.toString() +
+            '.',
+        );
+      }
+
+      let remaining = quantity;
+      const movements = [];
+      for (const lot of lots) {
+        if (remaining.isZero()) break;
+        if (
+          !lot.companyId ||
+          !lot.businessUnitId ||
+          !lot.warehouseId ||
+          !lot.companyMedicationId
+        ) {
+          throw new ConflictException(
+            'El lote no tiene asignacion organizacional completa.',
+          );
+        }
+
+        const stockBefore = new Prisma.Decimal(lot.stock);
+        const allocated = Prisma.Decimal.min(stockBefore, remaining);
+        const stockAfter = stockBefore.minus(allocated);
+        const updated = await tx.medicationInventoryLot.updateMany({
+          where: {
+            id: lot.id,
+            tenantId: params.tenantId,
+            active: true,
+            stock: { gte: allocated },
+          },
+          data: { stock: { decrement: allocated } },
+        });
+        if (updated.count !== 1) {
+          const retryError = new Error('Conflicto concurrente de inventario.');
+          retryError.name = 'HCELM_INVENTORY_RETRY';
+          throw retryError;
+        }
+
+        const movement = await tx.medicationInventoryMovement.create({
+          data: {
+            tenantId: params.tenantId,
+            companyId: lot.companyId,
+            businessUnitId: lot.businessUnitId,
+            warehouseId: lot.warehouseId,
+            medicationId: params.medicationId,
+            companyMedicationId: lot.companyMedicationId,
+            lotId: lot.id,
+            movementType: params.movementType,
+            direction: MedicationInventoryMovementDirection.OUT,
+            quantity: allocated,
+            stockBefore,
+            stockAfter,
+            unitCost: lot.purchasePrice,
+            unitPrice: lot.salePrice,
+            currency: lot.currency,
+            operationId,
+            idempotencyKey: params.idempotencyKey + ':LOT:' + lot.id,
+            sourceType: params.sourceType,
+            sourceId: params.sourceId,
+            sourceLineId: params.sourceLineId || null,
+            reason: params.reason,
+            createdById: params.userId,
+            metadata: {
+              strategy: 'FEFO',
+              prescriptionId: params.prescriptionId || null,
+              lotNumber: lot.lotNumber,
+            },
+          },
+        });
+        movements.push(movement);
+        remaining = remaining.minus(allocated);
+      }
+
+      return { operationId, movements, idempotent: false };
+    });
+  }
+
   async listKardex(params: {
     tenantId: string;
     medicationId?: string;
@@ -152,6 +418,51 @@ export class MedicationInventoryService {
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
       items,
     };
+  }
+
+  private positiveQuantity(value: number | string) {
+    let quantity: Prisma.Decimal;
+    try {
+      quantity = new Prisma.Decimal(value);
+    } catch {
+      throw new BadRequestException('La cantidad solicitada no es valida.');
+    }
+    if (!quantity.isFinite() || quantity.lte(0)) {
+      throw new BadRequestException('La cantidad debe ser mayor que cero.');
+    }
+    return quantity;
+  }
+
+  private async findActiveCompanyId(
+    client: any,
+    tenantId: string,
+    userId: string | null,
+  ): Promise<string> {
+    const membership = userId
+      ? await client.userCompanyMembership.findFirst({
+          where: {
+            tenantId,
+            userId,
+            active: true,
+            company: { active: true },
+          },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          select: { companyId: true },
+        })
+      : null;
+    if (membership) return membership.companyId;
+
+    const company = await client.company.findFirst({
+      where: { tenantId, active: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    if (!company) {
+      throw new ConflictException(
+        'No existe una empresa activa para inventario.',
+      );
+    }
+    return company.id;
   }
 
   private async upsertLotInTransaction(
@@ -438,8 +749,9 @@ export class MedicationInventoryService {
         });
       } catch (error) {
         const retryable =
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2034';
+          (error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2034') ||
+          (error instanceof Error && error.name === 'HCELM_INVENTORY_RETRY');
         if (!retryable || attempt === maxRetries) throw error;
       }
     }

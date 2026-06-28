@@ -62,6 +62,24 @@ export class MedicationCatalogController {
     });
   }
 
+  @Get('catalog/:id/fefo-preview')
+  previewFefo(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Query('quantity') quantity = '1',
+    @Query('businessUnit') businessUnit = 'FARMACIA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
+  ) {
+    return this.inventoryService.previewFefo({
+      tenantId: this.getTenantId(req),
+      userId: this.getUserId(req),
+      medicationId: id,
+      businessUnit: String(businessUnit).trim().toUpperCase(),
+      warehouse: String(warehouse).trim().toUpperCase(),
+      quantity,
+    });
+  }
+
   @Get('catalog/:id/kardex')
   getMedicationKardex(
     @Request() req: any,

@@ -553,6 +553,211 @@ export class PharmacySalesService {
     });
   }
 
+  async searchProducts(params: {
+    tenantId: string;
+    userId: string;
+    query?: string;
+    businessUnit: string;
+    warehouse: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const page = Math.max(1, Math.trunc(params.page || 1));
+    const pageSize = Math.min(
+      50,
+      Math.max(10, Math.trunc(params.pageSize || 20)),
+    );
+    const query = String(params.query || '')
+      .trim()
+      .slice(0, 120);
+    const scope = await this.resolveScope(
+      this.prisma as any,
+      params.tenantId,
+      params.userId,
+      params.businessUnit,
+      params.warehouse,
+    );
+    const where: Prisma.CompanyMedicationWhereInput = {
+      tenantId: params.tenantId,
+      companyId: scope.companyId,
+      active: true,
+      medication: { active: true },
+      ...(query
+        ? {
+            OR: [
+              { companySku: { contains: query, mode: 'insensitive' } },
+              { barcode: { contains: query, mode: 'insensitive' } },
+              {
+                medication: {
+                  masterCode: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  internalCode: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  barcode: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  genericName: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  commercialName: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  concentration: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  presentation: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  laboratory: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  manufacturer: { contains: query, mode: 'insensitive' },
+                },
+              },
+              {
+                medication: {
+                  sanitaryRegistration: {
+                    contains: query,
+                    mode: 'insensitive',
+                  },
+                },
+              },
+              {
+                medication: {
+                  searchText: { contains: query, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [total, profiles] = await this.prisma.$transaction([
+      this.prisma.companyMedication.count({ where }),
+      this.prisma.companyMedication.findMany({
+        where,
+        orderBy: [
+          { medication: { genericName: 'asc' } },
+          { medication: { commercialName: 'asc' } },
+        ],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          medication: true,
+          inventoryLots: {
+            where: {
+              tenantId: params.tenantId,
+              companyId: scope.companyId,
+              businessUnitId: scope.businessUnitId,
+              warehouseId: scope.warehouseId,
+              active: true,
+              stock: { gt: 0 },
+              OR: [
+                { expirationDate: null },
+                { expirationDate: { gte: today } },
+              ],
+            },
+            orderBy: [
+              { expirationDate: { sort: 'asc', nulls: 'last' } },
+              { createdAt: 'asc' },
+              { id: 'asc' },
+            ],
+          },
+        },
+      }),
+    ]);
+
+    const items = profiles.map((profile) => {
+      const availableStock = profile.inventoryLots.reduce(
+        (sum, lot) => sum.plus(lot.stock),
+        new Prisma.Decimal(0),
+      );
+      const fefoLot = profile.inventoryLots[0] || null;
+      const salePrice = fefoLot?.salePrice || null;
+      const hasStock = availableStock.gt(0);
+      const hasPrice = Boolean(
+        salePrice && new Prisma.Decimal(salePrice).gt(0),
+      );
+      const saleAllowed =
+        !profile.medication.requiresPrescription && hasStock && hasPrice;
+      const blockReason = profile.medication.requiresPrescription
+        ? 'REQUIRES_PRESCRIPTION'
+        : !hasStock
+          ? 'OUT_OF_STOCK'
+          : !hasPrice
+            ? 'MISSING_PRICE'
+            : null;
+
+      return {
+        id: profile.medication.id,
+        companyMedicationId: profile.id,
+        companySku: profile.companySku,
+        barcode: profile.barcode || profile.medication.barcode,
+        masterCode: profile.medication.masterCode,
+        productType: profile.medication.productType,
+        genericName: profile.medication.genericName,
+        commercialName: profile.medication.commercialName,
+        concentration: profile.medication.concentration,
+        pharmaceuticalForm: profile.medication.pharmaceuticalForm,
+        presentation: profile.medication.presentation,
+        laboratory: profile.medication.laboratory,
+        manufacturer: profile.medication.manufacturer,
+        sanitaryRegistration: profile.medication.sanitaryRegistration,
+        requiresPrescription: profile.medication.requiresPrescription,
+        controlled: profile.medication.controlled,
+        availableStock,
+        salePrice,
+        currency: fefoLot?.currency || 'PEN',
+        saleAllowed,
+        blockReason,
+        fefoLot: fefoLot
+          ? {
+              id: fefoLot.id,
+              lotNumber: fefoLot.lotNumber,
+              expirationDate: fefoLot.expirationDate,
+              availableStock: fefoLot.stock,
+              salePrice: fefoLot.salePrice,
+              currency: fefoLot.currency,
+            }
+          : null,
+      };
+    });
+
+    return {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      scope: {
+        companyId: scope.companyId,
+        businessUnitId: scope.businessUnitId,
+        businessUnit: scope.businessUnitCode,
+        warehouseId: scope.warehouseId,
+        warehouse: scope.warehouseCode,
+      },
+      items,
+    };
+  }
+
   async list(params: {
     tenantId: string;
     userId: string;

@@ -51,6 +51,26 @@ export class PharmacySalesController {
     });
   }
 
+  @Get('products/search')
+  searchProducts(
+    @CurrentUser() user: any,
+    @Query('q') query = '',
+    @Query('businessUnit') businessUnit = 'FARMACIA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '20',
+  ) {
+    return this.service.searchProducts({
+      tenantId: this.tenantId(user),
+      userId: this.userId(user),
+      query,
+      businessUnit,
+      warehouse,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
+  }
+
   @Get()
   list(
     @CurrentUser() user: any,

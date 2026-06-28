@@ -6,12 +6,13 @@ type PharmacyCardProps = {
   to?: string;
   status?: "activo" | "pendiente";
   emoji: string;
+  featured?: boolean;
 };
 
 export default function Pharmacy() {
   return (
     <div className="space-y-6">
-      <section className="bg-gradient-to-r from-emerald-700 to-cyan-700 text-white rounded-2xl shadow p-6">
+      <section className="bg-emerald-800 text-white rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Farmacia / Botica</h1>
@@ -39,7 +40,7 @@ export default function Pharmacy() {
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <SummaryCard label="Productos" value="Catálogo maestro" />
         <SummaryCard label="Lotes / Stock" value="Control por ubicación" />
-        <SummaryCard label="Dispensación" value="Siguiente fase" />
+        <SummaryCard label="Ventas OTC" value="Operación activa" />
       </section>
 
       <section>
@@ -48,6 +49,15 @@ export default function Pharmacy() {
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <PharmacyCard
+            emoji="S/"
+            title="Ventas farmacia"
+            description="Busque por código o nombre, prepare el carrito, valide FEFO y cobre una venta OTC con descuento atómico de stock."
+            to="/pharmacy/sales/new"
+            status="activo"
+            featured
+          />
+
           <PharmacyCard
             emoji="💊"
             title="Productos y lotes"
@@ -94,13 +104,6 @@ export default function Pharmacy() {
             to="/pharmacy/inventory"
             status="activo"
           />
-
-          <PharmacyCard
-            emoji="💵"
-            title="Ventas farmacia"
-            description="Venta directa, venta por receta, precios minoristas/mayoristas y futura conexión con caja."
-            status="pendiente"
-          />
         </div>
       </section>
 
@@ -135,9 +138,14 @@ function PharmacyCard({
   to,
   status = "pendiente",
   emoji,
+  featured = false,
 }: PharmacyCardProps) {
   const content = (
-    <div className="h-full bg-white border rounded-xl shadow-sm p-5 hover:shadow-md transition">
+    <div
+      className={`h-full rounded-lg border bg-white p-5 shadow-sm transition hover:shadow-md ${
+        featured ? "border-emerald-400 bg-emerald-50" : "border-slate-200"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="text-3xl">{emoji}</div>
 
@@ -167,7 +175,10 @@ function PharmacyCard({
 
   if (to) {
     return (
-      <Link to={to} className="block">
+      <Link
+        to={to}
+        className={featured ? "block md:col-span-2 xl:col-span-2" : "block"}
+      >
         {content}
       </Link>
     );

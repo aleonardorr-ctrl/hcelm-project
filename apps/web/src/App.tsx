@@ -38,6 +38,7 @@ import {
 import Pharmacy from "./pages/Pharmacy";
 import PharmacyCatalogs from "./pages/PharmacyCatalogs";
 import PharmacyInventory from "./pages/PharmacyInventory";
+import PharmacySales from "./pages/PharmacySales";
 import ClinicalNavigation from "./components/clinical/ClinicalNavigation";
 
 const API_URL = "http://localhost:3000/api";
@@ -440,6 +441,14 @@ function AppRoutes() {
           element={
             <ModuleProtected moduleKey="PHARMACY">
               <PharmacyInventory />
+            </ModuleProtected>
+          }
+        />
+        <Route
+          path="/pharmacy/sales/new"
+          element={
+            <ModuleProtected moduleKey="PHARMACY">
+              <PharmacySales />
             </ModuleProtected>
           }
         />

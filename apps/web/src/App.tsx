@@ -8,11 +8,8 @@ import {
   useEffect,
   useMemo,
   useState,
-} from 'react';
-import type {
-  ReactElement,
-  ReactNode,
-} from 'react';
+} from "react";
+import type { ReactElement, ReactNode } from "react";
 import {
   BrowserRouter as Router,
   Link,
@@ -20,36 +17,37 @@ import {
   Route,
   Routes,
   useLocation,
-} from 'react-router-dom';
+} from "react-router-dom";
 
-import Anamnesis from './pages/Anamnesis';
-import Catalogs from './pages/Catalogs';
-import Certificates from './pages/Certificates';
-import DataQuality from './pages/DataQuality';
-import Home from './pages/Home';
-import InstitutionSettings from './pages/InstitutionSettings';
-import Login from './pages/Login';
-import NewEncounter from './pages/NewEncounter';
-import Patients from './pages/Patients';
-import ProfessionalVerification from './pages/ProfessionalVerification';
+import Anamnesis from "./pages/Anamnesis";
+import Catalogs from "./pages/Catalogs";
+import Certificates from "./pages/Certificates";
+import DataQuality from "./pages/DataQuality";
+import Home from "./pages/Home";
+import InstitutionSettings from "./pages/InstitutionSettings";
+import Login from "./pages/Login";
+import NewEncounter from "./pages/NewEncounter";
+import Patients from "./pages/Patients";
+import ProfessionalVerification from "./pages/ProfessionalVerification";
 import {
   clearAuthSession,
   getAuthToken,
   hasProfessionalVerification,
   hasValidToken,
-} from './lib/auth';
-import Pharmacy from './pages/Pharmacy';
-import PharmacyCatalogs from './pages/PharmacyCatalogs';
-import ClinicalNavigation from './components/clinical/ClinicalNavigation';
+} from "./lib/auth";
+import Pharmacy from "./pages/Pharmacy";
+import PharmacyCatalogs from "./pages/PharmacyCatalogs";
+import PharmacyInventory from "./pages/PharmacyInventory";
+import ClinicalNavigation from "./components/clinical/ClinicalNavigation";
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = "http://localhost:3000/api";
 
 type SystemModuleKey =
-  | 'CLINICAL'
-  | 'PHARMACY'
-  | 'DRUGSTORE'
-  | 'BILLING'
-  | 'MANAGEMENT';
+  | "CLINICAL"
+  | "PHARMACY"
+  | "DRUGSTORE"
+  | "BILLING"
+  | "MANAGEMENT";
 
 type SystemModulesState = Record<SystemModuleKey, boolean>;
 
@@ -75,10 +73,7 @@ const SystemModulesContext = createContext<SystemModulesContextValue>({
 
 function SystemModulesProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
-    const token = useMemo(
-    () => getAuthToken(),
-    [location.pathname],
-  );
+  const token = useMemo(() => getAuthToken(), [location.pathname]);
   const [modules, setModules] = useState<SystemModulesState>(DEFAULT_MODULES);
   const [loading, setLoading] = useState(true);
 
@@ -96,14 +91,14 @@ function SystemModulesProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!response.ok) throw new Error('No se pudieron cargar los modulos.');
+      if (!response.ok) throw new Error("No se pudieron cargar los modulos.");
 
       const data = await response.json();
       const nextModules = { ...DEFAULT_MODULES };
 
       if (Array.isArray(data)) {
         data.forEach((item) => {
-          const key = String(item?.key || '') as SystemModuleKey;
+          const key = String(item?.key || "") as SystemModuleKey;
 
           if (key in nextModules) {
             nextModules[key] = item?.enabled === true;
@@ -126,10 +121,13 @@ function SystemModulesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const refreshModules = () => loadModules();
 
-    window.addEventListener('hcelm:system-modules-updated', refreshModules);
+    window.addEventListener("hcelm:system-modules-updated", refreshModules);
 
     return () => {
-      window.removeEventListener('hcelm:system-modules-updated', refreshModules);
+      window.removeEventListener(
+        "hcelm:system-modules-updated",
+        refreshModules,
+      );
     };
   }, [loadModules]);
 
@@ -154,11 +152,11 @@ function useSystemModules() {
 }
 
 function TokenProtected({ children }: { children: ReactElement }) {
-  const token = sessionStorage.getItem('ame_token');
+  const token = sessionStorage.getItem("ame_token");
 
   if (!token) {
     return (
-      <div style={{ padding: 24, color: '#991b1b', background: '#fee2e2' }}>
+      <div style={{ padding: 24, color: "#991b1b", background: "#fee2e2" }}>
         <h1>Error de seguridad HCELM</h1>
         <p>No existe ame_token en sessionStorage.</p>
         <p>La ruta protegida no puede abrirse.</p>
@@ -204,8 +202,7 @@ function SharedCatalogProtected({ children }: { children: ReactElement }) {
 
   if (loading) return <LoadingModules />;
 
-  const enabled =
-    modules.CLINICAL || modules.PHARMACY || modules.DRUGSTORE;
+  const enabled = modules.CLINICAL || modules.PHARMACY || modules.DRUGSTORE;
 
   return (
     <ProfessionalProtected>
@@ -227,21 +224,27 @@ function RootRedirect() {
 }
 
 function LoadingModules() {
-  return <p style={{ color: '#475569' }}>Cargando modulos del sistema...</p>;
+  return <p style={{ color: "#475569" }}>Cargando modulos del sistema...</p>;
 }
 
-function ModulePlaceholder({ title, description }: { title: string; description: string }) {
+function ModulePlaceholder({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
   return (
     <section
       style={{
-        border: '1px solid #cbd5e1',
-        borderRadius: '8px',
-        background: 'white',
-        padding: '24px',
+        border: "1px solid #cbd5e1",
+        borderRadius: "8px",
+        background: "white",
+        padding: "24px",
       }}
     >
-      <h1 style={{ color: '#1e293b', fontSize: '24px', margin: 0 }}>{title}</h1>
-      <p style={{ color: '#64748b', marginBottom: 0, marginTop: '8px' }}>
+      <h1 style={{ color: "#1e293b", fontSize: "24px", margin: 0 }}>{title}</h1>
+      <p style={{ color: "#64748b", marginBottom: 0, marginTop: "8px" }}>
         {description}
       </p>
     </section>
@@ -252,32 +255,32 @@ function Navbar() {
   const location = useLocation();
 
   const isAuthPage =
-    location.pathname === '/login' ||
-    location.pathname === '/professional-verification';
+    location.pathname === "/login" ||
+    location.pathname === "/professional-verification";
 
   if (isAuthPage) {
     return null;
   }
 
   const userName =
-    sessionStorage.getItem('hcelm_professional_name') ||
-    sessionStorage.getItem('hcelm_user_name') ||
-    'Usuario HCELM';
+    sessionStorage.getItem("hcelm_professional_name") ||
+    sessionStorage.getItem("hcelm_user_name") ||
+    "Usuario HCELM";
 
   const tenantName =
-    sessionStorage.getItem('hcelm_tenant_name') || 'Tenant activo';
+    sessionStorage.getItem("hcelm_tenant_name") || "Tenant activo";
 
   const companyName =
-    sessionStorage.getItem('hcelm_company_name') || 'Empresa activa';
+    sessionStorage.getItem("hcelm_company_name") || "Empresa activa";
 
   const roleName =
-    sessionStorage.getItem('hcelm_professional_role') ||
-    sessionStorage.getItem('hcelm_user_role') ||
-    'Rol operativo';
+    sessionStorage.getItem("hcelm_professional_role") ||
+    sessionStorage.getItem("hcelm_user_role") ||
+    "Rol operativo";
 
   const handleLogout = () => {
     clearAuthSession();
-    window.location.href = '/login';
+    window.location.href = "/login";
   };
 
   return (
@@ -300,17 +303,17 @@ function Navbar() {
 
         <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 text-xs md:text-sm">
           <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
-            <span className="text-slate-400">Tenant:</span>{' '}
+            <span className="text-slate-400">Tenant:</span>{" "}
             <span className="font-semibold">{tenantName}</span>
           </div>
 
           <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
-            <span className="text-slate-400">Empresa:</span>{' '}
+            <span className="text-slate-400">Empresa:</span>{" "}
             <span className="font-semibold">{companyName}</span>
           </div>
 
           <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
-            <span className="text-slate-400">Usuario:</span>{' '}
+            <span className="text-slate-400">Usuario:</span>{" "}
             <span className="font-semibold">{userName}</span>
             <span className="text-slate-500"> / {roleName}</span>
           </div>
@@ -332,10 +335,10 @@ function ClinicalNavigationSlot() {
   const location = useLocation();
 
   const clinicalPaths = [
-    '/patients',
-    '/new-encounter',
-    '/anamnesis',
-    '/certificates',
+    "/patients",
+    "/new-encounter",
+    "/anamnesis",
+    "/certificates",
   ];
 
   const shouldShowClinicalNavigation = clinicalPaths.some(
@@ -356,7 +359,7 @@ function ClinicalNavigationSlot() {
 
 function AppRoutes() {
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
       <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
@@ -429,6 +432,14 @@ function AppRoutes() {
           element={
             <ModuleProtected moduleKey="PHARMACY">
               <PharmacyCatalogs />
+            </ModuleProtected>
+          }
+        />
+        <Route
+          path="/pharmacy/inventory"
+          element={
+            <ModuleProtected moduleKey="PHARMACY">
+              <PharmacyInventory />
             </ModuleProtected>
           }
         />

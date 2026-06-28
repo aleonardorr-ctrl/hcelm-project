@@ -1,19 +1,19 @@
-import { Link, useSearchParams } from 'react-router-dom';
-import MedicationCatalogPanel from '../components/MedicationCatalogPanel';
+import { Link, useSearchParams } from "react-router-dom";
+import MedicationCatalogPanel from "../components/MedicationCatalogPanel";
 
-type MedicationView = 'import' | 'create' | 'records' | 'history';
+type MedicationView = "import" | "create" | "records" | "history";
 
 export default function PharmacyCatalogs() {
   const [searchParams] = useSearchParams();
-  const requestedView = searchParams.get('view') || 'import';
+  const requestedView = searchParams.get("view") || "import";
   const initialView: MedicationView =
-    requestedView === 'create'
-      ? 'create'
-      : requestedView === 'records' || requestedView === 'lots'
-        ? 'records'
-        : requestedView === 'history'
-          ? 'history'
-          : 'import';
+    requestedView === "create"
+      ? "create"
+      : requestedView === "records" || requestedView === "lots"
+        ? "records"
+        : requestedView === "history"
+          ? "history"
+          : "import";
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6 md:px-6">
@@ -35,6 +35,12 @@ export default function PharmacyCatalogs() {
               ← Volver a Farmacia
             </Link>
             <Link
+              to="/pharmacy/inventory"
+              className="rounded-lg border border-emerald-300 px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-50"
+            >
+              Inventario y Kardex
+            </Link>
+            <Link
               to="/home"
               className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
             >
@@ -43,10 +49,11 @@ export default function PharmacyCatalogs() {
           </div>
         </header>
 
-        {requestedView === 'lots' ? (
+        {requestedView === "lots" ? (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             Busque el producto y presione <strong>Agregar lote / stock</strong>.
-            La ubicación se registrará por unidad de negocio, almacén, andamio y nivel.
+            La ubicación se registrará por unidad de negocio, almacén, andamio y
+            nivel.
           </div>
         ) : null}
 

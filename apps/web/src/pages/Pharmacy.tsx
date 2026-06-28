@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom';
+import { Link } from "react-router-dom";
 
 type PharmacyCardProps = {
   title: string;
   description: string;
   to?: string;
-  status?: 'activo' | 'pendiente';
+  status?: "activo" | "pendiente";
   emoji: string;
 };
 
@@ -88,10 +88,11 @@ export default function Pharmacy() {
           />
 
           <PharmacyCard
-            emoji="⏳"
-            title="Inventario FEFO"
-            description="Priorizar salida por fecha de vencimiento: primero vence, primero sale."
-            status="pendiente"
+            emoji="K"
+            title="Inventario, Kardex y FEFO"
+            description="Consultar movimientos auditados y simular la salida por vencimiento mas proximo."
+            to="/pharmacy/inventory"
+            status="activo"
           />
 
           <PharmacyCard
@@ -132,7 +133,7 @@ function PharmacyCard({
   title,
   description,
   to,
-  status = 'pendiente',
+  status = "pendiente",
   emoji,
 }: PharmacyCardProps) {
   const content = (
@@ -142,12 +143,12 @@ function PharmacyCard({
 
         <span
           className={
-            status === 'activo'
-              ? 'text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold'
-              : 'text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold'
+            status === "activo"
+              ? "text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold"
+              : "text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold"
           }
         >
-          {status === 'activo' ? 'Activo' : 'Pendiente'}
+          {status === "activo" ? "Activo" : "Pendiente"}
         </span>
       </div>
 
@@ -155,9 +156,7 @@ function PharmacyCard({
       <p className="text-sm text-slate-600 mt-2 leading-6">{description}</p>
 
       {to ? (
-        <p className="text-sm text-emerald-700 font-semibold mt-4">
-          Abrir →
-        </p>
+        <p className="text-sm text-emerald-700 font-semibold mt-4">Abrir →</p>
       ) : (
         <p className="text-sm text-slate-400 font-semibold mt-4">
           Próxima fase

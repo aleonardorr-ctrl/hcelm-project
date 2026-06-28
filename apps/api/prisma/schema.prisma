@@ -38,6 +38,12 @@ model Tenant {
   companyMedications     CompanyMedication[]
   userCompanyMemberships UserCompanyMembership[]
   inventoryMovements     MedicationInventoryMovement[]
+
+  pharmacySales             PharmacySale[]
+  pharmacySaleItems         PharmacySaleItem[]
+  pharmacySaleAllocations   PharmacySaleItemAllocation[]
+  pharmacySalePayments      PharmacySalePayment[]
+  pharmacyDocumentSequences PharmacyDocumentSequence[]
 }
 
 model User {
@@ -63,6 +69,11 @@ model User {
   medicationLotsCreated     MedicationInventoryLot[]      @relation("MedicationLotCreatedBy")
   companyMemberships        UserCompanyMembership[]
   inventoryMovementsCreated MedicationInventoryMovement[] @relation("InventoryMovementCreatedBy")
+
+  pharmacySalesCreated     PharmacySale[]        @relation("PharmacySaleCreatedBy")
+  pharmacySalesVoided      PharmacySale[]        @relation("PharmacySaleVoidedBy")
+  pharmacyPricesApproved   PharmacySaleItem[]    @relation("PharmacySalePriceApprovedBy")
+  pharmacyPaymentsRecorded PharmacySalePayment[] @relation("PharmacySalePaymentRecordedBy")
 }
 
 model Patient {
@@ -90,6 +101,8 @@ model Patient {
   encounters    Encounter[]
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   prescriptions Prescription[]
+
+  pharmacySales PharmacySale[]
 
   @@unique([tenantId, hceNumber])
   @@index([tenantId])
@@ -319,6 +332,8 @@ model Medication {
   companyProfiles    CompanyMedication[]
   inventoryMovements MedicationInventoryMovement[]
 
+  pharmacySaleItems PharmacySaleItem[]
+
   @@unique([tenantId, internalCode])
   @@index([tenantId, masterCode])
   @@index([tenantId, active, productType])
@@ -364,6 +379,8 @@ model MedicationInventoryLot {
   companyMedication   CompanyMedication?            @relation(fields: [companyMedicationId], references: [id], onDelete: SetNull)
   inventoryMovements  MedicationInventoryMovement[]
 
+  pharmacySaleAllocations PharmacySaleItemAllocation[]
+
   @@unique([tenantId, medicationId, businessUnit, warehouse, lotNumber])
   @@index([tenantId, businessUnit, warehouse, active])
   @@index([tenantId, businessUnit, warehouse, shelfCode, shelfLevel])
@@ -386,6 +403,8 @@ model Prescription {
   patient     Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items       PrescriptionItem[]
+
+  pharmacySales PharmacySale[]
 }
 
 model PrescriptionItem {
@@ -401,6 +420,8 @@ model PrescriptionItem {
   createdAt      DateTime     @default(now())
   medication     Medication   @relation(fields: [medicationId], references: [id])
   prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  pharmacySaleItems PharmacySaleItem[]
 }
 
 model DiagnosisCatalog {
@@ -590,6 +611,9 @@ model Company {
   inventoryLots      MedicationInventoryLot[]
   inventoryMovements MedicationInventoryMovement[]
 
+  pharmacySales             PharmacySale[]
+  pharmacyDocumentSequences PharmacyDocumentSequence[]
+
   @@unique([tenantId, code])
   @@unique([tenantId, ruc])
   @@index([tenantId, active])
@@ -612,6 +636,9 @@ model BusinessUnit {
   inventoryLots      MedicationInventoryLot[]
   inventoryMovements MedicationInventoryMovement[]
 
+  pharmacySales             PharmacySale[]
+  pharmacyDocumentSequences PharmacyDocumentSequence[]
+
   @@unique([companyId, code])
   @@index([tenantId, companyId, active])
 }
@@ -633,6 +660,9 @@ model Warehouse {
   inventoryLots      MedicationInventoryLot[]
   inventoryMovements MedicationInventoryMovement[]
 
+  pharmacySales             PharmacySale[]
+  pharmacyDocumentSequences PharmacyDocumentSequence[]
+
   @@unique([businessUnitId, code])
   @@index([tenantId, companyId, businessUnitId, active])
 }
@@ -653,6 +683,8 @@ model CompanyMedication {
   medication         Medication                    @relation(fields: [medicationId], references: [id], onDelete: Restrict)
   inventoryLots      MedicationInventoryLot[]
   inventoryMovements MedicationInventoryMovement[]
+
+  pharmacySaleItems PharmacySaleItem[]
 
   @@unique([companyId, medicationId])
   @@unique([companyId, companySku])
@@ -739,10 +771,201 @@ model MedicationInventoryMovement {
   reversalOf        MedicationInventoryMovement? @relation("InventoryMovementReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
   reversedBy        MedicationInventoryMovement? @relation("InventoryMovementReversal")
 
+  pharmacySaleAllocation PharmacySaleItemAllocation?
+
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, companyId, warehouseId, createdAt])
   @@index([tenantId, medicationId, createdAt])
   @@index([tenantId, lotId, createdAt])
   @@index([tenantId, operationId])
   @@index([tenantId, sourceType, sourceId])
+}
+
+enum PharmacySaleType {
+  OTC
+  PRESCRIPTION
+}
+
+enum PharmacySaleStatus {
+  COMPLETED
+  VOIDED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum PharmacyPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  REFUNDED
+}
+
+enum PharmacyPaymentMethod {
+  CASH
+  CARD
+  YAPE
+  PLIN
+  BANK_TRANSFER
+  OTHER
+}
+
+enum PharmacyDocumentType {
+  INTERNAL_SALE
+}
+
+model PharmacyDocumentSequence {
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @db.Uuid
+  companyId      String               @db.Uuid
+  businessUnitId String               @db.Uuid
+  warehouseId    String               @db.Uuid
+  documentType   PharmacyDocumentType @default(INTERNAL_SALE)
+  series         String               @db.VarChar(10)
+  currentNumber  Int                  @default(0)
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, businessUnitId, warehouseId, documentType, series])
+  @@index([tenantId, companyId, businessUnitId, warehouseId, active])
+}
+
+model PharmacySale {
+  id                     String                @id @default(uuid()) @db.Uuid
+  tenantId               String                @db.Uuid
+  companyId              String                @db.Uuid
+  businessUnitId         String                @db.Uuid
+  warehouseId            String                @db.Uuid
+  saleNumber             String                @db.VarChar(40)
+  series                 String                @db.VarChar(10)
+  sequenceNumber         Int
+  saleType               PharmacySaleType
+  status                 PharmacySaleStatus    @default(COMPLETED)
+  patientId              String?               @db.Uuid
+  prescriptionId         String?               @db.Uuid
+  customerName           String?               @db.VarChar(180)
+  customerDocumentType   String?               @db.VarChar(20)
+  customerDocumentNumber String?               @db.VarChar(30)
+  currency               String                @default("PEN") @db.VarChar(3)
+  subtotal               Decimal               @db.Decimal(14, 4)
+  discountTotal          Decimal               @default(0) @db.Decimal(14, 4)
+  taxTotal               Decimal               @default(0) @db.Decimal(14, 4)
+  total                  Decimal               @db.Decimal(14, 4)
+  paymentStatus          PharmacyPaymentStatus @default(PAID)
+  idempotencyKey         String                @db.VarChar(180)
+  notes                  String?               @db.Text
+  createdById            String                @db.Uuid
+  completedAt            DateTime              @default(now())
+  voidedAt               DateTime?
+  voidedById             String?               @db.Uuid
+  voidReason             String?               @db.Text
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  tenant       Tenant                @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company      Company               @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit BusinessUnit          @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse             @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  patient      Patient?              @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  prescription Prescription?         @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  createdBy    User                  @relation("PharmacySaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  voidedBy     User?                 @relation("PharmacySaleVoidedBy", fields: [voidedById], references: [id], onDelete: SetNull)
+  items        PharmacySaleItem[]
+  payments     PharmacySalePayment[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([companyId, saleNumber])
+  @@unique([companyId, businessUnitId, warehouseId, series, sequenceNumber])
+  @@index([tenantId, companyId, businessUnitId, warehouseId, completedAt])
+  @@index([tenantId, patientId, completedAt])
+  @@index([tenantId, prescriptionId])
+  @@index([tenantId, status, completedAt])
+}
+
+model PharmacySaleItem {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @db.Uuid
+  saleId               String   @db.Uuid
+  medicationId         String   @db.Uuid
+  companyMedicationId  String   @db.Uuid
+  prescriptionItemId   String?  @db.Uuid
+  companySku           String?  @db.VarChar(60)
+  genericName          String   @db.VarChar(180)
+  commercialName       String?  @db.VarChar(180)
+  concentration        String?  @db.VarChar(100)
+  presentation         String   @db.VarChar(180)
+  quantity             Decimal  @db.Decimal(14, 3)
+  unitPrice            Decimal  @db.Decimal(14, 4)
+  discountPercent      Decimal  @default(0) @db.Decimal(5, 2)
+  discountAmount       Decimal  @default(0) @db.Decimal(14, 4)
+  taxAmount            Decimal  @default(0) @db.Decimal(14, 4)
+  subtotal             Decimal  @db.Decimal(14, 4)
+  total                Decimal  @db.Decimal(14, 4)
+  requiresPrescription Boolean  @default(false)
+  priceOverride        Boolean  @default(false)
+  priceOverrideReason  String?  @db.Text
+  priceApprovedById    String?  @db.Uuid
+  createdAt            DateTime @default(now())
+
+  tenant            Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sale              PharmacySale                 @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  medication        Medication                   @relation(fields: [medicationId], references: [id], onDelete: Restrict)
+  companyMedication CompanyMedication            @relation(fields: [companyMedicationId], references: [id], onDelete: Restrict)
+  prescriptionItem  PrescriptionItem?            @relation(fields: [prescriptionItemId], references: [id], onDelete: SetNull)
+  priceApprovedBy   User?                        @relation("PharmacySalePriceApprovedBy", fields: [priceApprovedById], references: [id], onDelete: SetNull)
+  allocations       PharmacySaleItemAllocation[]
+
+  @@index([tenantId, saleId])
+  @@index([tenantId, medicationId, createdAt])
+  @@index([tenantId, prescriptionItemId])
+}
+
+model PharmacySaleItemAllocation {
+  id                  String    @id @default(uuid()) @db.Uuid
+  tenantId            String    @db.Uuid
+  saleItemId          String    @db.Uuid
+  lotId               String    @db.Uuid
+  inventoryMovementId String    @unique @db.Uuid
+  lotNumber           String    @db.VarChar(100)
+  expirationDate      DateTime?
+  quantity            Decimal   @db.Decimal(14, 3)
+  unitCost            Decimal?  @db.Decimal(14, 4)
+  unitPrice           Decimal   @db.Decimal(14, 4)
+  createdAt           DateTime  @default(now())
+
+  tenant            Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  saleItem          PharmacySaleItem            @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  lot               MedicationInventoryLot      @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  inventoryMovement MedicationInventoryMovement @relation(fields: [inventoryMovementId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, saleItemId])
+  @@index([tenantId, lotId, createdAt])
+}
+
+model PharmacySalePayment {
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @db.Uuid
+  saleId         String                @db.Uuid
+  method         PharmacyPaymentMethod
+  amount         Decimal               @db.Decimal(14, 4)
+  reference      String?               @db.VarChar(100)
+  receivedAmount Decimal?              @db.Decimal(14, 4)
+  changeAmount   Decimal?              @db.Decimal(14, 4)
+  idempotencyKey String                @db.VarChar(180)
+  paidAt         DateTime              @default(now())
+  recordedById   String?               @db.Uuid
+  createdAt      DateTime              @default(now())
+
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  sale       PharmacySale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  recordedBy User?        @relation("PharmacySalePaymentRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, saleId, paidAt])
+  @@index([tenantId, method, paidAt])
 }

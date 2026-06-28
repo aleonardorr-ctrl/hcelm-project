@@ -44,6 +44,15 @@ model Tenant {
   pharmacySaleAllocations   PharmacySaleItemAllocation[]
   pharmacySalePayments      PharmacySalePayment[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
+
+  companyFiscalProfiles        CompanyFiscalProfile[]
+  commercialCustomers          CommercialCustomer[]
+  electronicDocumentSequences  ElectronicDocumentSequence[]
+  electronicDocuments          ElectronicDocument[]
+  electronicDocumentLines      ElectronicDocumentLine[]
+  electronicDocumentDeliveries ElectronicDocumentDelivery[]
+  electronicDocumentEvents     ElectronicDocumentEvent[]
+  electronicDocumentJobs       ElectronicDocumentJob[]
 }
 
 model User {
@@ -74,6 +83,10 @@ model User {
   pharmacySalesVoided      PharmacySale[]        @relation("PharmacySaleVoidedBy")
   pharmacyPricesApproved   PharmacySaleItem[]    @relation("PharmacySalePriceApprovedBy")
   pharmacyPaymentsRecorded PharmacySalePayment[] @relation("PharmacySalePaymentRecordedBy")
+
+  commercialCustomersCreated      CommercialCustomer[]      @relation("CommercialCustomerCreatedBy")
+  electronicDocumentsCreated      ElectronicDocument[]      @relation("ElectronicDocumentCreatedBy")
+  electronicDocumentEventsCreated ElectronicDocumentEvent[] @relation("ElectronicDocumentEventCreatedBy")
 }
 
 model Patient {
@@ -614,6 +627,11 @@ model Company {
   pharmacySales             PharmacySale[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
 
+  fiscalProfile               CompanyFiscalProfile?
+  commercialCustomers         CommercialCustomer[]
+  electronicDocumentSequences ElectronicDocumentSequence[]
+  electronicDocuments         ElectronicDocument[]
+
   @@unique([tenantId, code])
   @@unique([tenantId, ruc])
   @@index([tenantId, active])
@@ -639,6 +657,9 @@ model BusinessUnit {
   pharmacySales             PharmacySale[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
 
+  electronicDocumentSequences ElectronicDocumentSequence[]
+  electronicDocuments         ElectronicDocument[]
+
   @@unique([companyId, code])
   @@index([tenantId, companyId, active])
 }
@@ -663,6 +684,9 @@ model Warehouse {
   pharmacySales             PharmacySale[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
 
+  electronicDocumentSequences ElectronicDocumentSequence[]
+  electronicDocuments         ElectronicDocument[]
+
   @@unique([businessUnitId, code])
   @@index([tenantId, companyId, businessUnitId, active])
 }
@@ -685,6 +709,12 @@ model CompanyMedication {
   inventoryMovements MedicationInventoryMovement[]
 
   pharmacySaleItems PharmacySaleItem[]
+
+  sunatProductCode   String?  @db.VarChar(20)
+  gtin               String?  @db.VarChar(20)
+  sunatUnitCode      String?  @db.VarChar(3)
+  taxAffectationCode String?  @db.VarChar(2)
+  taxRate            Decimal? @db.Decimal(5, 2)
 
   @@unique([companyId, medicationId])
   @@unique([companyId, companySku])
@@ -878,6 +908,10 @@ model PharmacySale {
   items        PharmacySaleItem[]
   payments     PharmacySalePayment[]
 
+  commercialCustomerId String?              @db.Uuid
+  commercialCustomer   CommercialCustomer?  @relation(fields: [commercialCustomerId], references: [id], onDelete: SetNull)
+  electronicDocuments  ElectronicDocument[]
+
   @@unique([tenantId, idempotencyKey])
   @@unique([companyId, saleNumber])
   @@unique([companyId, businessUnitId, warehouseId, series, sequenceNumber])
@@ -919,6 +953,8 @@ model PharmacySaleItem {
   prescriptionItem  PrescriptionItem?            @relation(fields: [prescriptionItemId], references: [id], onDelete: SetNull)
   priceApprovedBy   User?                        @relation("PharmacySalePriceApprovedBy", fields: [priceApprovedById], references: [id], onDelete: SetNull)
   allocations       PharmacySaleItemAllocation[]
+
+  electronicDocumentLines ElectronicDocumentLine[]
 
   @@index([tenantId, saleId])
   @@index([tenantId, medicationId, createdAt])
@@ -968,4 +1004,357 @@ model PharmacySalePayment {
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, saleId, paidAt])
   @@index([tenantId, method, paidAt])
+}
+
+enum CommercialCustomerType {
+  NATURAL_PERSON
+  LEGAL_ENTITY
+  FOREIGN_CUSTOMER
+}
+
+enum IdentityDocumentType {
+  DNI
+  RUC
+  CE
+  PASSPORT
+  OTHER
+}
+
+enum ElectronicDocumentType {
+  BOLETA
+  FACTURA
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum ElectronicDocumentStatus {
+  DRAFT
+  PENDING_GENERATION
+  GENERATED
+  SIGNED
+  SENT
+  ACCEPTED
+  OBSERVED
+  REJECTED
+  VOID_PENDING
+  VOIDED
+  ERROR
+}
+
+enum ElectronicBillingEnvironment {
+  BETA
+  PRODUCTION
+}
+
+enum ElectronicBillingProvider {
+  NONE
+  SUNAT_DIRECT
+  PSE
+  OSE
+}
+
+enum ElectronicDeliveryChannel {
+  EMAIL
+  WHATSAPP
+  TELEGRAM
+  SECURE_LINK
+  DOWNLOAD
+}
+
+enum ElectronicDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum ElectronicDocumentJobType {
+  GENERATE
+  SIGN
+  SUBMIT
+  QUERY_STATUS
+  DELIVER
+  VOID
+}
+
+enum ElectronicDocumentJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model CompanyFiscalProfile {
+  id                   String                       @id @default(uuid()) @db.Uuid
+  tenantId             String                       @db.Uuid
+  companyId            String                       @unique @db.Uuid
+  fiscalAddress        String                       @db.VarChar(255)
+  ubigeo               String?                      @db.VarChar(6)
+  department           String?                      @db.VarChar(100)
+  province             String?                      @db.VarChar(100)
+  district             String?                      @db.VarChar(100)
+  countryCode          String                       @default("PE") @db.VarChar(2)
+  provider             ElectronicBillingProvider    @default(NONE)
+  environment          ElectronicBillingEnvironment @default(BETA)
+  credentialSecretRef  String?                      @db.VarChar(255)
+  certificateSecretRef String?                      @db.VarChar(255)
+  certificateExpiresAt DateTime?
+  nonSecretSettings    Json?
+  active               Boolean                      @default(false)
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, active])
+  @@index([tenantId, provider, environment])
+}
+
+model CommercialCustomer {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  tenantId            String                 @db.Uuid
+  companyId           String                 @db.Uuid
+  customerType        CommercialCustomerType
+  documentType        IdentityDocumentType
+  documentNumber      String                 @db.VarChar(20)
+  displayName         String                 @db.VarChar(200)
+  legalName           String?                @db.VarChar(200)
+  tradeName           String?                @db.VarChar(200)
+  firstNames          String?                @db.VarChar(120)
+  paternalSurname     String?                @db.VarChar(100)
+  maternalSurname     String?                @db.VarChar(100)
+  email               String?                @db.VarChar(180)
+  phone               String?                @db.VarChar(30)
+  whatsappPhone       String?                @db.VarChar(30)
+  telegramChatId      String?                @db.VarChar(100)
+  address             String?                @db.VarChar(255)
+  ubigeo              String?                @db.VarChar(6)
+  department          String?                @db.VarChar(100)
+  province            String?                @db.VarChar(100)
+  district            String?                @db.VarChar(100)
+  countryCode         String                 @default("PE") @db.VarChar(2)
+  electronicConsentAt DateTime?
+  marketingConsentAt  DateTime?
+  active              Boolean                @default(true)
+  createdById         String?                @db.Uuid
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy User?                @relation("CommercialCustomerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  sales     PharmacySale[]
+  documents ElectronicDocument[]
+
+  @@unique([companyId, documentType, documentNumber])
+  @@index([tenantId, companyId, active])
+  @@index([tenantId, companyId, displayName])
+  @@index([tenantId, email])
+  @@index([tenantId, phone])
+}
+
+model ElectronicDocumentSequence {
+  id             String                 @id @default(uuid()) @db.Uuid
+  tenantId       String                 @db.Uuid
+  companyId      String                 @db.Uuid
+  businessUnitId String                 @db.Uuid
+  warehouseId    String                 @db.Uuid
+  documentType   ElectronicDocumentType
+  series         String                 @db.VarChar(4)
+  currentNumber  Int                    @default(0)
+  active         Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, businessUnitId, warehouseId, documentType, series])
+  @@index([tenantId, companyId, businessUnitId, warehouseId, active])
+}
+
+model ElectronicDocument {
+  id                       String                       @id @default(uuid()) @db.Uuid
+  tenantId                 String                       @db.Uuid
+  companyId                String                       @db.Uuid
+  businessUnitId           String                       @db.Uuid
+  warehouseId              String                       @db.Uuid
+  saleId                   String?                      @db.Uuid
+  customerId               String?                      @db.Uuid
+  relatedDocumentId        String?                      @db.Uuid
+  documentType             ElectronicDocumentType
+  status                   ElectronicDocumentStatus     @default(DRAFT)
+  environment              ElectronicBillingEnvironment @default(BETA)
+  series                   String                       @db.VarChar(4)
+  number                   Int
+  fullNumber               String                       @db.VarChar(20)
+  issueDate                DateTime                     @default(now())
+  dueDate                  DateTime?
+  operationTypeCode        String                       @default("0101") @db.VarChar(4)
+  currency                 String                       @default("PEN") @db.VarChar(3)
+  issuerRuc                String                       @db.VarChar(11)
+  issuerLegalName          String                       @db.VarChar(200)
+  issuerTradeName          String?                      @db.VarChar(200)
+  issuerAddress            String                       @db.VarChar(255)
+  issuerUbigeo             String?                      @db.VarChar(6)
+  customerDocumentType     IdentityDocumentType?
+  customerDocumentNumber   String?                      @db.VarChar(20)
+  customerName             String?                      @db.VarChar(200)
+  customerAddress          String?                      @db.VarChar(255)
+  customerEmail            String?                      @db.VarChar(180)
+  customerPhone            String?                      @db.VarChar(30)
+  taxableAmount            Decimal                      @default(0) @db.Decimal(14, 4)
+  exoneratedAmount         Decimal                      @default(0) @db.Decimal(14, 4)
+  unaffectedAmount         Decimal                      @default(0) @db.Decimal(14, 4)
+  freeAmount               Decimal                      @default(0) @db.Decimal(14, 4)
+  discountTotal            Decimal                      @default(0) @db.Decimal(14, 4)
+  igvTotal                 Decimal                      @default(0) @db.Decimal(14, 4)
+  otherTaxTotal            Decimal                      @default(0) @db.Decimal(14, 4)
+  total                    Decimal                      @default(0) @db.Decimal(14, 4)
+  idempotencyKey           String                       @db.VarChar(180)
+  referenceReasonCode      String?                      @db.VarChar(4)
+  referenceReason          String?                      @db.VarChar(500)
+  xmlStorageKey            String?                      @db.VarChar(500)
+  cdrStorageKey            String?                      @db.VarChar(500)
+  pdfStorageKey            String?                      @db.VarChar(500)
+  xmlHash                  String?                      @db.VarChar(128)
+  qrPayload                String?                      @db.Text
+  sunatTicket              String?                      @db.VarChar(100)
+  sunatResponseCode        String?                      @db.VarChar(20)
+  sunatResponseDescription String?                      @db.Text
+  submittedAt              DateTime?
+  acceptedAt               DateTime?
+  createdById              String                       @db.Uuid
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+
+  tenant           Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  company          Company                      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit     BusinessUnit                 @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  warehouse        Warehouse                    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  sale             PharmacySale?                @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  customer         CommercialCustomer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  relatedDocument  ElectronicDocument?          @relation("ElectronicDocumentRelated", fields: [relatedDocumentId], references: [id], onDelete: Restrict)
+  relatedDocuments ElectronicDocument[]         @relation("ElectronicDocumentRelated")
+  createdBy        User                         @relation("ElectronicDocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  lines            ElectronicDocumentLine[]
+  deliveries       ElectronicDocumentDelivery[]
+  events           ElectronicDocumentEvent[]
+  jobs             ElectronicDocumentJob[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([companyId, documentType, series, number])
+  @@unique([companyId, fullNumber])
+  @@index([tenantId, companyId, status, issueDate])
+  @@index([tenantId, saleId])
+  @@index([tenantId, customerId, issueDate])
+  @@index([tenantId, relatedDocumentId])
+}
+
+model ElectronicDocumentLine {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  documentId         String   @db.Uuid
+  saleItemId         String?  @db.Uuid
+  lineNumber         Int
+  companySku         String?  @db.VarChar(60)
+  sunatProductCode   String?  @db.VarChar(20)
+  gtin               String?  @db.VarChar(20)
+  description        String   @db.VarChar(500)
+  unitCode           String   @db.VarChar(3)
+  quantity           Decimal  @db.Decimal(14, 3)
+  unitValue          Decimal  @db.Decimal(14, 4)
+  unitPrice          Decimal  @db.Decimal(14, 4)
+  discountAmount     Decimal  @default(0) @db.Decimal(14, 4)
+  taxAffectationCode String   @db.VarChar(2)
+  taxRate            Decimal  @default(0) @db.Decimal(5, 2)
+  igvAmount          Decimal  @default(0) @db.Decimal(14, 4)
+  lineValue          Decimal  @db.Decimal(14, 4)
+  lineTotal          Decimal  @db.Decimal(14, 4)
+  createdAt          DateTime @default(now())
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document ElectronicDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  saleItem PharmacySaleItem?  @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, lineNumber])
+  @@index([tenantId, documentId])
+  @@index([tenantId, saleItemId])
+}
+
+model ElectronicDocumentDelivery {
+  id                String                    @id @default(uuid()) @db.Uuid
+  tenantId          String                    @db.Uuid
+  documentId        String                    @db.Uuid
+  channel           ElectronicDeliveryChannel
+  destination       String                    @db.VarChar(255)
+  recipientName     String?                   @db.VarChar(200)
+  status            ElectronicDeliveryStatus  @default(PENDING)
+  idempotencyKey    String                    @db.VarChar(180)
+  consentAt         DateTime?
+  attempts          Int                       @default(0)
+  providerMessageId String?                   @db.VarChar(255)
+  lastError         String?                   @db.Text
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document ElectronicDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, documentId, status])
+  @@index([tenantId, channel, status, createdAt])
+}
+
+model ElectronicDocumentEvent {
+  id          String                    @id @default(uuid()) @db.Uuid
+  tenantId    String                    @db.Uuid
+  documentId  String                    @db.Uuid
+  status      ElectronicDocumentStatus?
+  eventType   String                    @db.VarChar(60)
+  message     String?                   @db.Text
+  payload     Json?
+  createdById String?                   @db.Uuid
+  createdAt   DateTime                  @default(now())
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document  ElectronicDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy User?              @relation("ElectronicDocumentEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, documentId, createdAt])
+  @@index([tenantId, eventType, createdAt])
+}
+
+model ElectronicDocumentJob {
+  id             String                      @id @default(uuid()) @db.Uuid
+  tenantId       String                      @db.Uuid
+  documentId     String                      @db.Uuid
+  jobType        ElectronicDocumentJobType
+  status         ElectronicDocumentJobStatus @default(PENDING)
+  idempotencyKey String                      @db.VarChar(180)
+  payload        Json?
+  attempts       Int                         @default(0)
+  maxAttempts    Int                         @default(5)
+  nextAttemptAt  DateTime                    @default(now())
+  lockedAt       DateTime?
+  lockedBy       String?                     @db.VarChar(100)
+  lastError      String?                     @db.Text
+  completedAt    DateTime?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  document ElectronicDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status, nextAttemptAt])
+  @@index([tenantId, documentId, jobType])
 }

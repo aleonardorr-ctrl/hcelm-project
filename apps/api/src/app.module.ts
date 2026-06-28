@@ -15,6 +15,7 @@ import { CertificatesModule } from './certificates/certificates.module';
 import { ClinicalAlertsModule } from './clinical-alerts/clinical-alerts.module';
 import { DiagnosesModule } from './diagnoses/diagnoses.module';
 import { EncountersModule } from './encounters/encounters.module';
+import { ElectronicBillingModule } from './electronic-billing/electronic-billing.module';
 import { EstablishmentModule } from './establishment/establishment.module';
 import { InstitutionModule } from './institution/institution.module';
 import { LaboratoryCatalogModule } from './laboratory-catalog/laboratory-catalog.module';
@@ -33,6 +34,7 @@ import { WaitingRoomModule } from './waiting-room/waiting-room.module';
     AuthModule,
     PatientsModule,
     EncountersModule,
+    ElectronicBillingModule,
     MedicationsModule,
     PrescriptionsModule,
     CertificatesModule,

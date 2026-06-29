@@ -303,6 +303,193 @@ export class OrganizationService {
     });
   }
 
+  async deleteCompany(tenantId: string, userId: string, id: string) {
+    await this.assertAdministrator(tenantId, userId);
+    await this.company(tenantId, id);
+    const counts = await Promise.all([
+      this.prisma.businessUnit.count({ where: { tenantId, companyId: id } }),
+      this.prisma.warehouse.count({ where: { tenantId, companyId: id } }),
+      this.prisma.companyModuleInstallation.count({
+        where: { tenantId, companyId: id },
+      }),
+      this.prisma.companyCollaborationAgreement.count({
+        where: {
+          tenantId,
+          OR: [{ ownerCompanyId: id }, { partnerCompanyId: id }],
+        },
+      }),
+      this.prisma.pharmacySale.count({ where: { tenantId, companyId: id } }),
+      this.prisma.electronicDocument.count({
+        where: { tenantId, companyId: id },
+      }),
+      this.prisma.userCompanyMembership.count({
+        where: { tenantId, companyId: id },
+      }),
+    ]);
+    this.assertNoDependencies(
+      counts,
+      'No se puede eliminar la empresa porque tiene unidades, almacenes, módulos, usuarios, ventas, documentos o colaboraciones. Desactívela si ya no se usará.',
+    );
+    return this.safeDelete(() => this.prisma.company.delete({ where: { id } }));
+  }
+
+  async deleteBusinessUnit(tenantId: string, userId: string, id: string) {
+    await this.assertAdministrator(tenantId, userId);
+    await this.businessUnit(tenantId, id);
+    const counts = await Promise.all([
+      this.prisma.warehouse.count({ where: { tenantId, businessUnitId: id } }),
+      this.prisma.companyModuleInstallation.count({
+        where: { tenantId, businessUnitId: id },
+      }),
+      this.prisma.companyCollaborationAgreement.count({
+        where: {
+          tenantId,
+          OR: [{ sourceBusinessUnitId: id }, { targetBusinessUnitId: id }],
+        },
+      }),
+      this.prisma.medicationInventoryLot.count({
+        where: { tenantId, businessUnitId: id },
+      }),
+      this.prisma.medicationInventoryMovement.count({
+        where: { tenantId, businessUnitId: id },
+      }),
+      this.prisma.pharmacySale.count({
+        where: { tenantId, businessUnitId: id },
+      }),
+      this.prisma.electronicDocument.count({
+        where: { tenantId, businessUnitId: id },
+      }),
+    ]);
+    this.assertNoDependencies(
+      counts,
+      'No se puede eliminar el establecimiento porque tiene almacenes, módulos, inventario, ventas, documentos o colaboraciones. Desactívelo si ya no se usará.',
+    );
+    return this.safeDelete(() =>
+      this.prisma.businessUnit.delete({ where: { id } }),
+    );
+  }
+
+  async deleteWarehouse(tenantId: string, userId: string, id: string) {
+    await this.assertAdministrator(tenantId, userId);
+    const warehouse = await this.prisma.warehouse.findFirst({
+      where: { id, tenantId },
+    });
+    if (!warehouse) throw new NotFoundException('Almacen no encontrado.');
+    const counts = await Promise.all([
+      this.prisma.companyModuleInstallation.count({
+        where: { tenantId, warehouseId: id },
+      }),
+      this.prisma.medicationInventoryLot.count({
+        where: { tenantId, warehouseId: id },
+      }),
+      this.prisma.medicationInventoryMovement.count({
+        where: { tenantId, warehouseId: id },
+      }),
+      this.prisma.pharmacySale.count({ where: { tenantId, warehouseId: id } }),
+      this.prisma.pharmacyDocumentSequence.count({
+        where: { tenantId, warehouseId: id },
+      }),
+      this.prisma.electronicDocument.count({
+        where: { tenantId, warehouseId: id },
+      }),
+      this.prisma.electronicDocumentSequence.count({
+        where: { tenantId, warehouseId: id },
+      }),
+    ]);
+    this.assertNoDependencies(
+      counts,
+      'No se puede eliminar el almacén porque tiene módulos, inventario, movimientos, ventas, series o documentos. Desactívelo si ya no se usará.',
+    );
+    return this.safeDelete(() =>
+      this.prisma.warehouse.delete({ where: { id } }),
+    );
+  }
+
+  async updateModuleInstallation(
+    tenantId: string,
+    userId: string,
+    id: string,
+    data: any,
+  ) {
+    await this.assertAdministrator(tenantId, userId);
+    const current = await this.prisma.companyModuleInstallation.findFirst({
+      where: { id, tenantId },
+    });
+    if (!current) throw new NotFoundException('Modulo no encontrado.');
+    const businessUnitId = data.businessUnitId
+      ? this.uuid(data.businessUnitId, 'unidad de negocio')
+      : current.businessUnitId;
+    const unit = await this.businessUnit(tenantId, businessUnitId);
+    const moduleKey = data.moduleKey
+      ? (this.enumValue(
+          CompanyModuleKey,
+          data.moduleKey,
+          'modulo',
+        ) as CompanyModuleKey)
+      : current.moduleKey;
+    let warehouseId: string | null = current.warehouseId;
+    if (data.warehouseId === null || data.warehouseId === '') {
+      warehouseId = null;
+    } else if (data.warehouseId) {
+      const warehouse = await this.prisma.warehouse.findFirst({
+        where: {
+          id: this.uuid(data.warehouseId, 'almacen'),
+          tenantId,
+          companyId: unit.companyId,
+          businessUnitId: unit.id,
+        },
+      });
+      if (!warehouse)
+        throw new BadRequestException('El almacen no pertenece a la unidad.');
+      warehouseId = warehouse.id;
+    }
+    return this.prisma.companyModuleInstallation.update({
+      where: { id },
+      data: {
+        companyId: unit.companyId,
+        businessUnitId: unit.id,
+        warehouseId,
+        moduleKey,
+        displayName:
+          data.displayName === undefined
+            ? undefined
+            : this.optional(data.displayName, 180),
+        active: typeof data.active === 'boolean' ? data.active : undefined,
+        settings:
+          data.settings === undefined
+            ? undefined
+            : (data.settings as Prisma.InputJsonValue),
+      },
+    });
+  }
+
+  async deleteModuleInstallation(tenantId: string, userId: string, id: string) {
+    await this.assertAdministrator(tenantId, userId);
+    const current = await this.prisma.companyModuleInstallation.findFirst({
+      where: { id, tenantId },
+    });
+    if (!current) throw new NotFoundException('Modulo no encontrado.');
+    return this.safeDelete(() =>
+      this.prisma.companyModuleInstallation.delete({ where: { id } }),
+    );
+  }
+
+  async deleteCollaboration(tenantId: string, userId: string, id: string) {
+    await this.assertAdministrator(tenantId, userId);
+    const current = await this.prisma.companyCollaborationAgreement.findFirst({
+      where: { id, tenantId },
+    });
+    if (!current) throw new NotFoundException('Colaboracion no encontrada.');
+    if (current.status !== CompanyCollaborationStatus.DRAFT) {
+      throw new ConflictException(
+        'Solo se puede eliminar una colaboracion en borrador. Si ya fue usada, suspendala o revoquela.',
+      );
+    }
+    return this.safeDelete(() =>
+      this.prisma.companyCollaborationAgreement.delete({ where: { id } }),
+    );
+  }
+
   private async collaborationData(tenantId: string, data: any) {
     const owner = await this.company(
       tenantId,
@@ -405,6 +592,25 @@ export class OrganizationService {
           throw new NotFoundException('Unidad de negocio no encontrada.');
         return value;
       });
+  }
+
+  private assertNoDependencies(counts: number[], message: string) {
+    if (counts.some((count) => count > 0)) {
+      throw new ConflictException(message);
+    }
+  }
+
+  private async safeDelete<T>(operation: () => Promise<T>) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (error?.code === 'P2003') {
+        throw new ConflictException(
+          'No se puede eliminar porque existen datos relacionados. Desactive el registro en lugar de eliminarlo.',
+        );
+      }
+      throw error;
+    }
   }
 
   private required(value: unknown, label: string, max: number) {

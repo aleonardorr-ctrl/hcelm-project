@@ -27,6 +27,7 @@ import Home from "./pages/Home";
 import InstitutionSettings from "./pages/InstitutionSettings";
 import Login from "./pages/Login";
 import NewEncounter from "./pages/NewEncounter";
+import OrganizationAdministration from "./pages/OrganizationAdministration";
 import Patients from "./pages/Patients";
 import ProfessionalVerification from "./pages/ProfessionalVerification";
 import {
@@ -486,6 +487,14 @@ function AppRoutes() {
           }
         />
 
+        <Route
+          path="/admin/organization"
+          element={
+            <ProfessionalProtected>
+              <OrganizationAdministration />
+            </ProfessionalProtected>
+          }
+        />
         <Route
           path="/institution"
           element={

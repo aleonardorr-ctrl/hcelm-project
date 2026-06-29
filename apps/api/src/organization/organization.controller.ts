@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -49,6 +50,15 @@ export class OrganizationController {
     );
   }
 
+  @Delete('companies/:id')
+  deleteCompany(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.deleteCompany(
+      this.tenantId(user),
+      this.userId(user),
+      id,
+    );
+  }
+
   @Post('business-units')
   createBusinessUnit(@CurrentUser() user: any, @Body() body: any) {
     return this.service.createBusinessUnit(
@@ -69,6 +79,15 @@ export class OrganizationController {
       this.userId(user),
       id,
       body,
+    );
+  }
+
+  @Delete('business-units/:id')
+  deleteBusinessUnit(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.deleteBusinessUnit(
+      this.tenantId(user),
+      this.userId(user),
+      id,
     );
   }
 
@@ -95,12 +114,44 @@ export class OrganizationController {
     );
   }
 
+  @Delete('warehouses/:id')
+  deleteWarehouse(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.deleteWarehouse(
+      this.tenantId(user),
+      this.userId(user),
+      id,
+    );
+  }
+
   @Put('module-installations')
   saveModuleInstallation(@CurrentUser() user: any, @Body() body: any) {
     return this.service.saveModuleInstallation(
       this.tenantId(user),
       this.userId(user),
       body,
+    );
+  }
+
+  @Patch('module-installations/:id')
+  updateModuleInstallation(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.service.updateModuleInstallation(
+      this.tenantId(user),
+      this.userId(user),
+      id,
+      body,
+    );
+  }
+
+  @Delete('module-installations/:id')
+  deleteModuleInstallation(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.deleteModuleInstallation(
+      this.tenantId(user),
+      this.userId(user),
+      id,
     );
   }
 
@@ -124,6 +175,15 @@ export class OrganizationController {
       this.userId(user),
       id,
       body,
+    );
+  }
+
+  @Delete('collaborations/:id')
+  deleteCollaboration(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.service.deleteCollaboration(
+      this.tenantId(user),
+      this.userId(user),
+      id,
     );
   }
 

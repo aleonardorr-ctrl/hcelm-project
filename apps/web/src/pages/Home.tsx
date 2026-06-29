@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
-type ModuleStatus = 'activo' | 'proceso' | 'proxima_fase';
+type ModuleStatus = "activo" | "proceso" | "proxima_fase";
 
 type PlatformModule = {
   title: string;
@@ -15,78 +15,79 @@ type PlatformModule = {
 
 const platformModules: PlatformModule[] = [
   {
-    title: 'Atención clínica',
-    subtitle: 'Consultorio / HCE',
+    title: "Atención clínica",
+    subtitle: "Consultorio / HCE",
     description:
-      'Pacientes, historia clínica, anamnesis, diagnósticos, recetas, órdenes y certificados.',
-    emoji: '🩺',
-    to: '/patients',
-    status: 'activo',
-    moduleKey: 'CLINIC',
+      "Pacientes, historia clínica, anamnesis, diagnósticos, recetas, órdenes y certificados.",
+    emoji: "🩺",
+    to: "/patients",
+    status: "activo",
+    moduleKey: "CLINIC",
   },
   {
-    title: 'Farmacia / Botica',
-    subtitle: 'Productos, lotes y recetas',
+    title: "Farmacia / Botica",
+    subtitle: "Productos, lotes y recetas",
     description:
-      'Catálogo farmacéutico, lotes, stock, vencimientos, recetas pendientes y futura dispensación.',
-    emoji: '💊',
-    to: '/pharmacy',
-    status: 'proceso',
-    moduleKey: 'PHARMACY',
+      "Catálogo farmacéutico, lotes, stock, vencimientos, recetas pendientes y futura dispensación.",
+    emoji: "💊",
+    to: "/pharmacy",
+    status: "proceso",
+    moduleKey: "PHARMACY",
   },
   {
-    title: 'Droguería',
-    subtitle: 'Distribución y almacenes',
+    title: "Droguería",
+    subtitle: "Distribución y almacenes",
     description:
-      'Compras, proveedores, lotes, transferencias hacia boticas y control de distribución.',
-    emoji: '🏭',
-    status: 'proxima_fase',
-    moduleKey: 'DRUGSTORE',
+      "Compras, proveedores, lotes, transferencias hacia boticas y control de distribución.",
+    emoji: "🏭",
+    status: "proxima_fase",
+    moduleKey: "DRUGSTORE",
   },
   {
-    title: 'Caja y ventas',
-    subtitle: 'Multiempresa / multi-RUC',
+    title: "Caja y ventas",
+    subtitle: "Multiempresa / multi-RUC",
     description:
-      'Caja por empresa, venta de servicios, venta de productos, cierre de caja y comprobantes.',
-    emoji: '💵',
-    status: 'proxima_fase',
-    moduleKey: 'CASH_SALES',
+      "Caja por empresa, venta de servicios, venta de productos, cierre de caja y comprobantes.",
+    emoji: "💵",
+    status: "proxima_fase",
+    moduleKey: "CASH_SALES",
   },
   {
-    title: 'Inventario',
-    subtitle: 'Stock, FEFO y kardex',
+    title: "Inventario",
+    subtitle: "Stock, FEFO y kardex",
     description:
-      'Stock por empresa, almacén, lote, vencimiento, ubicación física y movimientos valorizados.',
-    emoji: '📦',
-    status: 'proxima_fase',
-    moduleKey: 'INVENTORY',
+      "Stock por empresa, almacén, lote, vencimiento, ubicación física y movimientos valorizados.",
+    emoji: "📦",
+    status: "proxima_fase",
+    moduleKey: "INVENTORY",
   },
   {
-    title: 'Facturación SUNAT',
-    subtitle: 'Boletas, facturas y XML',
+    title: "Facturación SUNAT",
+    subtitle: "Boletas, facturas y XML",
     description:
-      'Series, correlativos, comprobantes, XML, firma digital, CDR y futura conexión SUNAT/OSE.',
-    emoji: '🧾',
-    status: 'proxima_fase',
-    moduleKey: 'BILLING',
+      "Series, correlativos, comprobantes, XML, firma digital, CDR y futura conexión SUNAT/OSE.",
+    emoji: "🧾",
+    status: "proxima_fase",
+    moduleKey: "BILLING",
   },
   {
-    title: 'Reportes gerenciales',
-    subtitle: 'Visión corporativa',
+    title: "Reportes gerenciales",
+    subtitle: "Visión corporativa",
     description:
-      'Ingresos por empresa, ventas, caja, stock valorizado, productos por vencer y reportes consolidados.',
-    emoji: '📊',
-    status: 'proxima_fase',
-    moduleKey: 'REPORTS',
+      "Ingresos por empresa, ventas, caja, stock valorizado, productos por vencer y reportes consolidados.",
+    emoji: "📊",
+    status: "proxima_fase",
+    moduleKey: "REPORTS",
   },
   {
-    title: 'Administración SaaS',
-    subtitle: 'Tenants, empresas y usuarios',
+    title: "Administración SaaS",
+    subtitle: "Tenants, empresas y usuarios",
     description:
-      'Gestión de grupos, empresas/RUC, usuarios, roles, permisos, planes y auditoría de plataforma.',
-    emoji: '⚙️',
-    status: 'proxima_fase',
-    moduleKey: 'SAAS_ADMIN',
+      "Gestión de grupos, empresas/RUC, usuarios, roles, permisos, planes y auditoría de plataforma.",
+    emoji: "⚙️",
+    to: "/admin/organization",
+    status: "activo",
+    moduleKey: "SAAS_ADMIN",
   },
 ];
 
@@ -94,28 +95,28 @@ export default function Home() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = sessionStorage.getItem('ame_token');
+    const token = sessionStorage.getItem("ame_token");
 
     if (!token) {
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
     }
   }, [navigate]);
 
   const userName =
-    sessionStorage.getItem('hcelm_professional_name') ||
-    sessionStorage.getItem('hcelm_user_name') ||
-    'Usuario HCELM';
+    sessionStorage.getItem("hcelm_professional_name") ||
+    sessionStorage.getItem("hcelm_user_name") ||
+    "Usuario HCELM";
 
   const tenantName =
-    sessionStorage.getItem('hcelm_tenant_name') || 'Grupo Rodríguez';
+    sessionStorage.getItem("hcelm_tenant_name") || "Grupo Rodríguez";
 
   const companyName =
-    sessionStorage.getItem('hcelm_company_name') || 'Empresa activa';
+    sessionStorage.getItem("hcelm_company_name") || "Empresa activa";
 
   const roleName =
-    sessionStorage.getItem('hcelm_professional_role') ||
-    sessionStorage.getItem('hcelm_user_role') ||
-    'Rol operativo';
+    sessionStorage.getItem("hcelm_professional_role") ||
+    sessionStorage.getItem("hcelm_user_role") ||
+    "Rol operativo";
 
   return (
     <div className="space-y-6">
@@ -196,7 +197,11 @@ export default function Home() {
           <FlowStep number="1" title="Plataforma" text="HCELM SaaS" />
           <FlowStep number="2" title="Tenant" text="Grupo o cliente" />
           <FlowStep number="3" title="Empresa" text="RUC independiente" />
-          <FlowStep number="4" title="Unidad" text="Consultorio, botica, droguería" />
+          <FlowStep
+            number="4"
+            title="Unidad"
+            text="Consultorio, botica, droguería"
+          />
           <FlowStep number="5" title="Usuario" text="Rol y permisos" />
         </div>
       </section>
@@ -237,9 +242,7 @@ function PlatformModuleCard({ module }: { module: PlatformModule }) {
             Abrir módulo →
           </span>
         ) : (
-          <span className="text-sm font-bold text-slate-400">
-            Próxima fase
-          </span>
+          <span className="text-sm font-bold text-slate-400">Próxima fase</span>
         )}
       </div>
     </div>
@@ -257,7 +260,7 @@ function PlatformModuleCard({ module }: { module: PlatformModule }) {
 }
 
 function StatusBadge({ status }: { status: ModuleStatus }) {
-  if (status === 'activo') {
+  if (status === "activo") {
     return (
       <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
         Activo
@@ -265,7 +268,7 @@ function StatusBadge({ status }: { status: ModuleStatus }) {
     );
   }
 
-  if (status === 'proceso') {
+  if (status === "proceso") {
     return (
       <span className="text-xs px-2 py-1 rounded-full bg-cyan-100 text-cyan-700 font-semibold">
         En proceso

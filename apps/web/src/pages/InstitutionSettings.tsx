@@ -1,20 +1,20 @@
 // Archivo: InstitutionSettings.tsx
 // Ruta: apps/web/src/pages/InstitutionSettings.tsx
 // Funcion: Configuracion institucional, modulos, clinica, usuarios, marca e HCE.
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = "http://localhost:3000/api";
 
 type TabType =
-  | 'general'
-  | 'modules'
-  | 'clinical'
-  | 'professionals'
-  | 'branding'
-  | 'hce';
+  | "general"
+  | "modules"
+  | "clinical"
+  | "professionals"
+  | "branding"
+  | "hce";
 
 type SystemModule = {
-  key: 'CLINICAL' | 'PHARMACY' | 'DRUGSTORE' | 'BILLING' | 'MANAGEMENT';
+  key: "CLINICAL" | "PHARMACY" | "DRUGSTORE" | "BILLING" | "MANAGEMENT";
   name: string;
   description: string;
   enabled: boolean;
@@ -22,33 +22,34 @@ type SystemModule = {
 
 const DEFAULT_SYSTEM_MODULES: SystemModule[] = [
   {
-    key: 'CLINICAL',
-    name: 'Consultorio medico',
-    description: 'Pacientes, atenciones, HCE, recetas y documentos clinicos.',
+    key: "CLINICAL",
+    name: "Consultorio medico",
+    description: "Pacientes, atenciones, HCE, recetas y documentos clinicos.",
     enabled: true,
   },
   {
-    key: 'PHARMACY',
-    name: 'Farmacia',
-    description: 'Dispensacion, lotes, existencias y venta minorista.',
+    key: "PHARMACY",
+    name: "Farmacia",
+    description: "Dispensacion, lotes, existencias y venta minorista.",
     enabled: false,
   },
   {
-    key: 'DRUGSTORE',
-    name: 'Drogueria',
-    description: 'Almacenes, distribucion y venta mayorista.',
+    key: "DRUGSTORE",
+    name: "Drogueria",
+    description: "Almacenes, distribucion y venta mayorista.",
     enabled: false,
   },
   {
-    key: 'BILLING',
-    name: 'Caja y facturacion',
-    description: 'Cobros, pagos, boletas, facturas y cierres de caja.',
+    key: "BILLING",
+    name: "Caja y facturacion",
+    description: "Cobros, pagos, boletas, facturas y cierres de caja.",
     enabled: false,
   },
   {
-    key: 'MANAGEMENT',
-    name: 'Gerencia',
-    description: 'Indicadores consolidados, valorizacion y reportes gerenciales.',
+    key: "MANAGEMENT",
+    name: "Gerencia",
+    description:
+      "Indicadores consolidados, valorizacion y reportes gerenciales.",
     enabled: false,
   },
 ];
@@ -62,23 +63,23 @@ function getSuggestedSpo2Range(altitudeMeters: number) {
 }
 
 export default function InstitutionSettings() {
-  const [activeTab, setActiveTab] = useState<TabType>('general');
+  const [activeTab, setActiveTab] = useState<TabType>("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [institution, setInstitution] = useState({
-    name: '',
-    legalName: '',
-    ruc: '',
-    address: '',
-    phone: '',
-    email: '',
-    city: 'Arequipa',
-    country: 'Perú',
+    name: "",
+    legalName: "",
+    ruc: "",
+    address: "",
+    phone: "",
+    email: "",
+    city: "Arequipa",
+    country: "Perú",
 
-    logoUrl: '',
-    signatureUrl: '',
-    sealUrl: '',
+    logoUrl: "",
+    signatureUrl: "",
+    sealUrl: "",
 
     logoWidth: 70,
     logoHeight: 70,
@@ -87,19 +88,19 @@ export default function InstitutionSettings() {
     sealWidth: 120,
     sealHeight: 70,
 
-    primaryColor: '#0f766e',
-    secondaryColor: '#14b8a6',
+    primaryColor: "#0f766e",
+    secondaryColor: "#14b8a6",
 
-    directorName: '',
-    directorCmp: '',
-    directorRne: '',
+    directorName: "",
+    directorCmp: "",
+    directorRne: "",
 
-    timezone: 'America/Lima',
-    language: 'es',
+    timezone: "America/Lima",
+    language: "es",
 
     altitudeMeters: 0,
     spo2AltitudeAdjustmentEnabled: false,
-    spo2ReferenceProfile: 'ADULT_ACCLIMATIZED',
+    spo2ReferenceProfile: "ADULT_ACCLIMATIZED",
     spo2ExpectedMin: 95,
     spo2ExpectedMax: 100,
   });
@@ -108,12 +109,12 @@ export default function InstitutionSettings() {
   const [showUserForm, setShowUserForm] = useState(false);
 
   const [newUser, setNewUser] = useState({
-    email: '',
-    fullName: '',
-    role: 'medico',
-    cmp: '',
-    rne: '',
-    password: 'AME2026',
+    email: "",
+    fullName: "",
+    role: "medico",
+    cmp: "",
+    rne: "",
+    password: "",
     active: true,
   });
 
@@ -132,10 +133,10 @@ export default function InstitutionSettings() {
   );
 
   const getAuthHeaders = () => {
-    const token = sessionStorage.getItem('ame_token');
+    const token = sessionStorage.getItem("ame_token");
 
     return {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     };
   };
@@ -147,7 +148,9 @@ export default function InstitutionSettings() {
       const [instRes, usersRes, hceRes, modulesRes] = await Promise.all([
         fetch(`${API_URL}/institution`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/institution/users`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/institution/hce-config`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/institution/hce-config`, {
+          headers: getAuthHeaders(),
+        }),
         fetch(`${API_URL}/institution/system-modules`, {
           headers: getAuthHeaders(),
         }),
@@ -191,7 +194,7 @@ export default function InstitutionSettings() {
         }
       }
     } catch {
-      alert('No se pudo cargar la configuración institucional.');
+      alert("No se pudo cargar la configuración institucional.");
     } finally {
       setLoading(false);
     }
@@ -207,20 +210,23 @@ export default function InstitutionSettings() {
     const { name, value, type } = e.target;
 
     const numericFields = [
-      'logoWidth',
-      'logoHeight',
-      'signatureWidth',
-      'signatureHeight',
-      'sealWidth',
-      'sealHeight',
-      'altitudeMeters',
-      'spo2ExpectedMin',
-      'spo2ExpectedMax',
+      "logoWidth",
+      "logoHeight",
+      "signatureWidth",
+      "signatureHeight",
+      "sealWidth",
+      "sealHeight",
+      "altitudeMeters",
+      "spo2ExpectedMin",
+      "spo2ExpectedMax",
     ];
 
     setInstitution((prev) => ({
       ...prev,
-      [name]: numericFields.includes(name) || type === 'number' ? Number(value) : value,
+      [name]:
+        numericFields.includes(name) || type === "number"
+          ? Number(value)
+          : value,
     }));
   };
 
@@ -243,27 +249,33 @@ export default function InstitutionSettings() {
     }));
   };
 
-  const handleHceChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleHceChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { name, value, type } = e.target;
 
     setHceConfig((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+      [name]:
+        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
-  const imageToBase64 = (file: File, field: 'logoUrl' | 'signatureUrl' | 'sealUrl') => {
+  const imageToBase64 = (
+    file: File,
+    field: "logoUrl" | "signatureUrl" | "sealUrl",
+  ) => {
     const reader = new FileReader();
 
     reader.onload = () => {
       setInstitution((prev) => ({
         ...prev,
-        [field]: String(reader.result || ''),
+        [field]: String(reader.result || ""),
       }));
     };
 
     reader.onerror = () => {
-      alert('No se pudo leer la imagen seleccionada.');
+      alert("No se pudo leer la imagen seleccionada.");
     };
 
     reader.readAsDataURL(file);
@@ -271,14 +283,14 @@ export default function InstitutionSettings() {
 
   const handleImageUpload = (
     e: React.ChangeEvent<HTMLInputElement>,
-    field: 'logoUrl' | 'signatureUrl' | 'sealUrl',
+    field: "logoUrl" | "signatureUrl" | "sealUrl",
   ) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      alert('Seleccione un archivo de imagen válido.');
+    if (!file.type.startsWith("image/")) {
+      alert("Seleccione un archivo de imagen válido.");
       return;
     }
 
@@ -293,8 +305,8 @@ export default function InstitutionSettings() {
     imageToBase64(file, field);
   };
 
-  const clearImage = (field: 'logoUrl' | 'signatureUrl' | 'sealUrl') => {
-    setInstitution((prev) => ({ ...prev, [field]: '' }));
+  const clearImage = (field: "logoUrl" | "signatureUrl" | "sealUrl") => {
+    setInstitution((prev) => ({ ...prev, [field]: "" }));
   };
 
   const saveInstitution = async () => {
@@ -302,7 +314,7 @@ export default function InstitutionSettings() {
 
     try {
       const res = await fetch(`${API_URL}/institution`, {
-        method: 'PUT',
+        method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({
           ...institution,
@@ -319,14 +331,14 @@ export default function InstitutionSettings() {
       });
 
       if (!res.ok) {
-        alert('No se pudo guardar la configuración institucional.');
+        alert("No se pudo guardar la configuración institucional.");
         return;
       }
 
-      alert('Configuración institucional guardada correctamente.');
+      alert("Configuración institucional guardada correctamente.");
       await loadData();
     } catch {
-      alert('Error de conexión al guardar configuración institucional.');
+      alert("Error de conexión al guardar configuración institucional.");
     } finally {
       setSaving(false);
     }
@@ -337,7 +349,7 @@ export default function InstitutionSettings() {
 
     try {
       const res = await fetch(`${API_URL}/institution/hce-config`, {
-        method: 'PUT',
+        method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({
           ...hceConfig,
@@ -346,20 +358,20 @@ export default function InstitutionSettings() {
       });
 
       if (!res.ok) {
-        alert('No se pudo guardar la configuración HCE.');
+        alert("No se pudo guardar la configuración HCE.");
         return;
       }
 
-      alert('Configuración HCE guardada correctamente.');
+      alert("Configuración HCE guardada correctamente.");
       await loadData();
     } catch {
-      alert('Error de conexión al guardar configuración HCE.');
+      alert("Error de conexión al guardar configuración HCE.");
     } finally {
       setSaving(false);
     }
   };
 
-  const toggleSystemModule = (key: SystemModule['key']) => {
+  const toggleSystemModule = (key: SystemModule["key"]) => {
     setSystemModules((current) =>
       current.map((module) =>
         module.key === key ? { ...module, enabled: !module.enabled } : module,
@@ -370,13 +382,13 @@ export default function InstitutionSettings() {
   const saveSystemModules = async () => {
     const hasOperationalModule = systemModules.some(
       (module) =>
-        ['CLINICAL', 'PHARMACY', 'DRUGSTORE'].includes(module.key) &&
+        ["CLINICAL", "PHARMACY", "DRUGSTORE"].includes(module.key) &&
         module.enabled,
     );
 
     if (!hasOperationalModule) {
       alert(
-        'Debe permanecer activo al menos Consultorio medico, Farmacia o Drogueria.',
+        "Debe permanecer activo al menos Consultorio medico, Farmacia o Drogueria.",
       );
       return;
     }
@@ -385,7 +397,7 @@ export default function InstitutionSettings() {
 
     try {
       const res = await fetch(`${API_URL}/institution/system-modules`, {
-        method: 'PUT',
+        method: "PUT",
         headers: getAuthHeaders(),
         body: JSON.stringify({
           modules: systemModules.map(({ key, enabled }) => ({ key, enabled })),
@@ -395,7 +407,9 @@ export default function InstitutionSettings() {
       const result = await res.json().catch(() => null);
 
       if (!res.ok) {
-        alert(result?.message || 'No se pudo guardar la configuracion de modulos.');
+        alert(
+          result?.message || "No se pudo guardar la configuracion de modulos.",
+        );
         return;
       }
 
@@ -403,10 +417,10 @@ export default function InstitutionSettings() {
         setSystemModules(result.modules);
       }
 
-      window.dispatchEvent(new Event('hcelm:system-modules-updated'));
-      alert('Modulos del sistema guardados correctamente.');
+      window.dispatchEvent(new Event("hcelm:system-modules-updated"));
+      alert("Modulos del sistema guardados correctamente.");
     } catch {
-      alert('Error de conexion al guardar los modulos del sistema.');
+      alert("Error de conexion al guardar los modulos del sistema.");
     } finally {
       setSaving(false);
     }
@@ -415,39 +429,39 @@ export default function InstitutionSettings() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newUser.email.trim()) return alert('Ingrese correo electrónico.');
-    if (!newUser.fullName.trim()) return alert('Ingrese nombre completo.');
+    if (!newUser.email.trim()) return alert("Ingrese correo electrónico.");
+    if (!newUser.fullName.trim()) return alert("Ingrese nombre completo.");
 
     setSaving(true);
 
     try {
       const res = await fetch(`${API_URL}/institution/users`, {
-        method: 'POST',
+        method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify(newUser),
       });
 
       if (!res.ok) {
-        alert('No se pudo crear el profesional.');
+        alert("No se pudo crear el profesional.");
         return;
       }
 
-      alert('Profesional creado correctamente.');
+      alert("Profesional creado correctamente.");
 
       setNewUser({
-        email: '',
-        fullName: '',
-        role: 'medico',
-        cmp: '',
-        rne: '',
-        password: 'AME2026',
+        email: "",
+        fullName: "",
+        role: "medico",
+        cmp: "",
+        rne: "",
+        password: "",
         active: true,
       });
 
       setShowUserForm(false);
       await loadData();
     } catch {
-      alert('Error de conexión al crear profesional.');
+      alert("Error de conexión al crear profesional.");
     } finally {
       setSaving(false);
     }
@@ -458,19 +472,19 @@ export default function InstitutionSettings() {
 
     try {
       const res = await fetch(`${API_URL}/institution/users/${userId}/toggle`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: getAuthHeaders(),
         body: JSON.stringify({ active }),
       });
 
       if (!res.ok) {
-        alert('No se pudo actualizar el usuario.');
+        alert("No se pudo actualizar el usuario.");
         return;
       }
 
       await loadData();
     } catch {
-      alert('Error de conexión al actualizar usuario.');
+      alert("Error de conexión al actualizar usuario.");
     } finally {
       setSaving(false);
     }
@@ -479,26 +493,31 @@ export default function InstitutionSettings() {
   if (loading) {
     return (
       <div className="p-6">
-        <p className="text-slate-600">Cargando configuración institucional...</p>
+        <p className="text-slate-600">
+          Cargando configuración institucional...
+        </p>
       </div>
     );
   }
 
   const tabs: { id: TabType; label: string }[] = [
-    { id: 'general', label: 'General' },
-    { id: 'modules', label: 'Modulos' },
-    { id: 'clinical', label: 'Contexto clinico' },
-    { id: 'professionals', label: 'Profesionales' },
-    { id: 'branding', label: 'Branding' },
-    { id: 'hce', label: 'HCE' },
+    { id: "general", label: "General" },
+    { id: "modules", label: "Modulos" },
+    { id: "clinical", label: "Contexto clinico" },
+    { id: "professionals", label: "Profesionales" },
+    { id: "branding", label: "Branding" },
+    { id: "hce", label: "HCE" },
   ];
 
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 min-h-screen">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Configuración institucional</h1>
+        <h1 className="text-2xl font-bold text-slate-800">
+          Configuración institucional
+        </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Estos datos se usarán en recetas, certificados, órdenes, reportes e informes.
+          Estos datos se usarán en recetas, certificados, órdenes, reportes e
+          informes.
         </p>
       </div>
 
@@ -510,30 +529,72 @@ export default function InstitutionSettings() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 font-medium border-b-2 transition ${
               activeTab === tab.id
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
+                ? "border-emerald-600 text-emerald-700"
+                : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
             {tab.label}
           </button>
         ))}
       </div>
-            <div className="bg-white rounded-lg shadow p-6">
-        {activeTab === 'general' && (
+      <div className="bg-white rounded-lg shadow p-6">
+        {activeTab === "general" && (
           <div className="space-y-6">
-            <h2 className="text-lg font-bold text-slate-700">Datos generales</h2>
+            <h2 className="text-lg font-bold text-slate-700">
+              Datos generales
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input label="Nombre comercial" name="name" value={institution.name} onChange={handleInstitutionChange} />
-              <Input label="Razón social" name="legalName" value={institution.legalName} onChange={handleInstitutionChange} />
-              <Input label="RUC" name="ruc" value={institution.ruc} onChange={handleInstitutionChange} />
-              <Input label="Teléfono" name="phone" value={institution.phone} onChange={handleInstitutionChange} />
-              <Input label="Correo" name="email" value={institution.email} onChange={handleInstitutionChange} />
-              <Input label="Ciudad" name="city" value={institution.city} onChange={handleInstitutionChange} />
-              <Input label="País" name="country" value={institution.country} onChange={handleInstitutionChange} />
+              <Input
+                label="Nombre comercial"
+                name="name"
+                value={institution.name}
+                onChange={handleInstitutionChange}
+              />
+              <Input
+                label="Razón social"
+                name="legalName"
+                value={institution.legalName}
+                onChange={handleInstitutionChange}
+              />
+              <Input
+                label="RUC"
+                name="ruc"
+                value={institution.ruc}
+                onChange={handleInstitutionChange}
+              />
+              <Input
+                label="Teléfono"
+                name="phone"
+                value={institution.phone}
+                onChange={handleInstitutionChange}
+              />
+              <Input
+                label="Correo"
+                name="email"
+                value={institution.email}
+                onChange={handleInstitutionChange}
+              />
+              <Input
+                label="Ciudad"
+                name="city"
+                value={institution.city}
+                onChange={handleInstitutionChange}
+              />
+              <Input
+                label="País"
+                name="country"
+                value={institution.country}
+                onChange={handleInstitutionChange}
+              />
 
               <div className="md:col-span-2">
-                <Input label="Dirección" name="address" value={institution.address} onChange={handleInstitutionChange} />
+                <Input
+                  label="Dirección"
+                  name="address"
+                  value={institution.address}
+                  onChange={handleInstitutionChange}
+                />
               </div>
             </div>
 
@@ -541,17 +602,36 @@ export default function InstitutionSettings() {
               <h3 className="font-bold text-slate-700 mb-4">Director médico</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Nombre" name="directorName" value={institution.directorName} onChange={handleInstitutionChange} />
-                <Input label="CMP" name="directorCmp" value={institution.directorCmp} onChange={handleInstitutionChange} />
-                <Input label="RNE" name="directorRne" value={institution.directorRne} onChange={handleInstitutionChange} />
+                <Input
+                  label="Nombre"
+                  name="directorName"
+                  value={institution.directorName}
+                  onChange={handleInstitutionChange}
+                />
+                <Input
+                  label="CMP"
+                  name="directorCmp"
+                  value={institution.directorCmp}
+                  onChange={handleInstitutionChange}
+                />
+                <Input
+                  label="RNE"
+                  name="directorRne"
+                  value={institution.directorRne}
+                  onChange={handleInstitutionChange}
+                />
               </div>
             </div>
 
-            <SaveButton saving={saving} onClick={saveInstitution} label="Guardar datos generales" />
+            <SaveButton
+              saving={saving}
+              onClick={saveInstitution}
+              label="Guardar datos generales"
+            />
           </div>
         )}
 
-        {activeTab === 'modules' && (
+        {activeTab === "modules" && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-slate-700">
@@ -569,21 +649,23 @@ export default function InstitutionSettings() {
                   key={module.key}
                   className={`flex cursor-pointer items-start justify-between gap-4 rounded border p-4 ${
                     module.enabled
-                      ? 'border-emerald-400 bg-emerald-50'
-                      : 'border-slate-200 bg-white'
+                      ? "border-emerald-400 bg-emerald-50"
+                      : "border-slate-200 bg-white"
                   }`}
                 >
                   <div>
-                    <p className="font-semibold text-slate-800">{module.name}</p>
+                    <p className="font-semibold text-slate-800">
+                      {module.name}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
                       {module.description}
                     </p>
                     <p
                       className={`mt-2 text-xs font-semibold ${
-                        module.enabled ? 'text-emerald-700' : 'text-slate-500'
+                        module.enabled ? "text-emerald-700" : "text-slate-500"
                       }`}
                     >
-                      {module.enabled ? 'ACTIVO' : 'INACTIVO'}
+                      {module.enabled ? "ACTIVO" : "INACTIVO"}
                     </p>
                   </div>
 
@@ -614,11 +696,13 @@ export default function InstitutionSettings() {
           </div>
         )}
 
-        {activeTab === 'professionals' && (
+        {activeTab === "professionals" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center gap-4">
               <div>
-                <h2 className="text-lg font-bold text-slate-700">Profesionales y usuarios</h2>
+                <h2 className="text-lg font-bold text-slate-700">
+                  Profesionales y usuarios
+                </h2>
                 <p className="text-sm text-slate-500">
                   Administre médicos, enfermería, recepción y administradores.
                 </p>
@@ -629,24 +713,66 @@ export default function InstitutionSettings() {
                 onClick={() => setShowUserForm(!showUserForm)}
                 className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
               >
-                {showUserForm ? 'Cancelar' : '+ Agregar profesional'}
+                {showUserForm ? "Cancelar" : "+ Agregar profesional"}
               </button>
             </div>
 
             {showUserForm && (
-              <form onSubmit={handleAddUser} className="border rounded-lg p-4 bg-gray-50 space-y-4">
+              <form
+                onSubmit={handleAddUser}
+                className="border rounded-lg p-4 bg-gray-50 space-y-4"
+              >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Input label="Correo" name="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
-                  <Input label="Nombre completo" name="fullName" value={newUser.fullName} onChange={(e) => setNewUser({ ...newUser, fullName: e.target.value })} />
-                  <Input label="Contraseña temporal" name="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
-                  <Input label="CMP" name="cmp" value={newUser.cmp} onChange={(e) => setNewUser({ ...newUser, cmp: e.target.value })} />
-                  <Input label="RNE" name="rne" value={newUser.rne} onChange={(e) => setNewUser({ ...newUser, rne: e.target.value })} />
+                  <Input
+                    label="Correo"
+                    name="email"
+                    value={newUser.email}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, email: e.target.value })
+                    }
+                  />
+                  <Input
+                    label="Nombre completo"
+                    name="fullName"
+                    value={newUser.fullName}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, fullName: e.target.value })
+                    }
+                  />
+                  <Input
+                    label="Contraseña temporal"
+                    name="password"
+                    value={newUser.password}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, password: e.target.value })
+                    }
+                  />
+                  <Input
+                    label="CMP"
+                    name="cmp"
+                    value={newUser.cmp}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, cmp: e.target.value })
+                    }
+                  />
+                  <Input
+                    label="RNE"
+                    name="rne"
+                    value={newUser.rne}
+                    onChange={(e) =>
+                      setNewUser({ ...newUser, rne: e.target.value })
+                    }
+                  />
 
                   <div>
-                    <label className="block font-medium text-slate-700 mb-1">Rol</label>
+                    <label className="block font-medium text-slate-700 mb-1">
+                      Rol
+                    </label>
                     <select
                       value={newUser.role}
-                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, role: e.target.value })
+                      }
                       className="w-full border p-2 rounded"
                     >
                       <option value="admin">Administrador</option>
@@ -662,7 +788,7 @@ export default function InstitutionSettings() {
                   disabled={saving}
                   className="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700"
                 >
-                  {saving ? 'Guardando...' : 'Guardar profesional'}
+                  {saving ? "Guardando..." : "Guardar profesional"}
                 </button>
               </form>
             )}
@@ -684,14 +810,20 @@ export default function InstitutionSettings() {
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id} className="border-t">
-                      <td className="px-4 py-3">{user.fullName || '-'}</td>
+                      <td className="px-4 py-3">{user.fullName || "-"}</td>
                       <td className="px-4 py-3">{user.email}</td>
                       <td className="px-4 py-3">{user.role}</td>
-                      <td className="px-4 py-3">{user.cmp || '-'}</td>
-                      <td className="px-4 py-3">{user.rne || '-'}</td>
+                      <td className="px-4 py-3">{user.cmp || "-"}</td>
+                      <td className="px-4 py-3">{user.rne || "-"}</td>
                       <td className="px-4 py-3">
-                        <span className={user.active ? 'text-emerald-700 font-medium' : 'text-red-600 font-medium'}>
-                          {user.active ? 'Activo' : 'Inactivo'}
+                        <span
+                          className={
+                            user.active
+                              ? "text-emerald-700 font-medium"
+                              : "text-red-600 font-medium"
+                          }
+                        >
+                          {user.active ? "Activo" : "Inactivo"}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -701,7 +833,7 @@ export default function InstitutionSettings() {
                           onClick={() => toggleUser(user.id, !user.active)}
                           className="text-blue-600 hover:underline"
                         >
-                          {user.active ? 'Desactivar' : 'Activar'}
+                          {user.active ? "Desactivar" : "Activar"}
                         </button>
                       </td>
                     </tr>
@@ -709,7 +841,10 @@ export default function InstitutionSettings() {
 
                   {users.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-6 text-center text-slate-500">
+                      <td
+                        colSpan={7}
+                        className="px-4 py-6 text-center text-slate-500"
+                      >
                         No hay usuarios registrados.
                       </td>
                     </tr>
@@ -720,15 +855,16 @@ export default function InstitutionSettings() {
           </div>
         )}
 
-        {activeTab === 'clinical' && (
+        {activeTab === "clinical" && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-slate-700">
                 Altitud y referencia de oxigenacion
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                El rango es contextual para adultos sanos aclimatados. No sustituye
-                la evaluacion clinica, los sintomas, el soporte de oxigeno ni la FiO2.
+                El rango es contextual para adultos sanos aclimatados. No
+                sustituye la evaluacion clinica, los sintomas, el soporte de
+                oxigeno ni la FiO2.
               </p>
             </div>
 
@@ -799,28 +935,30 @@ export default function InstitutionSettings() {
                 Calcular rango orientativo por altitud
               </button>
               <span className="text-sm text-slate-600">
-                Perfil: adulto sano aclimatado, en reposo y sin oxigeno suplementario.
+                Perfil: adulto sano aclimatado, en reposo y sin oxigeno
+                suplementario.
               </span>
             </div>
 
             <div className="rounded border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700">
               <p className="font-bold">Base bibliografica registrada</p>
               <p className="mt-1">
-                Luks AM, Hackett PH. Medical Conditions and High-Altitude Travel.
-                N Engl J Med. 2022;386:364-373. DOI: 10.1056/NEJMra2104829.
+                Luks AM, Hackett PH. Medical Conditions and High-Altitude
+                Travel. N Engl J Med. 2022;386:364-373. DOI:
+                10.1056/NEJMra2104829.
               </p>
               <p className="mt-1">
-                CDC Yellow Book 2026: rango esperado de SpO2 por altitud despues de
-                1-2 dias de aclimatizacion.
+                CDC Yellow Book 2026: rango esperado de SpO2 por altitud despues
+                de 1-2 dias de aclimatizacion.
               </p>
               <p className="mt-1">
-                Institut national de sante publique du Quebec. Altitude, tabla 1:
-                Saturation selon l'altitude. Actualizacion 2025.
+                Institut national de sante publique du Quebec. Altitude, tabla
+                1: Saturation selon l'altitude. Actualizacion 2025.
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                El calculo por bandas es orientativo. En pediatria, neonatologia,
-                embarazo, enfermedad cardiopulmonar o llegada reciente se requieren
-                referencias especificas.
+                El calculo por bandas es orientativo. En pediatria,
+                neonatologia, embarazo, enfermedad cardiopulmonar o llegada
+                reciente se requieren referencias especificas.
               </p>
             </div>
 
@@ -832,16 +970,18 @@ export default function InstitutionSettings() {
           </div>
         )}
 
-        {activeTab === 'branding' && (
+        {activeTab === "branding" && (
           <div className="space-y-6">
-            <h2 className="text-lg font-bold text-slate-700">Marca, logo, firma y sello</h2>
+            <h2 className="text-lg font-bold text-slate-700">
+              Marca, logo, firma y sello
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <ImageUploader
                 label="Logotipo institucional"
                 value={institution.logoUrl}
-                onUpload={(e) => handleImageUpload(e, 'logoUrl')}
-                onClear={() => clearImage('logoUrl')}
+                onUpload={(e) => handleImageUpload(e, "logoUrl")}
+                onClear={() => clearImage("logoUrl")}
                 width={institution.logoWidth}
                 height={institution.logoHeight}
                 widthName="logoWidth"
@@ -852,8 +992,8 @@ export default function InstitutionSettings() {
               <ImageUploader
                 label="Firma escaneada"
                 value={institution.signatureUrl}
-                onUpload={(e) => handleImageUpload(e, 'signatureUrl')}
-                onClear={() => clearImage('signatureUrl')}
+                onUpload={(e) => handleImageUpload(e, "signatureUrl")}
+                onClear={() => clearImage("signatureUrl")}
                 width={institution.signatureWidth}
                 height={institution.signatureHeight}
                 widthName="signatureWidth"
@@ -864,8 +1004,8 @@ export default function InstitutionSettings() {
               <ImageUploader
                 label="Sello escaneado"
                 value={institution.sealUrl}
-                onUpload={(e) => handleImageUpload(e, 'sealUrl')}
-                onClear={() => clearImage('sealUrl')}
+                onUpload={(e) => handleImageUpload(e, "sealUrl")}
+                onClear={() => clearImage("sealUrl")}
                 width={institution.sealWidth}
                 height={institution.sealHeight}
                 widthName="sealWidth"
@@ -875,22 +1015,26 @@ export default function InstitutionSettings() {
 
               <div className="grid grid-cols-1 gap-4 border rounded-lg p-4 bg-gray-50">
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Color primario</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Color primario
+                  </label>
                   <input
                     type="color"
                     name="primaryColor"
-                    value={institution.primaryColor || '#0f766e'}
+                    value={institution.primaryColor || "#0f766e"}
                     onChange={handleInstitutionChange}
                     className="w-full h-11 border rounded"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-medium text-slate-700 mb-1">Color secundario</label>
+                  <label className="block font-medium text-slate-700 mb-1">
+                    Color secundario
+                  </label>
                   <input
                     type="color"
                     name="secondaryColor"
-                    value={institution.secondaryColor || '#14b8a6'}
+                    value={institution.secondaryColor || "#14b8a6"}
                     onChange={handleInstitutionChange}
                     className="w-full h-11 border rounded"
                   />
@@ -899,11 +1043,13 @@ export default function InstitutionSettings() {
             </div>
 
             <div className="border rounded-lg p-4 bg-gray-50">
-              <p className="font-medium text-slate-700 mb-2">Vista previa institucional</p>
+              <p className="font-medium text-slate-700 mb-2">
+                Vista previa institucional
+              </p>
 
               <div
                 className="rounded p-4 text-white"
-                style={{ background: institution.primaryColor || '#0f766e' }}
+                style={{ background: institution.primaryColor || "#0f766e" }}
               >
                 <div className="flex items-center gap-4">
                   {institution.logoUrl ? (
@@ -913,7 +1059,7 @@ export default function InstitutionSettings() {
                       style={{
                         width: `${institution.logoWidth}px`,
                         height: `${institution.logoHeight}px`,
-                        objectFit: 'contain',
+                        objectFit: "contain",
                       }}
                       className="bg-white rounded p-1"
                     />
@@ -924,15 +1070,19 @@ export default function InstitutionSettings() {
                   )}
 
                   <div>
-                    <h3 className="font-bold text-lg">{institution.name || 'Nombre comercial'}</h3>
-                    <p>{institution.legalName || 'Razón social'}</p>
-                    <p>RUC: {institution.ruc || '-'}</p>
+                    <h3 className="font-bold text-lg">
+                      {institution.name || "Nombre comercial"}
+                    </h3>
+                    <p>{institution.legalName || "Razón social"}</p>
+                    <p>RUC: {institution.ruc || "-"}</p>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 bg-white border rounded p-4">
-                <p className="text-sm font-medium text-slate-700 mb-3">Vista previa de firma y sello</p>
+                <p className="text-sm font-medium text-slate-700 mb-3">
+                  Vista previa de firma y sello
+                </p>
 
                 <div className="flex flex-wrap gap-6 items-end">
                   <div className="text-center">
@@ -943,7 +1093,7 @@ export default function InstitutionSettings() {
                         style={{
                           width: `${institution.signatureWidth}px`,
                           height: `${institution.signatureHeight}px`,
-                          objectFit: 'contain',
+                          objectFit: "contain",
                         }}
                         className="border rounded bg-white p-1"
                       />
@@ -952,7 +1102,9 @@ export default function InstitutionSettings() {
                         Firma
                       </div>
                     )}
-                    <p className="text-xs text-slate-500 mt-1">Firma escaneada</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Firma escaneada
+                    </p>
                   </div>
 
                   <div className="text-center">
@@ -963,7 +1115,7 @@ export default function InstitutionSettings() {
                         style={{
                           width: `${institution.sealWidth}px`,
                           height: `${institution.sealHeight}px`,
-                          objectFit: 'contain',
+                          objectFit: "contain",
                         }}
                         className="border rounded bg-white p-1"
                       />
@@ -972,26 +1124,59 @@ export default function InstitutionSettings() {
                         Sello
                       </div>
                     )}
-                    <p className="text-xs text-slate-500 mt-1">Sello escaneado</p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Sello escaneado
+                    </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <SaveButton saving={saving} onClick={saveInstitution} label="Guardar branding" />
+            <SaveButton
+              saving={saving}
+              onClick={saveInstitution}
+              label="Guardar branding"
+            />
           </div>
         )}
 
-        {activeTab === 'hce' && (
+        {activeTab === "hce" && (
           <div className="space-y-6">
-            <h2 className="text-lg font-bold text-slate-700">Configuración de historia clínica</h2>
+            <h2 className="text-lg font-bold text-slate-700">
+              Configuración de historia clínica
+            </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <CheckBox label="Requerir CIE-10" name="requireCie10" checked={hceConfig.requireCie10} onChange={handleHceChange} />
-              <CheckBox label="Permitir múltiples diagnósticos" name="allowMultipleDiagnoses" checked={hceConfig.allowMultipleDiagnoses} onChange={handleHceChange} />
-              <CheckBox label="Requerir signos vitales" name="requireVitalSigns" checked={hceConfig.requireVitalSigns} onChange={handleHceChange} />
-              <CheckBox label="Autoguardar borradores" name="autoSaveDrafts" checked={hceConfig.autoSaveDrafts} onChange={handleHceChange} />
-              <CheckBox label="Requerir firma en documentos" name="signatureRequired" checked={hceConfig.signatureRequired} onChange={handleHceChange} />
+              <CheckBox
+                label="Requerir CIE-10"
+                name="requireCie10"
+                checked={hceConfig.requireCie10}
+                onChange={handleHceChange}
+              />
+              <CheckBox
+                label="Permitir múltiples diagnósticos"
+                name="allowMultipleDiagnoses"
+                checked={hceConfig.allowMultipleDiagnoses}
+                onChange={handleHceChange}
+              />
+              <CheckBox
+                label="Requerir signos vitales"
+                name="requireVitalSigns"
+                checked={hceConfig.requireVitalSigns}
+                onChange={handleHceChange}
+              />
+              <CheckBox
+                label="Autoguardar borradores"
+                name="autoSaveDrafts"
+                checked={hceConfig.autoSaveDrafts}
+                onChange={handleHceChange}
+              />
+              <CheckBox
+                label="Requerir firma en documentos"
+                name="signatureRequired"
+                checked={hceConfig.signatureRequired}
+                onChange={handleHceChange}
+              />
 
               <div>
                 <label className="block font-medium text-slate-700 mb-1">
@@ -1009,7 +1194,11 @@ export default function InstitutionSettings() {
               </div>
             </div>
 
-            <SaveButton saving={saving} onClick={saveHceConfig} label="Guardar configuración HCE" />
+            <SaveButton
+              saving={saving}
+              onClick={saveHceConfig}
+              label="Guardar configuración HCE"
+            />
           </div>
         )}
       </div>
@@ -1033,7 +1222,7 @@ function Input({
       <label className="block font-medium text-slate-700 mb-1">{label}</label>
       <input
         name={name}
-        value={value || ''}
+        value={value || ""}
         onChange={onChange}
         className="w-full border p-2 rounded"
       />
@@ -1074,7 +1263,7 @@ function ImageUploader({
             style={{
               width: `${width}px`,
               height: `${height}px`,
-              objectFit: 'contain',
+              objectFit: "contain",
             }}
             className="border rounded bg-white p-1"
           />
@@ -1153,7 +1342,12 @@ function CheckBox({
 }) {
   return (
     <label className="flex items-center gap-3 border rounded p-3 bg-gray-50">
-      <input type="checkbox" name={name} checked={checked} onChange={onChange} />
+      <input
+        type="checkbox"
+        name={name}
+        checked={checked}
+        onChange={onChange}
+      />
       <span className="text-slate-700">{label}</span>
     </label>
   );
@@ -1176,9 +1370,8 @@ function SaveButton({
         onClick={onClick}
         className="bg-emerald-600 text-white px-6 py-3 rounded-lg hover:bg-emerald-700 font-medium"
       >
-        {saving ? 'Guardando...' : label}
+        {saving ? "Guardando..." : label}
       </button>
     </div>
   );
 }
-

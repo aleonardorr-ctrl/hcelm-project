@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { clearAuthSession } from '../lib/auth';
+import { useEffect, useState } from "react";
+import { clearAuthSession } from "../lib/auth";
 
-const API_URL = 'http://localhost:3000/api';
+const API_URL = "http://localhost:3000/api";
 
 export default function Login() {
-  const [ruc, setRuc] = useState('20611138777');
-  const [email, setEmail] = useState('admin@amehealth.pe');
-  const [password, setPassword] = useState('AME2026');
-  const [error, setError] = useState('');
+  const [ruc, setRuc] = useState("20611138777");
+  const [email, setEmail] = useState("admin@amehealth.pe");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -16,46 +16,46 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ruc, email, password }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setError(data.message || 'Credenciales inválidas.');
+        setError(data.message || "Credenciales inválidas.");
         return;
       }
 
       const token = data.access_token || data.accessToken || data.token;
 
       if (!token) {
-        setError('Login correcto, pero el backend no envió token.');
+        setError("Login correcto, pero el backend no envió token.");
         return;
       }
 
       clearAuthSession();
 
-      sessionStorage.setItem('ame_token', token);
-      sessionStorage.setItem('hcelm_professional_verified', 'false');
-      sessionStorage.setItem('hcelm_require_professional_verification', 'true');
+      sessionStorage.setItem("ame_token", token);
+      sessionStorage.setItem("hcelm_professional_verified", "false");
+      sessionStorage.setItem("hcelm_require_professional_verification", "true");
 
-      const savedToken = sessionStorage.getItem('ame_token');
+      const savedToken = sessionStorage.getItem("ame_token");
 
       if (!savedToken) {
-        setError('No se pudo guardar la sesión en el navegador.');
+        setError("No se pudo guardar la sesión en el navegador.");
         return;
       }
 
-      window.location.href = '/professional-verification';
+      window.location.href = "/professional-verification";
     } catch {
-      setError('Error de conexión. Verifique que el backend esté activo.');
+      setError("Error de conexión. Verifique que el backend esté activo.");
     } finally {
       setLoading(false);
     }
@@ -70,17 +70,16 @@ export default function Login() {
               🏥
             </div>
 
-            <h1 className="text-4xl font-bold leading-tight mb-4">
-              HCELM
-            </h1>
+            <h1 className="text-4xl font-bold leading-tight mb-4">HCELM</h1>
 
             <h2 className="text-xl font-semibold mb-6 text-emerald-100">
               Plataforma Clínica, Farmacéutica y Gerencial
             </h2>
 
             <p className="text-emerald-50 text-sm leading-6 max-w-md">
-              Sistema modular para historia clínica electrónica, farmacia, droguería,
-              inventario, caja, ventas, reportes gerenciales y administración institucional.
+              Sistema modular para historia clínica electrónica, farmacia,
+              droguería, inventario, caja, ventas, reportes gerenciales y
+              administración institucional.
             </p>
           </div>
 
@@ -94,7 +93,8 @@ export default function Login() {
           </div>
 
           <div className="text-xs text-emerald-100 border-t border-white/20 pt-4">
-            Consultorio Médico y Tópico de Procedimientos Las Mercedes · AME HEALTH SAC
+            Consultorio Médico y Tópico de Procedimientos Las Mercedes · AME
+            HEALTH SAC
           </div>
         </div>
 
@@ -172,7 +172,7 @@ export default function Login() {
               disabled={loading}
               className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 transition font-semibold disabled:opacity-60"
             >
-              {loading ? 'Ingresando...' : 'Ingresar a HCELM'}
+              {loading ? "Ingresando..." : "Ingresar a HCELM"}
             </button>
           </form>
 
@@ -186,9 +186,5 @@ export default function Login() {
 }
 
 function Feature({ text }: { text: string }) {
-  return (
-    <div className="bg-white/10 rounded-lg px-3 py-2">
-      ✓ {text}
-    </div>
-  );
+  return <div className="bg-white/10 rounded-lg px-3 py-2">✓ {text}</div>;
 }

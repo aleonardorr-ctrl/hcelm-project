@@ -45,14 +45,17 @@ model Tenant {
   pharmacySalePayments      PharmacySalePayment[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
 
-  companyFiscalProfiles        CompanyFiscalProfile[]
-  commercialCustomers          CommercialCustomer[]
-  electronicDocumentSequences  ElectronicDocumentSequence[]
-  electronicDocuments          ElectronicDocument[]
-  electronicDocumentLines      ElectronicDocumentLine[]
-  electronicDocumentDeliveries ElectronicDocumentDelivery[]
-  electronicDocumentEvents     ElectronicDocumentEvent[]
-  electronicDocumentJobs       ElectronicDocumentJob[]
+  companyFiscalProfiles          CompanyFiscalProfile[]
+  commercialCustomers            CommercialCustomer[]
+  electronicDocumentSequences    ElectronicDocumentSequence[]
+  electronicDocuments            ElectronicDocument[]
+  electronicDocumentLines        ElectronicDocumentLine[]
+  electronicDocumentDeliveries   ElectronicDocumentDelivery[]
+  electronicDocumentEvents       ElectronicDocumentEvent[]
+  electronicDocumentJobs         ElectronicDocumentJob[]
+  moduleInstallations            CompanyModuleInstallation[]
+  companyCollaborationAgreements CompanyCollaborationAgreement[]
+  prescriptionReferrals          PrescriptionReferral[]
 }
 
 model User {
@@ -87,6 +90,8 @@ model User {
   commercialCustomersCreated      CommercialCustomer[]      @relation("CommercialCustomerCreatedBy")
   electronicDocumentsCreated      ElectronicDocument[]      @relation("ElectronicDocumentCreatedBy")
   electronicDocumentEventsCreated ElectronicDocumentEvent[] @relation("ElectronicDocumentEventCreatedBy")
+  prescriptionReferralsCreated    PrescriptionReferral[]    @relation("PrescriptionReferralCreatedBy")
+  prescriptionReferralsUpdated    PrescriptionReferral[]    @relation("PrescriptionReferralUpdatedBy")
 }
 
 model Patient {
@@ -417,7 +422,14 @@ model Prescription {
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items       PrescriptionItem[]
 
-  pharmacySales PharmacySale[]
+  pharmacySales     PharmacySale[]
+  companyId         String?                @db.Uuid
+  businessUnitId    String?                @db.Uuid
+  ownerCompany      Company?               @relation("PrescriptionOwnerCompany", fields: [companyId], references: [id], onDelete: SetNull)
+  ownerBusinessUnit BusinessUnit?          @relation("PrescriptionOwnerBusinessUnit", fields: [businessUnitId], references: [id], onDelete: SetNull)
+  referrals         PrescriptionReferral[]
+
+  @@index([tenantId, companyId, businessUnitId])
 }
 
 model PrescriptionItem {
@@ -627,10 +639,16 @@ model Company {
   pharmacySales             PharmacySale[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
 
-  fiscalProfile               CompanyFiscalProfile?
-  commercialCustomers         CommercialCustomer[]
-  electronicDocumentSequences ElectronicDocumentSequence[]
-  electronicDocuments         ElectronicDocument[]
+  fiscalProfile                    CompanyFiscalProfile?
+  commercialCustomers              CommercialCustomer[]
+  electronicDocumentSequences      ElectronicDocumentSequence[]
+  electronicDocuments              ElectronicDocument[]
+  moduleInstallations              CompanyModuleInstallation[]
+  collaborationAgreementsAsOwner   CompanyCollaborationAgreement[] @relation("CollaborationOwnerCompany")
+  collaborationAgreementsAsPartner CompanyCollaborationAgreement[] @relation("CollaborationPartnerCompany")
+  prescriptionsOwned               Prescription[]                  @relation("PrescriptionOwnerCompany")
+  prescriptionReferralsSource      PrescriptionReferral[]          @relation("PrescriptionReferralSourceCompany")
+  prescriptionReferralsTarget      PrescriptionReferral[]          @relation("PrescriptionReferralTargetCompany")
 
   @@unique([tenantId, code])
   @@unique([tenantId, ruc])
@@ -657,8 +675,14 @@ model BusinessUnit {
   pharmacySales             PharmacySale[]
   pharmacyDocumentSequences PharmacyDocumentSequence[]
 
-  electronicDocumentSequences ElectronicDocumentSequence[]
-  electronicDocuments         ElectronicDocument[]
+  electronicDocumentSequences         ElectronicDocumentSequence[]
+  electronicDocuments                 ElectronicDocument[]
+  moduleInstallations                 CompanyModuleInstallation[]
+  collaborationAgreementsAsSourceUnit CompanyCollaborationAgreement[] @relation("CollaborationSourceBusinessUnit")
+  collaborationAgreementsAsTargetUnit CompanyCollaborationAgreement[] @relation("CollaborationTargetBusinessUnit")
+  prescriptionsOwned                  Prescription[]                  @relation("PrescriptionOwnerBusinessUnit")
+  prescriptionReferralsSourceUnit     PrescriptionReferral[]          @relation("PrescriptionReferralSourceBusinessUnit")
+  prescriptionReferralsTargetUnit     PrescriptionReferral[]          @relation("PrescriptionReferralTargetBusinessUnit")
 
   @@unique([companyId, code])
   @@index([tenantId, companyId, active])
@@ -686,6 +710,7 @@ model Warehouse {
 
   electronicDocumentSequences ElectronicDocumentSequence[]
   electronicDocuments         ElectronicDocument[]
+  moduleInstallations         CompanyModuleInstallation[]
 
   @@unique([businessUnitId, code])
   @@index([tenantId, companyId, businessUnitId, active])
@@ -1357,4 +1382,137 @@ model ElectronicDocumentJob {
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, status, nextAttemptAt])
   @@index([tenantId, documentId, jobType])
+}
+
+enum CompanyModuleKey {
+  CLINICAL
+  PHARMACY
+  DRUGSTORE
+  BILLING
+  CASHBOX
+  MANAGEMENT
+  LABORATORY
+  IMAGING
+}
+
+enum CompanyCollaborationResource {
+  PRESCRIPTION_REFERRAL
+  DISPENSING
+  STOCK_VISIBILITY
+  RESERVATION
+  PURCHASE_TRANSFER
+  REPORTING
+}
+
+enum CompanyCollaborationDirection {
+  ONE_WAY
+  TWO_WAY
+}
+
+enum CompanyCollaborationStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  EXPIRED
+}
+
+enum PrescriptionReferralStatus {
+  PENDING
+  VIEWED
+  ACCEPTED
+  PARTIALLY_DISPENSED
+  COMPLETED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+model CompanyModuleInstallation {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @db.Uuid
+  companyId      String           @db.Uuid
+  businessUnitId String           @db.Uuid
+  warehouseId    String?          @db.Uuid
+  moduleKey      CompanyModuleKey
+  displayName    String?          @db.VarChar(180)
+  active         Boolean          @default(true)
+  settings       Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  businessUnit BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse?   @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
+  @@unique([businessUnitId, moduleKey])
+  @@index([tenantId, companyId, moduleKey, active])
+  @@index([tenantId, businessUnitId, active])
+}
+
+model CompanyCollaborationAgreement {
+  id                       String                        @id @default(uuid()) @db.Uuid
+  tenantId                 String                        @db.Uuid
+  ownerCompanyId           String                        @db.Uuid
+  partnerCompanyId         String                        @db.Uuid
+  sourceBusinessUnitId     String?                       @db.Uuid
+  targetBusinessUnitId     String?                       @db.Uuid
+  resource                 CompanyCollaborationResource
+  direction                CompanyCollaborationDirection @default(ONE_WAY)
+  status                   CompanyCollaborationStatus    @default(DRAFT)
+  requiresPatientConsent   Boolean                       @default(true)
+  shareMinimumClinicalData Boolean                       @default(true)
+  startAt                  DateTime?
+  endAt                    DateTime?
+  notes                    String?                       @db.Text
+  metadata                 Json?
+  createdAt                DateTime                      @default(now())
+  updatedAt                DateTime                      @updatedAt
+
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ownerCompany       Company       @relation("CollaborationOwnerCompany", fields: [ownerCompanyId], references: [id], onDelete: Restrict)
+  partnerCompany     Company       @relation("CollaborationPartnerCompany", fields: [partnerCompanyId], references: [id], onDelete: Restrict)
+  sourceBusinessUnit BusinessUnit? @relation("CollaborationSourceBusinessUnit", fields: [sourceBusinessUnitId], references: [id], onDelete: SetNull)
+  targetBusinessUnit BusinessUnit? @relation("CollaborationTargetBusinessUnit", fields: [targetBusinessUnitId], references: [id], onDelete: SetNull)
+
+  @@unique([ownerCompanyId, partnerCompanyId, sourceBusinessUnitId, targetBusinessUnitId, resource])
+  @@index([tenantId, ownerCompanyId, status])
+  @@index([tenantId, partnerCompanyId, status])
+  @@index([tenantId, resource, status])
+}
+
+model PrescriptionReferral {
+  id                     String                     @id @default(uuid()) @db.Uuid
+  tenantId               String                     @db.Uuid
+  prescriptionId         String                     @db.Uuid
+  sourceCompanyId        String                     @db.Uuid
+  sourceBusinessUnitId   String?                    @db.Uuid
+  targetCompanyId        String                     @db.Uuid
+  targetBusinessUnitId   String?                    @db.Uuid
+  status                 PrescriptionReferralStatus @default(PENDING)
+  requiresPatientConsent Boolean                    @default(true)
+  patientConsentGranted  Boolean                    @default(false)
+  patientConsentAt       DateTime?
+  patientConsentBy       String?                    @db.VarChar(180)
+  sharedPayload          Json?
+  rejectionReason        String?                    @db.Text
+  expiresAt              DateTime?
+  createdById            String?                    @db.Uuid
+  updatedById            String?                    @db.Uuid
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prescription       Prescription  @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  sourceCompany      Company       @relation("PrescriptionReferralSourceCompany", fields: [sourceCompanyId], references: [id], onDelete: Restrict)
+  sourceBusinessUnit BusinessUnit? @relation("PrescriptionReferralSourceBusinessUnit", fields: [sourceBusinessUnitId], references: [id], onDelete: SetNull)
+  targetCompany      Company       @relation("PrescriptionReferralTargetCompany", fields: [targetCompanyId], references: [id], onDelete: Restrict)
+  targetBusinessUnit BusinessUnit? @relation("PrescriptionReferralTargetBusinessUnit", fields: [targetBusinessUnitId], references: [id], onDelete: SetNull)
+  createdBy          User?         @relation("PrescriptionReferralCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy          User?         @relation("PrescriptionReferralUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, targetCompanyId, status, createdAt])
+  @@index([tenantId, sourceCompanyId, status, createdAt])
+  @@index([tenantId, prescriptionId])
 }

@@ -55,8 +55,8 @@ export class PharmacySalesController {
   searchProducts(
     @CurrentUser() user: any,
     @Query('q') query = '',
-    @Query('businessUnit') businessUnit = 'FARMACIA',
-    @Query('warehouse') warehouse = 'PRINCIPAL',
+    @Query('businessUnit') businessUnit?: string,
+    @Query('warehouse') warehouse?: string,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
   ) {

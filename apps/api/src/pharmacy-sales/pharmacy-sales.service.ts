@@ -557,8 +557,8 @@ export class PharmacySalesService {
     tenantId: string;
     userId: string;
     query?: string;
-    businessUnit: string;
-    warehouse: string;
+    businessUnit?: string;
+    warehouse?: string;
     page?: number;
     pageSize?: number;
   }) {
@@ -852,12 +852,25 @@ export class PharmacySalesService {
     tx: TransactionClient,
     tenantId: string,
     userId: string,
-    businessUnitValue: string,
-    warehouseValue: string,
+    businessUnitValue?: string | null,
+    warehouseValue?: string | null,
   ) {
+    const requestedBusinessUnit = businessUnitValue?.trim();
+    const requestedWarehouse = warehouseValue?.trim();
+    const isLegacyPharmacyContext =
+      requestedBusinessUnit?.toUpperCase() === 'FARMACIA';
+
+    if (
+      !requestedBusinessUnit ||
+      !requestedWarehouse ||
+      isLegacyPharmacyContext
+    ) {
+      return this.resolveModuleScope(tx, tenantId, userId, 'PHARMACY');
+    }
+
     const companyId = await this.findActiveCompanyId(tx, tenantId, userId);
-    const businessUnitCode = businessUnitValue.trim().toUpperCase();
-    const warehouseCode = warehouseValue.trim().toUpperCase();
+    const businessUnitCode = requestedBusinessUnit.toUpperCase();
+    const warehouseCode = requestedWarehouse.toUpperCase();
     const businessUnit = await tx.businessUnit.findFirst({
       where: { tenantId, companyId, code: businessUnitCode, active: true },
       select: { id: true, code: true },
@@ -886,6 +899,56 @@ export class PharmacySalesService {
       warehouseId: warehouse.id,
       businessUnitCode: businessUnit.code,
       warehouseCode: warehouse.code,
+    };
+  }
+
+  private async resolveModuleScope(
+    client: any,
+    tenantId: string,
+    userId: string,
+    moduleKey: 'PHARMACY',
+  ) {
+    const memberships = await client.userCompanyMembership.findMany({
+      where: { tenantId, userId, active: true, company: { active: true } },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      select: { companyId: true },
+    });
+    const allowedCompanyIds = memberships.map(
+      (item: { companyId: string }) => item.companyId,
+    );
+
+    const findInstallation = (companyIds?: string[]) =>
+      client.companyModuleInstallation.findFirst({
+        where: {
+          tenantId,
+          moduleKey,
+          active: true,
+          ...(companyIds?.length ? { companyId: { in: companyIds } } : {}),
+          company: { active: true },
+          businessUnit: { active: true },
+          warehouse: { is: { active: true } },
+        },
+        include: {
+          businessUnit: { select: { id: true, code: true } },
+          warehouse: { select: { id: true, code: true } },
+        },
+      });
+
+    const installation =
+      (await findInstallation(allowedCompanyIds)) || (await findInstallation());
+
+    if (!installation?.businessUnit || !installation?.warehouse) {
+      throw new NotFoundException(
+        'No existe una instalacion activa del modulo Farmacia/Botica con almacen activo.',
+      );
+    }
+
+    return {
+      companyId: installation.companyId,
+      businessUnitId: installation.businessUnit.id,
+      warehouseId: installation.warehouse.id,
+      businessUnitCode: installation.businessUnit.code,
+      warehouseCode: installation.warehouse.code,
     };
   }
 

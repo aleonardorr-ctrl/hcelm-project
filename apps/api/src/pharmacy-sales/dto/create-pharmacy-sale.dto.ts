@@ -49,15 +49,17 @@ export class CreatePharmacySaleDto {
   @Length(8, 100)
   idempotencyKey!: string;
 
+  @IsOptional()
   @IsString()
   @Length(1, 40)
   @Matches(/^[A-Za-z0-9_-]+$/)
-  businessUnit!: string;
+  businessUnit?: string;
 
+  @IsOptional()
   @IsString()
   @Length(1, 60)
   @Matches(/^[A-Za-z0-9_-]+$/)
-  warehouse!: string;
+  warehouse?: string;
 
   @IsOptional()
   @IsUUID()

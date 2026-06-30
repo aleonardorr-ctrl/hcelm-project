@@ -19,6 +19,8 @@ type InventoryScope = {
   businessUnitId: string;
   warehouseId: string;
   companyMedicationId: string;
+  businessUnitCode: string;
+  warehouseCode: string;
 };
 
 type UpsertLotParams = {
@@ -103,11 +105,6 @@ export class MedicationInventoryService {
     quantity: number | string;
   }) {
     const quantity = this.positiveQuantity(params.quantity);
-    const companyId = await this.findActiveCompanyId(
-      this.prisma,
-      params.tenantId,
-      params.userId,
-    );
     const medication = await this.prisma.medication.findFirst({
       where: {
         id: params.medicationId,
@@ -121,20 +118,36 @@ export class MedicationInventoryService {
         concentration: true,
         presentation: true,
         requiresPrescription: true,
+        internalCode: true,
+        barcode: true,
       },
     });
     if (!medication)
       throw new NotFoundException('Producto no encontrado o inactivo.');
+
+    const scope = await this.resolveScope(
+      this.prisma as any,
+      {
+        tenantId: params.tenantId,
+        userId: params.userId,
+        medicationId: params.medicationId,
+        businessUnit: params.businessUnit,
+        warehouse: params.warehouse,
+      },
+      medication,
+    );
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const lots = await this.prisma.medicationInventoryLot.findMany({
       where: {
         tenantId: params.tenantId,
-        companyId,
+        companyId: scope.companyId,
+        businessUnitId: scope.businessUnitId,
+        warehouseId: scope.warehouseId,
         medicationId: params.medicationId,
-        businessUnit: params.businessUnit,
-        warehouse: params.warehouse,
+        businessUnit: scope.businessUnitCode,
+        warehouse: scope.warehouseCode,
         active: true,
         stock: { gt: 0 },
         OR: [{ expirationDate: null }, { expirationDate: { gte: today } }],
@@ -544,13 +557,15 @@ export class MedicationInventoryService {
       throw new BadRequestException('El producto esta inactivo.');
 
     const scope = await this.resolveScope(tx, params, medication);
+    const scopedBusinessUnit = scope.businessUnitCode;
+    const scopedWarehouse = scope.warehouseCode;
     const existing = await tx.medicationInventoryLot.findUnique({
       where: {
         tenantId_medicationId_businessUnit_warehouse_lotNumber: {
           tenantId: params.tenantId,
           medicationId: params.medicationId,
-          businessUnit: params.businessUnit,
-          warehouse: params.warehouse,
+          businessUnit: scopedBusinessUnit,
+          warehouse: scopedWarehouse,
           lotNumber: params.lotNumber,
         },
       },
@@ -565,8 +580,8 @@ export class MedicationInventoryService {
     const { stock: _discardedStock, ...lotMetadata } = params.lotData;
     const scopedData = {
       ...lotMetadata,
-      businessUnit: params.businessUnit,
-      warehouse: params.warehouse,
+      businessUnit: scopedBusinessUnit,
+      warehouse: scopedWarehouse,
       lotNumber: params.lotNumber,
       stock: stockAfter,
       companyId: scope.companyId,
@@ -640,8 +655,8 @@ export class MedicationInventoryService {
             : 'Ajuste manual de inventario'),
         createdById: params.userId,
         metadata: {
-          businessUnitCode: params.businessUnit,
-          warehouseCode: params.warehouse,
+          businessUnitCode: scopedBusinessUnit,
+          warehouseCode: scopedWarehouse,
           lotNumber: params.lotNumber,
         },
       },
@@ -667,99 +682,142 @@ export class MedicationInventoryService {
       barcode: string | null;
     },
   ): Promise<InventoryScope> {
+    const requestedBusinessUnit = String(params.businessUnit || 'BOTICA')
+      .trim()
+      .toUpperCase();
+    const requestedWarehouse = String(params.warehouse || 'PRINCIPAL')
+      .trim()
+      .toUpperCase();
+    const isPharmacyAlias = ['BOTICA', 'FARMACIA', 'PHARMACY'].includes(
+      requestedBusinessUnit,
+    );
+    const normalizedBusinessUnit = isPharmacyAlias
+      ? 'BOTICA'
+      : requestedBusinessUnit;
+    const normalizedWarehouse = requestedWarehouse || 'PRINCIPAL';
     const cacheKey = [
       params.tenantId,
       params.userId || '',
       params.medicationId,
-      params.businessUnit,
-      params.warehouse,
+      normalizedBusinessUnit,
+      normalizedWarehouse,
     ].join('|');
     const cached = params.scopeCache?.get(cacheKey);
     if (cached) return cached;
 
-    const membership = params.userId
-      ? await tx.userCompanyMembership.findFirst({
-          where: {
-            tenantId: params.tenantId,
-            userId: params.userId,
-            active: true,
-            company: { active: true },
-          },
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-          select: { companyId: true },
-        })
-      : null;
+    let organizationalScope: {
+      companyId: string;
+      businessUnitId: string;
+      warehouseId: string;
+      businessUnitCode: string;
+      warehouseCode: string;
+    } | null = null;
 
-    const company = membership
-      ? await tx.company.findFirst({
+    if (isPharmacyAlias) {
+      const memberships = params.userId
+        ? await tx.userCompanyMembership.findMany({
+            where: {
+              tenantId: params.tenantId,
+              userId: params.userId,
+              active: true,
+              company: { active: true },
+            },
+            select: { companyId: true },
+          })
+        : [];
+      const allowedCompanyIds = memberships.map(
+        (item: { companyId: string }) => item.companyId,
+      );
+      const findInstallation = (companyIds?: string[]) =>
+        tx.companyModuleInstallation.findFirst({
           where: {
-            id: membership.companyId,
             tenantId: params.tenantId,
+            moduleKey: 'PHARMACY',
             active: true,
+            businessUnit: { active: true },
+            warehouse: { is: { active: true } },
+            ...(companyIds?.length ? { companyId: { in: companyIds } } : {}),
           },
-          select: { id: true },
-        })
-      : await tx.company.findFirst({
-          where: { tenantId: params.tenantId, active: true },
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true },
+          orderBy: [{ createdAt: 'asc' }],
+          select: {
+            companyId: true,
+            businessUnit: { select: { id: true, code: true } },
+            warehouse: { select: { id: true, code: true } },
+          },
         });
 
-    if (!company) {
-      throw new ConflictException(
-        'No existe una empresa activa para registrar inventario.',
+      const installation =
+        (await findInstallation(allowedCompanyIds)) ||
+        (await findInstallation());
+
+      if (!installation?.businessUnit || !installation?.warehouse) {
+        throw new ConflictException(
+          'No existe una instalacion activa del modulo Farmacia/Botica con almacen activo.',
+        );
+      }
+
+      organizationalScope = {
+        companyId: installation.companyId,
+        businessUnitId: installation.businessUnit.id,
+        warehouseId: installation.warehouse.id,
+        businessUnitCode: installation.businessUnit.code,
+        warehouseCode: installation.warehouse.code,
+      };
+    } else {
+      const companyId = await this.findActiveCompanyId(
+        tx,
+        params.tenantId,
+        params.userId,
       );
-    }
-
-    const businessUnit = await tx.businessUnit.upsert({
-      where: {
-        companyId_code: {
-          companyId: company.id,
-          code: params.businessUnit,
+      const businessUnit = await tx.businessUnit.findFirst({
+        where: {
+          tenantId: params.tenantId,
+          companyId,
+          code: normalizedBusinessUnit,
+          active: true,
         },
-      },
-      update: { active: true },
-      create: {
-        tenantId: params.tenantId,
-        companyId: company.id,
-        code: params.businessUnit,
-        name: params.businessUnit,
-        type: params.businessUnit,
-        active: true,
-      },
-      select: { id: true },
-    });
-
-    const warehouse = await tx.warehouse.upsert({
-      where: {
-        businessUnitId_code: {
+        select: { id: true, code: true },
+      });
+      if (!businessUnit) {
+        throw new NotFoundException(
+          'Unidad de negocio no encontrada o inactiva para inventario.',
+        );
+      }
+      const warehouse = await tx.warehouse.findFirst({
+        where: {
+          tenantId: params.tenantId,
+          companyId,
           businessUnitId: businessUnit.id,
-          code: params.warehouse,
+          code: normalizedWarehouse,
+          active: true,
         },
-      },
-      update: { active: true },
-      create: {
-        tenantId: params.tenantId,
-        companyId: company.id,
+        select: { id: true, code: true },
+      });
+      if (!warehouse) {
+        throw new NotFoundException(
+          'Almacen no encontrado o inactivo para inventario.',
+        );
+      }
+      organizationalScope = {
+        companyId,
         businessUnitId: businessUnit.id,
-        code: params.warehouse,
-        name: params.warehouse,
-        active: true,
-      },
-      select: { id: true },
-    });
+        warehouseId: warehouse.id,
+        businessUnitCode: businessUnit.code,
+        warehouseCode: warehouse.code,
+      };
+    }
 
     const companyMedication = await tx.companyMedication.upsert({
       where: {
         companyId_medicationId: {
-          companyId: company.id,
+          companyId: organizationalScope.companyId,
           medicationId: medication.id,
         },
       },
       update: { active: true },
       create: {
         tenantId: params.tenantId,
-        companyId: company.id,
+        companyId: organizationalScope.companyId,
         medicationId: medication.id,
         companySku: medication.internalCode,
         barcode: medication.barcode,
@@ -768,14 +826,12 @@ export class MedicationInventoryService {
       select: { id: true },
     });
 
-    const scope = {
-      companyId: company.id,
-      businessUnitId: businessUnit.id,
-      warehouseId: warehouse.id,
+    const inventoryScope: InventoryScope = {
+      ...organizationalScope,
       companyMedicationId: companyMedication.id,
     };
-    params.scopeCache?.set(cacheKey, scope);
-    return scope;
+    params.scopeCache?.set(cacheKey, inventoryScope);
+    return inventoryScope;
   }
 
   private async runSerializable<T>(

@@ -1,11 +1,11 @@
 // Archivo: MedicationCatalogPanel.tsx
 // Ruta: apps/web/src/components/MedicationCatalogPanel.tsx
 // Funcion: Importa, consulta y registra manualmente el maestro corporativo de Farmacia y Drogueria.
-import { useEffect, useRef, useState } from 'react';
-import JsBarcode from 'jsbarcode';
+import { useEffect, useRef, useState } from "react";
+import JsBarcode from "jsbarcode";
 
-type ViewType = 'import' | 'create' | 'records' | 'history';
-type ImportAction = 'CREATE' | 'UPDATE' | 'UNCHANGED';
+type ViewType = "import" | "create" | "records" | "history";
+type ImportAction = "CREATE" | "UPDATE" | "UNCHANGED";
 
 type ProductPreviewRow = {
   rowNumber: number;
@@ -169,111 +169,111 @@ type LotForm = {
   active: boolean;
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 const PRODUCT_TYPE_OPTIONS = [
-  { value: 'MEDICAMENTO', label: 'Medicamento' },
-  { value: 'DISPOSITIVO_MEDICO', label: 'Dispositivo medico' },
-  { value: 'PRODUCTO_SANITARIO', label: 'Producto sanitario' },
-  { value: 'MATERIAL_MEDICO', label: 'Material medico' },
-  { value: 'COSMETICO', label: 'Cosmetico' },
-  { value: 'OTRO', label: 'Otro' },
+  { value: "MEDICAMENTO", label: "Medicamento" },
+  { value: "DISPOSITIVO_MEDICO", label: "Dispositivo medico" },
+  { value: "PRODUCTO_SANITARIO", label: "Producto sanitario" },
+  { value: "MATERIAL_MEDICO", label: "Material medico" },
+  { value: "COSMETICO", label: "Cosmetico" },
+  { value: "OTRO", label: "Otro" },
 ];
 
 const PHARMACEUTICAL_FORM_OPTIONS = [
-  '',
-  'TABLETA',
-  'CAPSULA',
-  'JARABE',
-  'SUSPENSION',
-  'SOLUCION_INYECTABLE',
-  'AMPOLLA',
-  'VIAL',
-  'CREMA',
-  'UNGÜENTO',
-  'GEL',
-  'GOTAS',
-  'SPRAY',
-  'POLVO',
-  'SOBRE',
+  "",
+  "TABLETA",
+  "CAPSULA",
+  "JARABE",
+  "SUSPENSION",
+  "SOLUCION_INYECTABLE",
+  "AMPOLLA",
+  "VIAL",
+  "CREMA",
+  "UNGÜENTO",
+  "GEL",
+  "GOTAS",
+  "SPRAY",
+  "POLVO",
+  "SOBRE",
 ];
 
 const ROUTE_OPTIONS = [
-  '',
-  'ORAL',
-  'SUBLINGUAL',
-  'INTRAVENOSA',
-  'INTRAMUSCULAR',
-  'SUBCUTANEA',
-  'TOPICA',
-  'OFTALMICA',
-  'OTICA',
-  'NASAL',
-  'INHALATORIA',
-  'RECTAL',
-  'VAGINAL',
+  "",
+  "ORAL",
+  "SUBLINGUAL",
+  "INTRAVENOSA",
+  "INTRAMUSCULAR",
+  "SUBCUTANEA",
+  "TOPICA",
+  "OFTALMICA",
+  "OTICA",
+  "NASAL",
+  "INHALATORIA",
+  "RECTAL",
+  "VAGINAL",
 ];
 
 const EMPTY_PRODUCT_FORM: ProductForm = {
-  productType: 'MEDICAMENTO',
-  masterCode: '',
-  internalCode: '',
-  barcode: '',
-  genericName: '',
-  commercialName: '',
-  concentration: '',
-  pharmaceuticalForm: '',
-  presentation: '',
-  route: '',
-  unitMeasure: '',
-  laboratory: '',
-  sanitaryRegistration: '',
+  productType: "MEDICAMENTO",
+  masterCode: "",
+  internalCode: "",
+  barcode: "",
+  genericName: "",
+  commercialName: "",
+  concentration: "",
+  pharmaceuticalForm: "",
+  presentation: "",
+  route: "",
+  unitMeasure: "",
+  laboratory: "",
+  sanitaryRegistration: "",
   requiresPrescription: true,
   controlled: false,
   coldChain: false,
   taxable: true,
-  observations: '',
+  observations: "",
 };
 
 const EMPTY_LOT_FORM: LotForm = {
-  businessUnit: 'FARMACIA',
-  warehouse: 'PRINCIPAL',
-  shelfCode: '',
-  shelfLevel: '',
-  locationNotes: '',
-  lotNumber: '',
-  expirationDate: '',
-  stock: '0',
-  minimumStock: '0',
-  purchasePrice: '',
-  salePrice: '',
-  wholesalePrice: '',
-  currency: 'PEN',
-  supplier: '',
+  businessUnit: "BOTICA",
+  warehouse: "PRINCIPAL",
+  shelfCode: "",
+  shelfLevel: "",
+  locationNotes: "",
+  lotNumber: "",
+  expirationDate: "",
+  stock: "0",
+  minimumStock: "0",
+  purchasePrice: "",
+  salePrice: "",
+  wholesalePrice: "",
+  currency: "PEN",
+  supplier: "",
   active: true,
 };
 
 const actionLabels: Record<ImportAction, string> = {
-  CREATE: 'Crear',
-  UPDATE: 'Actualizar',
-  UNCHANGED: 'Sin cambios',
+  CREATE: "Crear",
+  UPDATE: "Actualizar",
+  UNCHANGED: "Sin cambios",
 };
 
 const actionClasses: Record<ImportAction, string> = {
-  CREATE: 'bg-emerald-100 text-emerald-800',
-  UPDATE: 'bg-blue-100 text-blue-800',
-  UNCHANGED: 'bg-slate-100 text-slate-700',
+  CREATE: "bg-emerald-100 text-emerald-800",
+  UPDATE: "bg-blue-100 text-blue-800",
+  UNCHANGED: "bg-slate-100 text-slate-700",
 };
 
 function getToken() {
-  return sessionStorage.getItem('ame_token') || '';
+  return sessionStorage.getItem("ame_token") || "";
 }
 
 async function readError(response: Response, fallback: string) {
   try {
     const result = await response.json();
-    if (Array.isArray(result?.message)) return result.message.join(' ');
-    if (typeof result?.message === 'object') {
+    if (Array.isArray(result?.message)) return result.message.join(" ");
+    if (typeof result?.message === "object") {
       return result.message?.message || JSON.stringify(result.message);
     }
     return result?.message || fallback;
@@ -283,12 +283,12 @@ async function readError(response: Response, fallback: string) {
 }
 
 function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString('es-PE');
+  if (!value) return "-";
+  return new Date(value).toLocaleString("es-PE");
 }
 
 export default function MedicationCatalogPanel({
-  initialView = 'import',
+  initialView = "import",
 }: {
   initialView?: ViewType;
 }) {
@@ -299,11 +299,11 @@ export default function MedicationCatalogPanel({
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('all');
-  const [productType, setProductType] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const [productType, setProductType] = useState("");
   const [page, setPage] = useState(1);
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(false);
@@ -312,22 +312,30 @@ export default function MedicationCatalogPanel({
   const [codePreview, setCodePreview] = useState<CodePreview | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
   const [creatingProduct, setCreatingProduct] = useState(false);
-  const [productForm, setProductForm] = useState<ProductForm>(EMPTY_PRODUCT_FORM);
-  const [selectedLotProduct, setSelectedLotProduct] = useState<Product | null>(null);
+  const [productForm, setProductForm] =
+    useState<ProductForm>(EMPTY_PRODUCT_FORM);
+  const [selectedLotProduct, setSelectedLotProduct] = useState<Product | null>(
+    null,
+  );
   const [lotForm, setLotForm] = useState<LotForm>(EMPTY_LOT_FORM);
   const [savingLot, setSavingLot] = useState(false);
 
   async function loadCodePreview(nextProductType = productForm.productType) {
     setCodeLoading(true);
-    setError('');
+    setError("");
 
     try {
       const params = new URLSearchParams({ productType: nextProductType });
-      const response = await fetch(`${API_BASE}/medication-catalog/code-preview?${params}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      const response = await fetch(
+        `${API_BASE}/medication-catalog/code-preview?${params}`,
+        {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        },
+      );
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo generar el codigo sugerido.'));
+        throw new Error(
+          await readError(response, "No se pudo generar el codigo sugerido."),
+        );
       }
 
       const result = await response.json();
@@ -335,11 +343,11 @@ export default function MedicationCatalogPanel({
       setProductForm((current) => ({
         ...current,
         productType: nextProductType,
-        masterCode: current.masterCode || result.masterCode || '',
-        internalCode: current.internalCode || result.companySku || '',
+        masterCode: current.masterCode || result.masterCode || "",
+        internalCode: current.internalCode || result.companySku || "",
       }));
     } catch (reason: any) {
-      setError(reason?.message || 'Error al generar codigos.');
+      setError(reason?.message || "Error al generar codigos.");
     } finally {
       setCodeLoading(false);
     }
@@ -347,30 +355,32 @@ export default function MedicationCatalogPanel({
 
   async function createProduct() {
     if (!productForm.genericName.trim()) {
-      setError('Ingrese el nombre generico o principal del producto.');
+      setError("Ingrese el nombre generico o principal del producto.");
       return;
     }
 
     if (!productForm.presentation.trim()) {
-      setError('Ingrese la presentacion del producto.');
+      setError("Ingrese la presentacion del producto.");
       return;
     }
 
     setCreatingProduct(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const response = await fetch(`${API_BASE}/medication-catalog/catalog`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${getToken()}`,
         },
         body: JSON.stringify(productForm),
       });
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo crear el producto.'));
+        throw new Error(
+          await readError(response, "No se pudo crear el producto."),
+        );
       }
 
       const created = await response.json();
@@ -379,43 +389,48 @@ export default function MedicationCatalogPanel({
       );
       setProductForm(EMPTY_PRODUCT_FORM);
       setCodePreview(null);
-      await loadCodePreview('MEDICAMENTO');
+      await loadCodePreview("MEDICAMENTO");
     } catch (reason: any) {
-      setError(reason?.message || 'Error al crear el producto.');
+      setError(reason?.message || "Error al crear el producto.");
     } finally {
       setCreatingProduct(false);
     }
   }
 
-  function updateProductForm<K extends keyof ProductForm>(key: K, value: ProductForm[K]) {
+  function updateProductForm<K extends keyof ProductForm>(
+    key: K,
+    value: ProductForm[K],
+  ) {
     setProductForm((current) => ({ ...current, [key]: value }));
   }
 
   async function downloadTemplate() {
     setDownloading(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const response = await fetch(`${API_BASE}/medication-catalog/template`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo descargar la plantilla.'));
+        throw new Error(
+          await readError(response, "No se pudo descargar la plantilla."),
+        );
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
+      const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = 'plantilla_maestro_corporativo_farmacia.xlsx';
+      anchor.download = "plantilla_maestro_corporativo_farmacia.xlsx";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setSuccess('Plantilla corporativa descargada correctamente.');
+      setSuccess("Plantilla corporativa descargada correctamente.");
     } catch (reason: any) {
-      setError(reason?.message || 'Error al descargar la plantilla.');
+      setError(reason?.message || "Error al descargar la plantilla.");
     } finally {
       setDownloading(false);
     }
@@ -423,31 +438,36 @@ export default function MedicationCatalogPanel({
 
   async function previewImport() {
     if (!file) {
-      setError('Seleccione un archivo Excel.');
+      setError("Seleccione un archivo Excel.");
       return;
     }
 
     setLoading(true);
     setPreview(null);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch(`${API_BASE}/medication-catalog/import/preview`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}` },
-        body: formData,
-      });
+      formData.append("file", file);
+      const response = await fetch(
+        `${API_BASE}/medication-catalog/import/preview`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${getToken()}` },
+          body: formData,
+        },
+      );
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo validar el archivo.'));
+        throw new Error(
+          await readError(response, "No se pudo validar el archivo."),
+        );
       }
 
       setPreview(await response.json());
-      setSuccess('Archivo validado. Revise productos, lotes y errores.');
+      setSuccess("Archivo validado. Revise productos, lotes y errores.");
     } catch (reason: any) {
-      setError(reason?.message || 'Error al validar la importacion.');
+      setError(reason?.message || "Error al validar la importacion.");
     } finally {
       setLoading(false);
     }
@@ -456,27 +476,32 @@ export default function MedicationCatalogPanel({
   async function applyImport() {
     if (!preview?.previewId) return;
     if (preview.summary.invalidRows > 0) {
-      setError('Corrija todos los errores antes de confirmar la importacion.');
+      setError("Corrija todos los errores antes de confirmar la importacion.");
       return;
     }
-    if (!window.confirm(
-      `Se crearan ${preview.summary.toCreate} productos, se actualizaran ${preview.summary.toUpdate} y se procesaran ${preview.summary.inventoryLots} lotes. Desea continuar?`,
-    )) return;
+    if (
+      !window.confirm(
+        `Se crearan ${preview.summary.toCreate} productos, se actualizaran ${preview.summary.toUpdate} y se procesaran ${preview.summary.inventoryLots} lotes. Desea continuar?`,
+      )
+    )
+      return;
 
     setApplying(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const response = await fetch(
         `${API_BASE}/medication-catalog/import/${preview.previewId}/apply`,
         {
-          method: 'POST',
+          method: "POST",
           headers: { Authorization: `Bearer ${getToken()}` },
         },
       );
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo aplicar la importacion.'));
+        throw new Error(
+          await readError(response, "No se pudo aplicar la importacion."),
+        );
       }
 
       const result = await response.json();
@@ -485,9 +510,9 @@ export default function MedicationCatalogPanel({
       );
       setPreview(null);
       setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (reason: any) {
-      setError(reason?.message || 'Error al aplicar la importacion.');
+      setError(reason?.message || "Error al aplicar la importacion.");
     } finally {
       setApplying(false);
     }
@@ -495,7 +520,7 @@ export default function MedicationCatalogPanel({
 
   async function loadCatalog() {
     setCatalogLoading(true);
-    setError('');
+    setError("");
 
     try {
       const params = new URLSearchParams({
@@ -503,18 +528,23 @@ export default function MedicationCatalogPanel({
         status,
         productType,
         page: String(page),
-        pageSize: '50',
+        pageSize: "50",
       });
-      const response = await fetch(`${API_BASE}/medication-catalog/catalog?${params}`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      });
+      const response = await fetch(
+        `${API_BASE}/medication-catalog/catalog?${params}`,
+        {
+          headers: { Authorization: `Bearer ${getToken()}` },
+        },
+      );
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo cargar el catalogo.'));
+        throw new Error(
+          await readError(response, "No se pudo cargar el catalogo."),
+        );
       }
 
       setCatalog(await response.json());
     } catch (reason: any) {
-      setError(reason?.message || 'Error al cargar el catalogo.');
+      setError(reason?.message || "Error al cargar el catalogo.");
     } finally {
       setCatalogLoading(false);
     }
@@ -522,20 +552,22 @@ export default function MedicationCatalogPanel({
 
   async function loadHistory() {
     setHistoryLoading(true);
-    setError('');
+    setError("");
 
     try {
       const response = await fetch(`${API_BASE}/medication-catalog/imports`, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo cargar el historial.'));
+        throw new Error(
+          await readError(response, "No se pudo cargar el historial."),
+        );
       }
 
       const result = await response.json();
       setImports(Array.isArray(result) ? result : []);
     } catch (reason: any) {
-      setError(reason?.message || 'Error al cargar el historial.');
+      setError(reason?.message || "Error al cargar el historial.");
     } finally {
       setHistoryLoading(false);
     }
@@ -543,42 +575,47 @@ export default function MedicationCatalogPanel({
 
   async function changeStatus(product: Product) {
     const nextActive = !product.active;
-    if (!window.confirm(
-      `${nextActive ? 'Activar' : 'Inactivar'} ${product.internalCode || ''} - ${product.genericName}?`,
-    )) return;
+    if (
+      !window.confirm(
+        `${nextActive ? "Activar" : "Inactivar"} ${product.internalCode || ""} - ${product.genericName}?`,
+      )
+    )
+      return;
 
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const response = await fetch(
         `${API_BASE}/medication-catalog/catalog/${product.id}/status`,
         {
-          method: 'PATCH',
+          method: "PATCH",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${getToken()}`,
           },
           body: JSON.stringify({ active: nextActive }),
         },
       );
       if (!response.ok) {
-        throw new Error(await readError(response, 'No se pudo cambiar el estado.'));
+        throw new Error(
+          await readError(response, "No se pudo cambiar el estado."),
+        );
       }
 
       const result = await response.json();
-      setSuccess(result?.message || 'Estado actualizado.');
+      setSuccess(result?.message || "Estado actualizado.");
       await loadCatalog();
     } catch (reason: any) {
-      setError(reason?.message || 'Error al cambiar el estado.');
+      setError(reason?.message || "Error al cambiar el estado.");
     }
   }
 
   function openLotForm(product: Product) {
     setSelectedLotProduct(product);
     setLotForm({ ...EMPTY_LOT_FORM });
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
   }
 
   function closeLotForm() {
@@ -595,40 +632,47 @@ export default function MedicationCatalogPanel({
     if (!selectedLotProduct) return;
 
     if (!lotForm.warehouse.trim()) {
-      setError('Ingrese el almacen.');
+      setError("Ingrese el almacen.");
       return;
     }
     if (!lotForm.lotNumber.trim()) {
-      setError('Ingrese el numero de lote.');
+      setError("Ingrese el numero de lote.");
       return;
     }
 
     const requiredNumbers: Array<[string, string]> = [
-      ['Stock', lotForm.stock],
-      ['Stock minimo', lotForm.minimumStock],
+      ["Stock", lotForm.stock],
+      ["Stock minimo", lotForm.minimumStock],
     ];
     const optionalNumbers: Array<[string, string]> = [
-      ['Precio de compra', lotForm.purchasePrice],
-      ['Precio de venta', lotForm.salePrice],
-      ['Precio mayorista', lotForm.wholesalePrice],
+      ["Precio de compra", lotForm.purchasePrice],
+      ["Precio de venta", lotForm.salePrice],
+      ["Precio mayorista", lotForm.wholesalePrice],
     ];
 
     for (const [label, value] of requiredNumbers) {
-      if (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0) {
+      if (
+        !value.trim() ||
+        !Number.isFinite(Number(value)) ||
+        Number(value) < 0
+      ) {
         setError(`${label} debe ser un numero igual o mayor que cero.`);
         return;
       }
     }
     for (const [label, value] of optionalNumbers) {
-      if (value.trim() && (!Number.isFinite(Number(value)) || Number(value) < 0)) {
+      if (
+        value.trim() &&
+        (!Number.isFinite(Number(value)) || Number(value) < 0)
+      ) {
         setError(`${label} debe ser un numero igual o mayor que cero.`);
         return;
       }
     }
 
     setSavingLot(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
       const payload = {
@@ -643,9 +687,7 @@ export default function MedicationCatalogPanel({
         purchasePrice: lotForm.purchasePrice.trim()
           ? Number(lotForm.purchasePrice)
           : null,
-        salePrice: lotForm.salePrice.trim()
-          ? Number(lotForm.salePrice)
-          : null,
+        salePrice: lotForm.salePrice.trim() ? Number(lotForm.salePrice) : null,
         wholesalePrice: lotForm.wholesalePrice.trim()
           ? Number(lotForm.wholesalePrice)
           : null,
@@ -655,9 +697,9 @@ export default function MedicationCatalogPanel({
       const response = await fetch(
         `${API_BASE}/medication-catalog/catalog/${selectedLotProduct.id}/lots`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             Authorization: `Bearer ${getToken()}`,
           },
           body: JSON.stringify(payload),
@@ -666,7 +708,7 @@ export default function MedicationCatalogPanel({
 
       if (!response.ok) {
         throw new Error(
-          await readError(response, 'No se pudo registrar el lote y stock.'),
+          await readError(response, "No se pudo registrar el lote y stock."),
         );
       }
 
@@ -674,9 +716,9 @@ export default function MedicationCatalogPanel({
       setSelectedLotProduct(null);
       setLotForm({ ...EMPTY_LOT_FORM });
       await loadCatalog();
-      setSuccess(result?.message || 'Lote y stock registrados correctamente.');
+      setSuccess(result?.message || "Lote y stock registrados correctamente.");
     } catch (reason: any) {
-      setError(reason?.message || 'Error al registrar el lote y stock.');
+      setError(reason?.message || "Error al registrar el lote y stock.");
     } finally {
       setSavingLot(false);
     }
@@ -687,17 +729,17 @@ export default function MedicationCatalogPanel({
   }, [initialView]);
 
   useEffect(() => {
-    if (view !== 'records') return;
+    if (view !== "records") return;
     const timeout = window.setTimeout(loadCatalog, 300);
     return () => window.clearTimeout(timeout);
   }, [view, query, status, productType, page]);
 
   useEffect(() => {
-    if (view === 'history') loadHistory();
+    if (view === "history") loadHistory();
   }, [view]);
 
   useEffect(() => {
-    if (view === 'create' && !codePreview && !codeLoading) {
+    if (view === "create" && !codePreview && !codeLoading) {
       loadCodePreview(productForm.productType);
     }
   }, [view]);
@@ -717,27 +759,32 @@ export default function MedicationCatalogPanel({
 
       <section className="rounded-lg bg-white p-5 shadow-sm">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Maestro corporativo de productos</h2>
+          <h2 className="text-lg font-bold text-slate-900">
+            Maestro corporativo de productos
+          </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Una sola plantilla para Farmacia y Drogueria. Gerencia utilizara la informacion consolidada de productos, stock, costos y precios.
+            Una sola plantilla para Farmacia y Drogueria. Gerencia utilizara la
+            informacion consolidada de productos, stock, costos y precios.
           </p>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {([
-            ['import', 'Importar Excel'],
-            ['create', 'Nuevo producto'],
-            ['records', 'Productos y lotes'],
-            ['history', 'Historial de cargas'],
-          ] as Array<[ViewType, string]>).map(([id, label]) => (
+          {(
+            [
+              ["import", "Importar Excel"],
+              ["create", "Nuevo producto"],
+              ["records", "Productos y lotes"],
+              ["history", "Historial de cargas"],
+            ] as Array<[ViewType, string]>
+          ).map(([id, label]) => (
             <button
               key={id}
               type="button"
               onClick={() => setView(id)}
               className={`rounded-lg border px-4 py-2 text-sm font-bold ${
                 view === id
-                  ? 'border-slate-800 bg-slate-800 text-white'
-                  : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                  ? "border-slate-800 bg-slate-800 text-white"
+                  : "border-slate-300 text-slate-700 hover:bg-slate-50"
               }`}
             >
               {label}
@@ -745,7 +792,7 @@ export default function MedicationCatalogPanel({
           ))}
         </div>
 
-        {view === 'import' && (
+        {view === "import" && (
           <div className="mt-5 space-y-5">
             <ExcelInstructions />
 
@@ -761,8 +808,8 @@ export default function MedicationCatalogPanel({
                   onChange={(event) => {
                     setFile(event.target.files?.[0] || null);
                     setPreview(null);
-                    setError('');
-                    setSuccess('');
+                    setError("");
+                    setSuccess("");
                   }}
                   className="block w-full rounded-lg border border-slate-300 bg-white p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:font-bold"
                 />
@@ -779,7 +826,9 @@ export default function MedicationCatalogPanel({
                   disabled={downloading}
                   className="rounded-lg border border-cyan-700 px-4 py-2 text-sm font-bold text-cyan-800 disabled:opacity-60"
                 >
-                  {downloading ? 'Descargando...' : 'Descargar plantilla con SKU y ubicacion'}
+                  {downloading
+                    ? "Descargando..."
+                    : "Descargar plantilla con SKU y ubicacion"}
                 </button>
                 <button
                   type="button"
@@ -787,7 +836,7 @@ export default function MedicationCatalogPanel({
                   disabled={!file || loading}
                   className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
                 >
-                  {loading ? 'Validando...' : 'Validar y previsualizar'}
+                  {loading ? "Validando..." : "Validar y previsualizar"}
                 </button>
               </div>
             </div>
@@ -795,7 +844,7 @@ export default function MedicationCatalogPanel({
         )}
       </section>
 
-      {view === 'create' && (
+      {view === "create" && (
         <CreateProductPanel
           productForm={productForm}
           codePreview={codePreview}
@@ -806,22 +855,22 @@ export default function MedicationCatalogPanel({
           onClear={() => {
             setProductForm(EMPTY_PRODUCT_FORM);
             setCodePreview(null);
-            loadCodePreview('MEDICAMENTO');
+            loadCodePreview("MEDICAMENTO");
           }}
           onChange={updateProductForm}
           onProductTypeChange={(next) => {
             setProductForm((current) => ({
               ...current,
               productType: next,
-              masterCode: '',
-              internalCode: '',
+              masterCode: "",
+              internalCode: "",
             }));
             loadCodePreview(next);
           }}
         />
       )}
 
-      {preview && view === 'import' && (
+      {preview && view === "import" && (
         <PreviewPanel
           preview={preview}
           applying={applying}
@@ -829,7 +878,7 @@ export default function MedicationCatalogPanel({
         />
       )}
 
-      {view === 'records' && (
+      {view === "records" && (
         <RecordsPanel
           query={query}
           status={status}
@@ -837,9 +886,18 @@ export default function MedicationCatalogPanel({
           page={page}
           catalog={catalog}
           catalogLoading={catalogLoading}
-          onQueryChange={(value) => { setQuery(value); setPage(1); }}
-          onStatusChange={(value) => { setStatus(value); setPage(1); }}
-          onProductTypeChange={(value) => { setProductType(value); setPage(1); }}
+          onQueryChange={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          onStatusChange={(value) => {
+            setStatus(value);
+            setPage(1);
+          }}
+          onProductTypeChange={(value) => {
+            setProductType(value);
+            setPage(1);
+          }}
           onRefresh={loadCatalog}
           onPreviousPage={() => setPage((current) => Math.max(1, current - 1))}
           onNextPage={() => setPage((current) => current + 1)}
@@ -859,7 +917,7 @@ export default function MedicationCatalogPanel({
         />
       )}
 
-      {view === 'history' && (
+      {view === "history" && (
         <HistoryPanel
           imports={imports}
           loading={historyLoading}
@@ -876,20 +934,45 @@ function ExcelInstructions() {
       <p className="font-bold">Indicaciones para llenar el Excel sin errores</p>
       <div className="mt-2 grid gap-2 md:grid-cols-2">
         <ul className="list-disc space-y-1 pl-5">
-          <li>Obligatorios en Productos: tipo_producto, nombre_generico y presentacion.</li>
-          <li>codigo_maestro_hcelm y sku_empresa pueden quedar vacios; HCELM los genera automaticamente.</li>
-          <li>tipo_producto debe salir de la lista: MEDICAMENTO, DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO, MATERIAL_MEDICO, COSMETICO u OTRO.</li>
-          <li>No escriba TABLETA o CAPSULA en tipo_producto; eso corresponde a forma_farmaceutica.</li>
+          <li>
+            Obligatorios en Productos: tipo_producto, nombre_generico y
+            presentacion.
+          </li>
+          <li>
+            codigo_maestro_hcelm y sku_empresa pueden quedar vacios; HCELM los
+            genera automaticamente.
+          </li>
+          <li>
+            tipo_producto debe salir de la lista: MEDICAMENTO,
+            DISPOSITIVO_MEDICO, PRODUCTO_SANITARIO, MATERIAL_MEDICO, COSMETICO u
+            OTRO.
+          </li>
+          <li>
+            No escriba TABLETA o CAPSULA en tipo_producto; eso corresponde a
+            forma_farmaceutica.
+          </li>
         </ul>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Si usa Inventario_Inicial, el sku_empresa debe coincidir con Productos.</li>
-          <li>Si deja vacio el SKU en ambas hojas, mantenga el mismo orden de filas para vincular producto e inventario.</li>
-          <li>andamio y nivel_andamio ayudan a ubicar el producto al escanear el codigo de barras.</li>
-          <li>Use fechas reales de Excel o formato AAAA-MM-DD para vencimiento.</li>
+          <li>
+            Si usa Inventario_Inicial, el sku_empresa debe coincidir con
+            Productos.
+          </li>
+          <li>
+            Si deja vacio el SKU en ambas hojas, mantenga el mismo orden de
+            filas para vincular producto e inventario.
+          </li>
+          <li>
+            andamio y nivel_andamio ayudan a ubicar el producto al escanear el
+            codigo de barras.
+          </li>
+          <li>
+            Use fechas reales de Excel o formato AAAA-MM-DD para vencimiento.
+          </li>
         </ul>
       </div>
       <p className="mt-3 text-xs text-amber-900">
-        Nota para el manual: esta misma regla se documentara como flujo de carga inicial y mantenimiento de maestro corporativo.
+        Nota para el manual: esta misma regla se documentara como flujo de carga
+        inicial y mantenimiento de maestro corporativo.
       </p>
     </div>
   );
@@ -913,7 +996,10 @@ function CreateProductPanel({
   onRegenerate: () => void;
   onCreate: () => void;
   onClear: () => void;
-  onChange: <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => void;
+  onChange: <K extends keyof ProductForm>(
+    key: K,
+    value: ProductForm[K],
+  ) => void;
   onProductTypeChange: (value: string) => void;
 }) {
   return (
@@ -922,7 +1008,8 @@ function CreateProductPanel({
         <div>
           <h3 className="text-lg font-bold text-slate-900">Nuevo producto</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Registre un producto puntual sin usar Excel. El sistema propone codigo maestro y SKU automaticamente.
+            Registre un producto puntual sin usar Excel. El sistema propone
+            codigo maestro y SKU automaticamente.
           </p>
         </div>
         <button
@@ -931,19 +1018,26 @@ function CreateProductPanel({
           disabled={codeLoading}
           className="rounded-lg border border-cyan-700 px-4 py-2 text-sm font-bold text-cyan-800 disabled:opacity-60"
         >
-          {codeLoading ? 'Generando...' : 'Regenerar codigos'}
+          {codeLoading ? "Generando..." : "Regenerar codigos"}
         </button>
       </div>
 
       <div className="mb-5 rounded-lg border border-cyan-100 bg-cyan-50 p-4">
         <p className="text-sm font-bold text-cyan-900">Codigos sugeridos</p>
         <div className="mt-3 grid gap-3 md:grid-cols-3">
-          <CodeCard label="Empresa" value={codePreview?.companyPrefix || '-'} />
-          <CodeCard label="Codigo maestro HCELM" value={productForm.masterCode || codePreview?.masterCode || '-'} />
-          <CodeCard label="SKU empresa" value={productForm.internalCode || codePreview?.companySku || '-'} />
+          <CodeCard label="Empresa" value={codePreview?.companyPrefix || "-"} />
+          <CodeCard
+            label="Codigo maestro HCELM"
+            value={productForm.masterCode || codePreview?.masterCode || "-"}
+          />
+          <CodeCard
+            label="SKU empresa"
+            value={productForm.internalCode || codePreview?.companySku || "-"}
+          />
         </div>
         <p className="mt-2 text-xs text-cyan-800">
-          Puede editarlos si necesita conservar una codificacion previa. Si los deja vacios, el backend los vuelve a generar al guardar.
+          Puede editarlos si necesita conservar una codificacion previa. Si los
+          deja vacios, el backend los vuelve a generar al guardar.
         </p>
       </div>
 
@@ -956,18 +1050,30 @@ function CreateProductPanel({
             className="mt-1 w-full rounded-lg border p-2"
           >
             {PRODUCT_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
             ))}
           </select>
         </label>
 
-        <TextInput label="Codigo maestro HCELM" value={productForm.masterCode} onChange={(value) => onChange('masterCode', value)} placeholder={codePreview?.masterCode || 'Automatico'} />
-        <TextInput label="SKU empresa" value={productForm.internalCode} onChange={(value) => onChange('internalCode', value)} placeholder={codePreview?.companySku || 'Automatico'} />
+        <TextInput
+          label="Codigo maestro HCELM"
+          value={productForm.masterCode}
+          onChange={(value) => onChange("masterCode", value)}
+          placeholder={codePreview?.masterCode || "Automatico"}
+        />
+        <TextInput
+          label="SKU empresa"
+          value={productForm.internalCode}
+          onChange={(value) => onChange("internalCode", value)}
+          placeholder={codePreview?.companySku || "Automatico"}
+        />
         <div className="rounded-lg border border-slate-200 p-3">
           <TextInput
             label="Código de barras"
             value={productForm.barcode}
-            onChange={(value) => onChange('barcode', value)}
+            onChange={(value) => onChange("barcode", value)}
             placeholder="Código comercial real o código interno"
           />
           <div className="mt-2 flex flex-wrap gap-2">
@@ -976,8 +1082,8 @@ function CreateProductPanel({
               disabled={!(productForm.internalCode || codePreview?.companySku)}
               onClick={() =>
                 onChange(
-                  'barcode',
-                  productForm.internalCode || codePreview?.companySku || '',
+                  "barcode",
+                  productForm.internalCode || codePreview?.companySku || "",
                 )
               }
               className="rounded border border-cyan-700 px-3 py-2 text-xs font-bold text-cyan-800 disabled:opacity-40"
@@ -986,62 +1092,115 @@ function CreateProductPanel({
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Si el fabricante ya asignó un código de barras, regístrelo. Si no existe,
-            HCELM puede codificar el SKU interno en formato Code 128.
+            Si el fabricante ya asignó un código de barras, regístrelo. Si no
+            existe, HCELM puede codificar el SKU interno en formato Code 128.
           </p>
           {productForm.barcode ? (
             <BarcodePreview value={productForm.barcode} />
           ) : null}
         </div>
-        <TextInput label="Nombre generico / principal *" value={productForm.genericName} onChange={(value) => onChange('genericName', value)} />
-        <TextInput label="Nombre comercial" value={productForm.commercialName} onChange={(value) => onChange('commercialName', value)} />
-        <TextInput label="Concentracion" value={productForm.concentration} onChange={(value) => onChange('concentration', value)} placeholder="Ej. 500 mg" />
+        <TextInput
+          label="Nombre generico / principal *"
+          value={productForm.genericName}
+          onChange={(value) => onChange("genericName", value)}
+        />
+        <TextInput
+          label="Nombre comercial"
+          value={productForm.commercialName}
+          onChange={(value) => onChange("commercialName", value)}
+        />
+        <TextInput
+          label="Concentracion"
+          value={productForm.concentration}
+          onChange={(value) => onChange("concentration", value)}
+          placeholder="Ej. 500 mg"
+        />
 
         <label className="text-sm font-semibold text-slate-700">
           Forma farmaceutica
           <select
             value={productForm.pharmaceuticalForm}
-            onChange={(event) => onChange('pharmaceuticalForm', event.target.value)}
+            onChange={(event) =>
+              onChange("pharmaceuticalForm", event.target.value)
+            }
             className="mt-1 w-full rounded-lg border p-2"
           >
             {PHARMACEUTICAL_FORM_OPTIONS.map((value) => (
-              <option key={value || 'EMPTY'} value={value}>{value || 'Sin especificar'}</option>
+              <option key={value || "EMPTY"} value={value}>
+                {value || "Sin especificar"}
+              </option>
             ))}
           </select>
         </label>
 
-        <TextInput label="Presentacion *" value={productForm.presentation} onChange={(value) => onChange('presentation', value)} placeholder="Ej. Caja x 100 tabletas" />
+        <TextInput
+          label="Presentacion *"
+          value={productForm.presentation}
+          onChange={(value) => onChange("presentation", value)}
+          placeholder="Ej. Caja x 100 tabletas"
+        />
 
         <label className="text-sm font-semibold text-slate-700">
           Via de administracion
           <select
             value={productForm.route}
-            onChange={(event) => onChange('route', event.target.value)}
+            onChange={(event) => onChange("route", event.target.value)}
             className="mt-1 w-full rounded-lg border p-2"
           >
             {ROUTE_OPTIONS.map((value) => (
-              <option key={value || 'EMPTY'} value={value}>{value || 'Sin especificar'}</option>
+              <option key={value || "EMPTY"} value={value}>
+                {value || "Sin especificar"}
+              </option>
             ))}
           </select>
         </label>
 
-        <TextInput label="Unidad de medida" value={productForm.unitMeasure} onChange={(value) => onChange('unitMeasure', value)} placeholder="Ej. unidad, caja, frasco" />
-        <TextInput label="Laboratorio" value={productForm.laboratory} onChange={(value) => onChange('laboratory', value)} />
-        <TextInput label="Registro sanitario" value={productForm.sanitaryRegistration} onChange={(value) => onChange('sanitaryRegistration', value)} />
+        <TextInput
+          label="Unidad de medida"
+          value={productForm.unitMeasure}
+          onChange={(value) => onChange("unitMeasure", value)}
+          placeholder="Ej. unidad, caja, frasco"
+        />
+        <TextInput
+          label="Laboratorio"
+          value={productForm.laboratory}
+          onChange={(value) => onChange("laboratory", value)}
+        />
+        <TextInput
+          label="Registro sanitario"
+          value={productForm.sanitaryRegistration}
+          onChange={(value) => onChange("sanitaryRegistration", value)}
+        />
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <CheckboxInput label="Requiere receta" checked={productForm.requiresPrescription} onChange={(value) => onChange('requiresPrescription', value)} />
-        <CheckboxInput label="Controlado" checked={productForm.controlled} onChange={(value) => onChange('controlled', value)} />
-        <CheckboxInput label="Cadena de frio" checked={productForm.coldChain} onChange={(value) => onChange('coldChain', value)} />
-        <CheckboxInput label="Afecto IGV" checked={productForm.taxable} onChange={(value) => onChange('taxable', value)} />
+        <CheckboxInput
+          label="Requiere receta"
+          checked={productForm.requiresPrescription}
+          onChange={(value) => onChange("requiresPrescription", value)}
+        />
+        <CheckboxInput
+          label="Controlado"
+          checked={productForm.controlled}
+          onChange={(value) => onChange("controlled", value)}
+        />
+        <CheckboxInput
+          label="Cadena de frio"
+          checked={productForm.coldChain}
+          onChange={(value) => onChange("coldChain", value)}
+        />
+        <CheckboxInput
+          label="Afecto IGV"
+          checked={productForm.taxable}
+          onChange={(value) => onChange("taxable", value)}
+        />
       </div>
 
       <label className="mt-4 block text-sm font-semibold text-slate-700">
         Observaciones
         <textarea
           value={productForm.observations}
-          onChange={(event) => onChange('observations', event.target.value)}
+          onChange={(event) => onChange("observations", event.target.value)}
           className="mt-1 min-h-20 w-full rounded-lg border p-2"
           placeholder="Notas internas para farmacia, drogueria o gerencia."
         />
@@ -1054,7 +1213,7 @@ function CreateProductPanel({
           disabled={creatingProduct}
           className="rounded-lg bg-emerald-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60"
         >
-          {creatingProduct ? 'Guardando...' : 'Guardar producto'}
+          {creatingProduct ? "Guardando..." : "Guardar producto"}
         </button>
         <button
           type="button"
@@ -1081,16 +1240,25 @@ function PreviewPanel({
     <>
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ['Productos validos', preview.summary.validRows, 'text-emerald-700'],
-          ['Con errores', preview.summary.invalidRows, 'text-red-700'],
-          ['Nuevos', preview.summary.toCreate, 'text-emerald-700'],
-          ['Actualizar', preview.summary.toUpdate, 'text-blue-700'],
-          ['Sin cambios', preview.summary.unchanged, 'text-slate-600'],
-          ['Lotes validos', preview.summary.inventoryLots, 'text-blue-700'],
-          ['Lotes con errores', preview.summary.invalidInventoryLots, 'text-red-700'],
+          ["Productos validos", preview.summary.validRows, "text-emerald-700"],
+          ["Con errores", preview.summary.invalidRows, "text-red-700"],
+          ["Nuevos", preview.summary.toCreate, "text-emerald-700"],
+          ["Actualizar", preview.summary.toUpdate, "text-blue-700"],
+          ["Sin cambios", preview.summary.unchanged, "text-slate-600"],
+          ["Lotes validos", preview.summary.inventoryLots, "text-blue-700"],
+          [
+            "Lotes con errores",
+            preview.summary.invalidInventoryLots,
+            "text-red-700",
+          ],
         ].map(([label, value, color]) => (
-          <div key={String(label)} className="rounded-lg bg-white p-4 shadow-sm">
-            <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+          <div
+            key={String(label)}
+            className="rounded-lg bg-white p-4 shadow-sm"
+          >
+            <p className="text-xs font-bold uppercase text-slate-500">
+              {label}
+            </p>
             <p className={`mt-1 text-2xl font-black ${color}`}>{value}</p>
           </div>
         ))}
@@ -1100,7 +1268,10 @@ function PreviewPanel({
         <ErrorTable title="Productos con errores" rows={preview.invalidRows} />
       )}
       {preview.invalidInventoryRows.length > 0 && (
-        <ErrorTable title="Lotes con errores" rows={preview.invalidInventoryRows} />
+        <ErrorTable
+          title="Lotes con errores"
+          rows={preview.invalidInventoryRows}
+        />
       )}
 
       <section className="overflow-hidden rounded-lg bg-white shadow-sm">
@@ -1109,10 +1280,15 @@ function PreviewPanel({
           <button
             type="button"
             onClick={onApply}
-            disabled={applying || preview.summary.validRows === 0 || preview.summary.invalidRows > 0 || preview.summary.invalidInventoryLots > 0}
+            disabled={
+              applying ||
+              preview.summary.validRows === 0 ||
+              preview.summary.invalidRows > 0 ||
+              preview.summary.invalidInventoryLots > 0
+            }
             className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
           >
-            {applying ? 'Importando...' : 'Confirmar importacion'}
+            {applying ? "Importando..." : "Confirmar importacion"}
           </button>
         </div>
         <div className="overflow-x-auto">
@@ -1130,12 +1306,24 @@ function PreviewPanel({
             <tbody className="divide-y">
               {preview.validRows.map((row) => (
                 <tr key={`${row.rowNumber}-${row.internalCode}`}>
-                  <td className="px-4 py-3 font-bold text-cyan-800">{row.internalCode}</td>
-                  <td className="px-4 py-3">{row.masterCode || '-'}</td>
-                  <td className="px-4 py-3">{row.genericName}{row.commercialName ? ` / ${row.commercialName}` : ''}{row.concentration ? ` ${row.concentration}` : ''}</td>
+                  <td className="px-4 py-3 font-bold text-cyan-800">
+                    {row.internalCode}
+                  </td>
+                  <td className="px-4 py-3">{row.masterCode || "-"}</td>
+                  <td className="px-4 py-3">
+                    {row.genericName}
+                    {row.commercialName ? ` / ${row.commercialName}` : ""}
+                    {row.concentration ? ` ${row.concentration}` : ""}
+                  </td>
                   <td className="px-4 py-3">{row.presentation}</td>
                   <td className="px-4 py-3">{row.productType}</td>
-                  <td className="px-4 py-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${actionClasses[row.action]}`}>{actionLabels[row.action]}</span></td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${actionClasses[row.action]}`}
+                    >
+                      {actionLabels[row.action]}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1153,7 +1341,9 @@ function PreviewPanel({
 function InventoryPreviewTable({ rows }: { rows: InventoryPreviewRow[] }) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-sm">
-      <div className="border-b p-4"><h3 className="font-bold">Vista previa de lotes</h3></div>
+      <div className="border-b p-4">
+        <h3 className="font-bold">Vista previa de lotes</h3>
+      </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y text-sm">
           <thead className="bg-slate-50 text-left">
@@ -1169,16 +1359,24 @@ function InventoryPreviewTable({ rows }: { rows: InventoryPreviewRow[] }) {
           </thead>
           <tbody className="divide-y">
             {rows.map((row) => (
-              <tr key={`${row.rowNumber}-${row.internalCode}-${row.businessUnit}-${row.lotNumber}`}>
+              <tr
+                key={`${row.rowNumber}-${row.internalCode}-${row.businessUnit}-${row.lotNumber}`}
+              >
                 <td className="px-4 py-3 font-bold">{row.internalCode}</td>
                 <td className="px-4 py-3">{row.businessUnit}</td>
                 <td className="px-4 py-3">{row.warehouse}</td>
                 <td className="px-4 py-3">
-                  {[row.shelfCode, row.shelfLevel].filter(Boolean).join(' / ') || '-'}
-                  {row.locationNotes ? <div className="text-xs text-slate-500">{row.locationNotes}</div> : null}
+                  {[row.shelfCode, row.shelfLevel]
+                    .filter(Boolean)
+                    .join(" / ") || "-"}
+                  {row.locationNotes ? (
+                    <div className="text-xs text-slate-500">
+                      {row.locationNotes}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3">{row.lotNumber}</td>
-                <td className="px-4 py-3">{row.expirationDate || '-'}</td>
+                <td className="px-4 py-3">{row.expirationDate || "-"}</td>
                 <td className="px-4 py-3">{row.stock}</td>
               </tr>
             ))}
@@ -1229,19 +1427,34 @@ function RecordsPanel({
           placeholder="SKU, codigo maestro, barras, producto o registro..."
           className="rounded-lg border p-2"
         />
-        <select value={productType} onChange={(event) => onProductTypeChange(event.target.value)} className="rounded-lg border p-2">
+        <select
+          value={productType}
+          onChange={(event) => onProductTypeChange(event.target.value)}
+          className="rounded-lg border p-2"
+        >
           <option value="">Todos los tipos</option>
           {PRODUCT_TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
           ))}
         </select>
-        <select value={status} onChange={(event) => onStatusChange(event.target.value)} className="rounded-lg border p-2">
+        <select
+          value={status}
+          onChange={(event) => onStatusChange(event.target.value)}
+          className="rounded-lg border p-2"
+        >
           <option value="all">Todos</option>
           <option value="active">Activos</option>
           <option value="inactive">Inactivos</option>
         </select>
-        <button type="button" onClick={onRefresh} disabled={catalogLoading} className="rounded-lg bg-cyan-700 px-4 py-2 font-bold text-white disabled:opacity-60">
-          {catalogLoading ? 'Cargando...' : 'Actualizar'}
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={catalogLoading}
+          className="rounded-lg bg-cyan-700 px-4 py-2 font-bold text-white disabled:opacity-60"
+        >
+          {catalogLoading ? "Cargando..." : "Actualizar"}
         </button>
       </div>
       <div className="overflow-x-auto">
@@ -1259,41 +1472,71 @@ function RecordsPanel({
           </thead>
           <tbody className="divide-y">
             {!catalogLoading && (catalog?.items.length || 0) === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No se encontraron productos.</td></tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-4 py-8 text-center text-slate-500"
+                >
+                  No se encontraron productos.
+                </td>
+              </tr>
             )}
             {catalog?.items.map((product) => {
-              const totalStock = product.inventoryLots.reduce((sum, lot) => sum + Number(lot.stock), 0);
+              const totalStock = product.inventoryLots.reduce(
+                (sum, lot) => sum + Number(lot.stock),
+                0,
+              );
               return (
                 <tr key={product.id}>
                   <td className="px-4 py-3 font-bold text-cyan-800">
-                    {product.internalCode || '-'}
-                    {product.masterCode ? <div className="text-xs font-normal text-slate-500">{product.masterCode}</div> : null}
+                    {product.internalCode || "-"}
+                    {product.masterCode ? (
+                      <div className="text-xs font-normal text-slate-500">
+                        {product.masterCode}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">
                     <strong>{product.genericName}</strong>
-                    {product.commercialName ? <div className="text-xs text-slate-500">{product.commercialName}</div> : null}
-                    {product.concentration ? <div className="text-xs">{product.concentration}</div> : null}
+                    {product.commercialName ? (
+                      <div className="text-xs text-slate-500">
+                        {product.commercialName}
+                      </div>
+                    ) : null}
+                    {product.concentration ? (
+                      <div className="text-xs">{product.concentration}</div>
+                    ) : null}
                   </td>
                   <td className="px-4 py-3">{product.presentation}</td>
-                  <td className="px-4 py-3">{product.sanitaryRegistration || '-'}</td>
+                  <td className="px-4 py-3">
+                    {product.sanitaryRegistration || "-"}
+                  </td>
                   <td className="px-4 py-3">
                     <strong>{totalStock}</strong>
-                    <div className="text-xs text-slate-500">{product.inventoryLots.length} lote(s)</div>
+                    <div className="text-xs text-slate-500">
+                      {product.inventoryLots.length} lote(s)
+                    </div>
                     {product.inventoryLots.slice(0, 3).map((lot) => (
                       <div key={lot.id} className="mt-1 text-xs text-slate-600">
-                        <span className="font-semibold">Lote {lot.lotNumber}</span>
+                        <span className="font-semibold">
+                          Lote {lot.lotNumber}
+                        </span>
                         {` | Stock ${lot.stock} | ${lot.businessUnit} / ${lot.warehouse}`}
                         {lot.shelfCode || lot.shelfLevel
-                          ? ` / ${[lot.shelfCode, lot.shelfLevel].filter(Boolean).join(' / ')}`
-                          : ''}
+                          ? ` / ${[lot.shelfCode, lot.shelfLevel].filter(Boolean).join(" / ")}`
+                          : ""}
                         {lot.expirationDate
-                          ? ` | Vence ${new Date(lot.expirationDate).toLocaleDateString('es-PE')}`
-                          : ''}
-                        {lot.locationNotes ? ` | Ubicación ${lot.locationNotes}` : ''}
+                          ? ` | Vence ${new Date(lot.expirationDate).toLocaleDateString("es-PE")}`
+                          : ""}
+                        {lot.locationNotes
+                          ? ` | Ubicación ${lot.locationNotes}`
+                          : ""}
                       </div>
                     ))}
                   </td>
-                  <td className="px-4 py-3">{product.active ? 'Activo' : 'Inactivo'}</td>
+                  <td className="px-4 py-3">
+                    {product.active ? "Activo" : "Inactivo"}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex min-w-40 flex-col gap-2">
                       <button
@@ -1307,10 +1550,10 @@ function RecordsPanel({
                         type="button"
                         onClick={() => onChangeStatus(product)}
                         className={`rounded px-3 py-2 text-xs font-bold text-white ${
-                          product.active ? 'bg-red-700' : 'bg-emerald-700'
+                          product.active ? "bg-red-700" : "bg-emerald-700"
                         }`}
                       >
-                        {product.active ? 'Inactivar' : 'Activar'}
+                        {product.active ? "Inactivar" : "Activar"}
                       </button>
                     </div>
                   </td>
@@ -1323,9 +1566,25 @@ function RecordsPanel({
       <div className="flex items-center justify-between border-t px-4 py-3 text-sm">
         <span>{catalog?.total || 0} producto(s)</span>
         <div className="flex gap-2">
-          <button type="button" disabled={page <= 1} onClick={onPreviousPage} className="rounded border px-3 py-1 disabled:opacity-40">Anterior</button>
-          <span>Pagina {catalog?.page || page} de {catalog?.totalPages || 1}</span>
-          <button type="button" disabled={page >= (catalog?.totalPages || 1)} onClick={onNextPage} className="rounded border px-3 py-1 disabled:opacity-40">Siguiente</button>
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={onPreviousPage}
+            className="rounded border px-3 py-1 disabled:opacity-40"
+          >
+            Anterior
+          </button>
+          <span>
+            Pagina {catalog?.page || page} de {catalog?.totalPages || 1}
+          </span>
+          <button
+            type="button"
+            disabled={page >= (catalog?.totalPages || 1)}
+            onClick={onNextPage}
+            className="rounded border px-3 py-1 disabled:opacity-40"
+          >
+            Siguiente
+          </button>
         </div>
       </div>
     </section>
@@ -1357,10 +1616,12 @@ function LotModal({
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b bg-white p-5">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">Agregar lote / stock</h3>
+            <h3 className="text-lg font-bold text-slate-900">
+              Agregar lote / stock
+            </h3>
             <p className="mt-1 text-sm text-slate-600">
-              {product.internalCode || '-'} - {product.genericName}
-              {product.concentration ? ` ${product.concentration}` : ''}
+              {product.internalCode || "-"} - {product.genericName}
+              {product.concentration ? ` ${product.concentration}` : ""}
             </p>
           </div>
           <button
@@ -1375,8 +1636,9 @@ function LotModal({
 
         <div className="space-y-5 p-5">
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-            Registre cada lote por unidad de negocio y almacen. Si repite la misma
-            combinacion de producto, unidad, almacen y lote, HCELM actualizara ese registro.
+            Registre cada lote por unidad de negocio y almacen. Si repite la
+            misma combinacion de producto, unidad, almacen y lote, HCELM
+            actualizara ese registro.
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1384,42 +1646,96 @@ function LotModal({
               Unidad de negocio *
               <select
                 value={form.businessUnit}
-                onChange={(event) => onChange('businessUnit', event.target.value)}
+                onChange={(event) =>
+                  onChange("businessUnit", event.target.value)
+                }
                 className="mt-1 w-full rounded-lg border p-2"
               >
-                <option value="FARMACIA">Farmacia</option>
+                <option value="BOTICA">Botica Premium</option>
                 <option value="DROGUERIA">Drogueria</option>
                 <option value="CONSULTORIO">Consultorio</option>
               </select>
             </label>
 
-            <TextInput label="Almacen *" value={form.warehouse} onChange={(value) => onChange('warehouse', value)} placeholder="PRINCIPAL" />
-            <TextInput label="Numero de lote *" value={form.lotNumber} onChange={(value) => onChange('lotNumber', value)} placeholder="Ej. L24001" />
-            <TextInput label="Andamio" value={form.shelfCode} onChange={(value) => onChange('shelfCode', value)} placeholder="Ej. F-A01" />
-            <TextInput label="Nivel de andamio" value={form.shelfLevel} onChange={(value) => onChange('shelfLevel', value)} placeholder="Ej. N02" />
-            <TextInput label="Ubicacion de referencia" value={form.locationNotes} onChange={(value) => onChange('locationNotes', value)} placeholder="Ej. Zona de analgesicos" />
+            <TextInput
+              label="Almacen *"
+              value={form.warehouse}
+              onChange={(value) => onChange("warehouse", value)}
+              placeholder="PRINCIPAL"
+            />
+            <TextInput
+              label="Numero de lote *"
+              value={form.lotNumber}
+              onChange={(value) => onChange("lotNumber", value)}
+              placeholder="Ej. L24001"
+            />
+            <TextInput
+              label="Andamio"
+              value={form.shelfCode}
+              onChange={(value) => onChange("shelfCode", value)}
+              placeholder="Ej. F-A01"
+            />
+            <TextInput
+              label="Nivel de andamio"
+              value={form.shelfLevel}
+              onChange={(value) => onChange("shelfLevel", value)}
+              placeholder="Ej. N02"
+            />
+            <TextInput
+              label="Ubicacion de referencia"
+              value={form.locationNotes}
+              onChange={(value) => onChange("locationNotes", value)}
+              placeholder="Ej. Zona de analgesicos"
+            />
 
             <label className="text-sm font-semibold text-slate-700">
               Fecha de vencimiento
               <input
                 type="date"
                 value={form.expirationDate}
-                onChange={(event) => onChange('expirationDate', event.target.value)}
+                onChange={(event) =>
+                  onChange("expirationDate", event.target.value)
+                }
                 className="mt-1 w-full rounded-lg border p-2"
               />
             </label>
 
-            <NumberInput label="Stock *" value={form.stock} onChange={(value) => onChange('stock', value)} step="0.001" />
-            <NumberInput label="Stock minimo *" value={form.minimumStock} onChange={(value) => onChange('minimumStock', value)} step="0.001" />
-            <NumberInput label="Precio de compra" value={form.purchasePrice} onChange={(value) => onChange('purchasePrice', value)} step="0.0001" />
-            <NumberInput label="Precio de venta" value={form.salePrice} onChange={(value) => onChange('salePrice', value)} step="0.0001" />
-            <NumberInput label="Precio mayorista" value={form.wholesalePrice} onChange={(value) => onChange('wholesalePrice', value)} step="0.0001" />
+            <NumberInput
+              label="Stock *"
+              value={form.stock}
+              onChange={(value) => onChange("stock", value)}
+              step="0.001"
+            />
+            <NumberInput
+              label="Stock minimo *"
+              value={form.minimumStock}
+              onChange={(value) => onChange("minimumStock", value)}
+              step="0.001"
+            />
+            <NumberInput
+              label="Precio de compra"
+              value={form.purchasePrice}
+              onChange={(value) => onChange("purchasePrice", value)}
+              step="0.0001"
+            />
+            <NumberInput
+              label="Precio de venta"
+              value={form.salePrice}
+              onChange={(value) => onChange("salePrice", value)}
+              step="0.0001"
+            />
+            <NumberInput
+              label="Precio mayorista"
+              value={form.wholesalePrice}
+              onChange={(value) => onChange("wholesalePrice", value)}
+              step="0.0001"
+            />
 
             <label className="text-sm font-semibold text-slate-700">
               Moneda
               <select
                 value={form.currency}
-                onChange={(event) => onChange('currency', event.target.value)}
+                onChange={(event) => onChange("currency", event.target.value)}
                 className="mt-1 w-full rounded-lg border p-2"
               >
                 <option value="PEN">PEN - Soles</option>
@@ -1427,12 +1743,16 @@ function LotModal({
               </select>
             </label>
 
-            <TextInput label="Proveedor" value={form.supplier} onChange={(value) => onChange('supplier', value)} />
+            <TextInput
+              label="Proveedor"
+              value={form.supplier}
+              onChange={(value) => onChange("supplier", value)}
+            />
 
             <CheckboxInput
               label="Lote activo"
               checked={form.active}
-              onChange={(value) => onChange('active', value)}
+              onChange={(value) => onChange("active", value)}
             />
           </div>
 
@@ -1451,7 +1771,7 @@ function LotModal({
               disabled={saving}
               className="rounded-lg bg-emerald-700 px-5 py-2 text-sm font-bold text-white disabled:opacity-60"
             >
-              {saving ? 'Guardando...' : 'Guardar lote y stock'}
+              {saving ? "Guardando..." : "Guardar lote y stock"}
             </button>
           </div>
         </div>
@@ -1499,8 +1819,13 @@ function HistoryPanel({
     <section className="overflow-hidden rounded-lg bg-white shadow-sm">
       <div className="flex items-center justify-between border-b p-4">
         <h3 className="font-bold">Historial de importaciones</h3>
-        <button type="button" onClick={onRefresh} disabled={loading} className="rounded border px-3 py-2 text-sm font-bold">
-          {loading ? 'Cargando...' : 'Actualizar'}
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="rounded border px-3 py-2 text-sm font-bold"
+        >
+          {loading ? "Cargando..." : "Actualizar"}
         </button>
       </div>
       <div className="overflow-x-auto">
@@ -1518,15 +1843,26 @@ function HistoryPanel({
           </thead>
           <tbody className="divide-y">
             {!loading && imports.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Sin importaciones registradas.</td></tr>
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-4 py-8 text-center text-slate-500"
+                >
+                  Sin importaciones registradas.
+                </td>
+              </tr>
             )}
             {imports.map((item) => (
               <tr key={item.id}>
                 <td className="px-4 py-3">{formatDateTime(item.createdAt)}</td>
-                <td className="px-4 py-3 font-semibold">{item.sourceFileName}</td>
+                <td className="px-4 py-3 font-semibold">
+                  {item.sourceFileName}
+                </td>
                 <td className="px-4 py-3">{item.status}</td>
                 <td className="px-4 py-3">{item.totalRows}</td>
-                <td className="px-4 py-3 text-emerald-700">{item.createdRows}</td>
+                <td className="px-4 py-3 text-emerald-700">
+                  {item.createdRows}
+                </td>
                 <td className="px-4 py-3 text-blue-700">{item.updatedRows}</td>
                 <td className="px-4 py-3 text-red-700">{item.invalidRows}</td>
               </tr>
@@ -1545,7 +1881,7 @@ function BarcodePreview({ value }: { value: string }) {
     if (!svgRef.current || !value.trim()) return;
 
     JsBarcode(svgRef.current, value.trim(), {
-      format: 'CODE128',
+      format: "CODE128",
       displayValue: true,
       width: 1.6,
       height: 48,
@@ -1627,12 +1963,14 @@ function ErrorTable({
       <div className="bg-red-50 px-4 py-3 font-bold text-red-900">{title}</div>
       <div className="max-h-64 overflow-auto">
         {rows.map((row) => (
-          <p key={row.rowNumber} className="border-t px-4 py-2 text-sm text-red-800">
-            Fila {row.rowNumber}: {row.errors.join(' ')}
+          <p
+            key={row.rowNumber}
+            className="border-t px-4 py-2 text-sm text-red-800"
+          >
+            Fila {row.rowNumber}: {row.errors.join(" ")}
           </p>
         ))}
       </div>
     </section>
   );
 }
-

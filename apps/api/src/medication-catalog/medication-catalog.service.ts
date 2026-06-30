@@ -364,7 +364,7 @@ export class MedicationCatalogService {
     }
 
     const businessUnit = this.code(
-      params.data.businessUnit || params.data.unidad_negocio || 'FARMACIA',
+      params.data.businessUnit || params.data.unidad_negocio || 'BOTICA',
     );
     const warehouse = this.textValue(
       params.data.warehouse || params.data.almacen || 'PRINCIPAL',
@@ -376,9 +376,11 @@ export class MedicationCatalogService {
       params.data.currency || params.data.moneda || 'PEN',
     );
 
-    if (!['FARMACIA', 'DROGUERIA', 'CONSULTORIO'].includes(businessUnit)) {
+    if (
+      !['BOTICA', 'FARMACIA', 'DROGUERIA', 'CONSULTORIO'].includes(businessUnit)
+    ) {
       throw new BadRequestException(
-        'Unidad de negocio no valida. Use FARMACIA, DROGUERIA o CONSULTORIO.',
+        'Unidad de negocio no valida. Use BOTICA, DROGUERIA o CONSULTORIO. FARMACIA se acepta solo como alias legado.',
       );
     }
 
@@ -493,7 +495,7 @@ export class MedicationCatalogService {
       ['VIA_ADMINISTRACION', ADMINISTRATION_ROUTES],
       ['UNIDAD_MEDIDA', UNIT_MEASURES],
       ['SI_NO', ['SI', 'NO']],
-      ['UNIDAD_NEGOCIO', ['FARMACIA', 'DROGUERIA', 'CONSULTORIO']],
+      ['UNIDAD_NEGOCIO', ['BOTICA', 'DROGUERIA', 'CONSULTORIO']],
       ['MONEDA', ['PEN', 'USD']],
     ];
     listColumns.forEach(([title, values], columnIndex) => {
@@ -754,8 +756,8 @@ export class MedicationCatalogService {
       ],
       [
         'Inventario_Inicial',
-        'Lote farmacia',
-        'AME-MED-0001 | FARMACIA | PRINCIPAL | F-A01 | N02 | Analgesicos | L24001 | 2027-12-31 | 100 | 20 | 0.10 | 0.30',
+        'Lote botica',
+        'BTP-MED-0001 | BOTICA | PRINCIPAL | B-A01 | N02 | Analgesicos | L24001 | 2027-12-31 | 100 | 20 | 0.10 | 0.30',
       ],
       [
         'Inventario_Inicial',
@@ -1260,7 +1262,7 @@ export class MedicationCatalogService {
         internalCode = generatedCodeForSameRow;
       }
 
-      const businessUnit = this.code(value('unidad_negocio')) || 'FARMACIA';
+      const businessUnit = this.code(value('unidad_negocio')) || 'BOTICA';
       const warehouse = value('almacen').trim().toUpperCase() || 'PRINCIPAL';
       const shelfCode = this.nullable(value('andamio'))?.toUpperCase() || null;
       const shelfLevel =
@@ -1271,7 +1273,11 @@ export class MedicationCatalogService {
       const errors: string[] = [];
       if (!productCodes.has(internalCode))
         errors.push('El producto no existe en la hoja Productos.');
-      if (!['FARMACIA', 'DROGUERIA', 'CONSULTORIO'].includes(businessUnit))
+      if (
+        !['BOTICA', 'FARMACIA', 'DROGUERIA', 'CONSULTORIO'].includes(
+          businessUnit,
+        )
+      )
         errors.push('Unidad de negocio no valida.');
       const currency = this.code(value('moneda')) || 'PEN';
       if (!['PEN', 'USD'].includes(currency))

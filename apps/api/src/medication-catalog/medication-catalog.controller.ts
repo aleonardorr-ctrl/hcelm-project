@@ -67,7 +67,7 @@ export class MedicationCatalogController {
     @Request() req: any,
     @Param('id') id: string,
     @Query('quantity') quantity = '1',
-    @Query('businessUnit') businessUnit = 'FARMACIA',
+    @Query('businessUnit') businessUnit = 'BOTICA',
     @Query('warehouse') warehouse = 'PRINCIPAL',
   ) {
     return this.inventoryService.previewFefo({

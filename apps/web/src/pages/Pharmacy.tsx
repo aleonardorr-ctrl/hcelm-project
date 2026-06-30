@@ -9,23 +9,33 @@ type PharmacyCardProps = {
   featured?: boolean;
 };
 
+const OPERATING_COMPANY = "Suministros Críticos EIRL";
+const OPERATING_UNIT = "Botica Premium";
+const OPERATING_WAREHOUSE = "Almacén principal";
+
 export default function Pharmacy() {
   return (
     <div className="space-y-6">
-      <section className="bg-emerald-800 text-white rounded-lg shadow p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <section className="rounded-lg bg-emerald-800 p-6 text-white shadow">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Farmacia / Botica</h1>
-            <p className="text-emerald-50 mt-2 max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-wide text-emerald-100">
+              Módulo PHARMACY
+            </p>
+            <h1 className="text-3xl font-bold">Botica Premium / Farmacia</h1>
+            <p className="mt-2 max-w-3xl text-emerald-50">
               Panel operativo para productos, lotes, stock, ubicación física,
-              dispensación de recetas, inventario FEFO y ventas de farmacia.
+              inventario FEFO, ventas OTC y futura dispensación de recetas.
             </p>
           </div>
 
           <div className="flex flex-col items-stretch gap-2 sm:items-end">
-            <div className="bg-white/15 rounded-lg px-4 py-3 text-sm">
-              <p className="font-semibold">Estado del módulo</p>
-              <p className="text-emerald-50">Dashboard inicial activo</p>
+            <div className="rounded-lg bg-white/15 px-4 py-3 text-sm">
+              <p className="font-semibold">Contexto operativo activo</p>
+              <p className="text-emerald-50">{OPERATING_COMPANY}</p>
+              <p className="text-emerald-50">
+                {OPERATING_UNIT} / {OPERATING_WAREHOUSE}
+              </p>
             </div>
             <Link
               to="/home"
@@ -37,21 +47,22 @@ export default function Pharmacy() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <SummaryCard label="Productos" value="Catálogo maestro" />
-        <SummaryCard label="Lotes / Stock" value="Control por ubicación" />
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <SummaryCard label="Empresa emisora" value={OPERATING_COMPANY} />
+        <SummaryCard label="Unidad" value={OPERATING_UNIT} />
+        <SummaryCard label="Almacén" value={OPERATING_WAREHOUSE} />
         <SummaryCard label="Ventas OTC" value="Operación activa" />
       </section>
 
       <section>
-        <h2 className="text-xl font-bold text-slate-800 mb-3">
+        <h2 className="mb-3 text-xl font-bold text-slate-800">
           Operaciones principales
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <PharmacyCard
             emoji="S/"
-            title="Ventas farmacia"
+            title="Ventas de Botica Premium"
             description="Busque por código o nombre, prepare el carrito, valide FEFO y cobre una venta OTC con descuento atómico de stock."
             to="/pharmacy/sales/new"
             status="activo"
@@ -84,7 +95,7 @@ export default function Pharmacy() {
 
           <PharmacyCard
             emoji="📚"
-            title="Catálogos maestros de Farmacia"
+            title="Catálogo maestro de Botica"
             description="Importar productos y lotes desde Excel, revisar registros y consultar el historial de cargas."
             to="/pharmacy/catalogs?view=import"
             status="activo"
@@ -100,21 +111,21 @@ export default function Pharmacy() {
           <PharmacyCard
             emoji="K"
             title="Inventario, Kardex y FEFO"
-            description="Consultar movimientos auditados y simular la salida por vencimiento mas proximo."
+            description="Consultar movimientos auditados y simular la salida por vencimiento más próximo."
             to="/pharmacy/inventory"
             status="activo"
           />
         </div>
       </section>
 
-      <section className="bg-white border rounded-xl p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-800 mb-2">
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <h2 className="mb-2 text-lg font-bold text-slate-800">
           Flujo objetivo del módulo
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+        <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-4">
           <FlowStep number="1" text="Receta emitida en consulta" />
-          <FlowStep number="2" text="Farmacia recibe la receta" />
+          <FlowStep number="2" text="Botica Premium recibe la receta" />
           <FlowStep number="3" text="Se selecciona producto y lote" />
           <FlowStep number="4" text="Se descuenta stock y se genera venta" />
         </div>
@@ -125,9 +136,9 @@ export default function Pharmacy() {
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white rounded-xl border shadow-sm p-4">
+    <div className="rounded-xl border bg-white p-4 shadow-sm">
       <p className="text-sm text-slate-500">{label}</p>
-      <p className="text-lg font-bold text-slate-800 mt-1">{value}</p>
+      <p className="mt-1 text-lg font-bold text-slate-800">{value}</p>
     </div>
   );
 }
@@ -152,21 +163,21 @@ function PharmacyCard({
         <span
           className={
             status === "activo"
-              ? "text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold"
-              : "text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold"
+              ? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700"
+              : "rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700"
           }
         >
           {status === "activo" ? "Activo" : "Pendiente"}
         </span>
       </div>
 
-      <h3 className="text-lg font-bold text-slate-800 mt-4">{title}</h3>
-      <p className="text-sm text-slate-600 mt-2 leading-6">{description}</p>
+      <h3 className="mt-4 text-lg font-bold text-slate-800">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
 
       {to ? (
-        <p className="text-sm text-emerald-700 font-semibold mt-4">Abrir →</p>
+        <p className="mt-4 text-sm font-semibold text-emerald-700">Abrir →</p>
       ) : (
-        <p className="text-sm text-slate-400 font-semibold mt-4">
+        <p className="mt-4 text-sm font-semibold text-slate-400">
           Próxima fase
         </p>
       )}
@@ -189,8 +200,8 @@ function PharmacyCard({
 
 function FlowStep({ number, text }: { number: string; text: string }) {
   return (
-    <div className="border rounded-lg p-3 bg-slate-50">
-      <div className="h-8 w-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold mb-2">
+    <div className="rounded-lg border bg-slate-50 p-3">
+      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 font-bold text-white">
         {number}
       </div>
       <p className="text-slate-700">{text}</p>

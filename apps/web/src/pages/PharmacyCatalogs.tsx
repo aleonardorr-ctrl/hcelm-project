@@ -21,18 +21,21 @@ export default function PharmacyCatalogs() {
         <header className="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-bold uppercase text-emerald-700">
-              Farmacia / Botica
+              Botica Premium / Farmacia
             </p>
             <h1 className="text-2xl font-bold text-slate-900">
-              Catálogos maestros de Farmacia
+              Catálogos maestros - Botica Premium
             </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Suministros Críticos EIRL / Botica Premium / Almacén principal
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
               to="/pharmacy"
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
             >
-              ← Volver a Farmacia
+              ← Volver a Botica
             </Link>
             <Link
               to="/pharmacy/inventory"

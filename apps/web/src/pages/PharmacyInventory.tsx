@@ -74,6 +74,9 @@ type FefoResponse = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const OPERATING_COMPANY = "Suministros Críticos EIRL";
+const OPERATING_UNIT = "Botica Premium";
+const OPERATING_WAREHOUSE = "Almacén principal";
 
 const MOVEMENT_LABELS: Record<string, string> = {
   INITIAL_STOCK: "Stock inicial",
@@ -253,7 +256,7 @@ export default function PharmacyInventory() {
             </Link>
             <span>/</span>
             <Link to="/pharmacy" className="hover:text-emerald-700">
-              Farmacia
+              Botica Premium
             </Link>
             <span>/</span>
             <span className="text-slate-900">Inventario y Kardex</span>
@@ -264,8 +267,9 @@ export default function PharmacyInventory() {
                 Inventario, Kardex y FEFO
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Consulte movimientos auditados y simule la seleccion de lotes
-                sin descontar stock.
+                Contexto: {OPERATING_COMPANY} / {OPERATING_UNIT} /{" "}
+                {OPERATING_WAREHOUSE}. Consulte movimientos auditados y simule
+                la selección de lotes sin descontar stock.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -409,7 +413,7 @@ export default function PharmacyInventory() {
                   <thead className="bg-slate-50 text-left">
                     <tr>
                       <th className="px-4 py-3">Lote</th>
-                      <th className="px-4 py-3">Unidad / almacen</th>
+                      <th className="px-4 py-3">Unidad / almacén</th>
                       <th className="px-4 py-3">Vencimiento</th>
                       <th className="px-4 py-3">Stock</th>
                       <th className="px-4 py-3">Precio</th>
@@ -462,7 +466,7 @@ export default function PharmacyInventory() {
                   onChange={(event) => setScope(event.target.value)}
                   className="rounded-lg border p-2"
                 >
-                  <option value="">Seleccione unidad y almacen</option>
+                  <option value="">Seleccione unidad y almacén</option>
                   {scopeOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.businessUnit} / {option.warehouse}
@@ -582,7 +586,7 @@ export default function PharmacyInventory() {
                     <th className="px-4 py-3">Lote</th>
                     <th className="px-4 py-3">Cantidad</th>
                     <th className="px-4 py-3">Stock</th>
-                    <th className="px-4 py-3">Unidad / almacen</th>
+                    <th className="px-4 py-3">Unidad / almacén</th>
                     <th className="px-4 py-3">Usuario y motivo</th>
                   </tr>
                 </thead>

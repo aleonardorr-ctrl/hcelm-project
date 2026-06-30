@@ -1,6 +1,6 @@
 // Archivo: MedicationCatalogPanel.tsx
 // Ruta: apps/web/src/components/MedicationCatalogPanel.tsx
-// Funcion: Importa, consulta y registra manualmente el maestro corporativo de Farmacia y Drogueria.
+// Funcion: Importa, consulta y registra manualmente el maestro corporativo de Farmacia y Droguería.
 import { useEffect, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 
@@ -170,6 +170,9 @@ type LotForm = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+const OPERATING_COMPANY = "Suministros Críticos EIRL";
+const OPERATING_UNIT = "Botica Premium";
+const OPERATING_WAREHOUSE = "Almacén principal";
 
 const PRODUCT_TYPE_OPTIONS = [
   { value: "MEDICAMENTO", label: "Medicamento" },
@@ -334,7 +337,7 @@ export default function MedicationCatalogPanel({
       );
       if (!response.ok) {
         throw new Error(
-          await readError(response, "No se pudo generar el codigo sugerido."),
+          await readError(response, "No se pudo generar el código sugerido."),
         );
       }
 
@@ -347,7 +350,7 @@ export default function MedicationCatalogPanel({
         internalCode: current.internalCode || result.companySku || "",
       }));
     } catch (reason: any) {
-      setError(reason?.message || "Error al generar codigos.");
+      setError(reason?.message || "Error al generar códigos.");
     } finally {
       setCodeLoading(false);
     }
@@ -632,7 +635,7 @@ export default function MedicationCatalogPanel({
     if (!selectedLotProduct) return;
 
     if (!lotForm.warehouse.trim()) {
-      setError("Ingrese el almacen.");
+      setError("Ingrese el almacén.");
       return;
     }
     if (!lotForm.lotNumber.trim()) {
@@ -763,8 +766,10 @@ export default function MedicationCatalogPanel({
             Maestro corporativo de productos
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Una sola plantilla para Farmacia y Drogueria. Gerencia utilizara la
-            informacion consolidada de productos, stock, costos y precios.
+            Contexto operativo: <strong>{OPERATING_COMPANY}</strong> /{" "}
+            {OPERATING_UNIT} / {OPERATING_WAREHOUSE}. La plantilla permite
+            mantener productos, lotes, stock, costos y precios de forma
+            ordenada.
           </p>
         </div>
 
@@ -828,7 +833,7 @@ export default function MedicationCatalogPanel({
                 >
                   {downloading
                     ? "Descargando..."
-                    : "Descargar plantilla con SKU y ubicacion"}
+                    : "Descargar plantilla con SKU y ubicación"}
                 </button>
                 <button
                   type="button"
@@ -939,8 +944,8 @@ function ExcelInstructions() {
             presentacion.
           </li>
           <li>
-            codigo_maestro_hcelm y sku_empresa pueden quedar vacios; HCELM los
-            genera automaticamente.
+            código_maestro_hcelm y sku_empresa pueden quedar vacios; HCELM los
+            genera automáticamente.
           </li>
           <li>
             tipo_producto debe salir de la lista: MEDICAMENTO,
@@ -963,7 +968,7 @@ function ExcelInstructions() {
           </li>
           <li>
             andamio y nivel_andamio ayudan a ubicar el producto al escanear el
-            codigo de barras.
+            código de barras.
           </li>
           <li>
             Use fechas reales de Excel o formato AAAA-MM-DD para vencimiento.
@@ -1009,7 +1014,7 @@ function CreateProductPanel({
           <h3 className="text-lg font-bold text-slate-900">Nuevo producto</h3>
           <p className="mt-1 text-sm text-slate-500">
             Registre un producto puntual sin usar Excel. El sistema propone
-            codigo maestro y SKU automaticamente.
+            código maestro y SKU automáticamente.
           </p>
         </div>
         <button
@@ -1018,7 +1023,7 @@ function CreateProductPanel({
           disabled={codeLoading}
           className="rounded-lg border border-cyan-700 px-4 py-2 text-sm font-bold text-cyan-800 disabled:opacity-60"
         >
-          {codeLoading ? "Generando..." : "Regenerar codigos"}
+          {codeLoading ? "Generando..." : "Regenerar códigos"}
         </button>
       </div>
 
@@ -1424,7 +1429,7 @@ function RecordsPanel({
         <input
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="SKU, codigo maestro, barras, producto o registro..."
+          placeholder="SKU, código maestro, barras, producto o registro..."
           className="rounded-lg border p-2"
         />
         <select
@@ -1465,7 +1470,7 @@ function RecordsPanel({
               <th className="px-4 py-3">Producto</th>
               <th className="px-4 py-3">Presentacion</th>
               <th className="px-4 py-3">Registro</th>
-              <th className="px-4 py-3">Inventario y ubicacion</th>
+              <th className="px-4 py-3">Inventario y ubicación</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3">Accion</th>
             </tr>
@@ -1636,9 +1641,9 @@ function LotModal({
 
         <div className="space-y-5 p-5">
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-            Registre cada lote por unidad de negocio y almacen. Si repite la
-            misma combinacion de producto, unidad, almacen y lote, HCELM
-            actualizara ese registro.
+            Registro operativo actual: <strong>{OPERATING_UNIT}</strong> /{" "}
+            {OPERATING_WAREHOUSE}. Si repite la misma combinación de producto,
+            unidad, almacén y lote, HCELM actualizará ese registro.
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1652,7 +1657,7 @@ function LotModal({
                 className="mt-1 w-full rounded-lg border p-2"
               >
                 <option value="BOTICA">Botica Premium</option>
-                <option value="DROGUERIA">Drogueria</option>
+                <option value="DROGUERIA">Droguería</option>
                 <option value="CONSULTORIO">Consultorio</option>
               </select>
             </label>

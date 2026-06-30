@@ -99,8 +99,11 @@ type CompletedSale = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-const BUSINESS_UNIT = "FARMACIA";
+const BUSINESS_UNIT = "BOTICA";
 const WAREHOUSE = "PRINCIPAL";
+const OPERATING_COMPANY = "Suministros Críticos EIRL";
+const OPERATING_UNIT = "Botica Premium";
+const OPERATING_WAREHOUSE = "Almacén principal";
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CASH: "Efectivo",
@@ -449,7 +452,7 @@ export default function PharmacySales() {
             </Link>
             <span>/</span>
             <Link to="/pharmacy" className="hover:text-emerald-700">
-              Farmacia
+              Botica Premium
             </Link>
             <span>/</span>
             <span className="text-slate-900">Nueva venta</span>
@@ -460,10 +463,11 @@ export default function PharmacySales() {
                 Punto de venta
               </p>
               <h1 className="text-2xl font-bold text-slate-900">
-                Venta OTC de Farmacia
+                Venta OTC - Botica Premium
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Empresa activa / {BUSINESS_UNIT} / {WAREHOUSE}
+                Contexto: {OPERATING_COMPANY} / {OPERATING_UNIT} /{" "}
+                {OPERATING_WAREHOUSE}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -884,7 +888,7 @@ export default function PharmacySales() {
               </button>
               {scopeCompanyId && (
                 <p className="truncate text-center text-xs text-slate-400">
-                  Contexto empresarial validado
+                  Contexto validado: Botica Premium / PRINCIPAL
                 </p>
               )}
             </div>

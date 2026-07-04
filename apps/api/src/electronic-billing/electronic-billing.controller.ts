@@ -71,6 +71,22 @@ export class ElectronicBillingController {
     });
   }
 
+  @Get('sales/pending')
+  pendingSales(
+    @CurrentUser() user: any,
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
+    @Query('pageSize') pageSize = '20',
+  ) {
+    return this.service.getPendingSalesForBilling({
+      tenantId: this.tenantId(user),
+      userId: this.userId(user),
+      businessUnit,
+      warehouse,
+      pageSize: Number(pageSize),
+    });
+  }
+
   @Get('customers/search')
   searchCustomers(
     @CurrentUser() user: any,

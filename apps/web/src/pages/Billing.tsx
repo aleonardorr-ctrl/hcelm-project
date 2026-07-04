@@ -24,6 +24,23 @@ type Sequence = {
   active: boolean;
 };
 
+type PendingSale = {
+  id: string;
+  saleNumber: string;
+  createdAt: string;
+  customerName?: string | null;
+  customerDocumentType?: string | null;
+  customerDocumentNumber?: string | null;
+  currency?: string | null;
+  total: string | number;
+  items?: Array<{
+    id: string;
+    productName: string;
+    quantity: string | number;
+    total: string | number;
+  }>;
+};
+
 type CommercialCustomer = {
   id: string;
   customerType: "NATURAL_PERSON" | "LEGAL_ENTITY" | "FOREIGN_CUSTOMER" | string;
@@ -184,6 +201,8 @@ export default function Billing() {
   const [sequenceSaving, setSequenceSaving] = useState<
     "" | "BOLETA" | "FACTURA"
   >("");
+  const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
+  const [pendingSalesTotal, setPendingSalesTotal] = useState(0);
   const [customers, setCustomers] = useState<CommercialCustomer[]>([]);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerForm, setCustomerForm] =
@@ -221,8 +240,38 @@ export default function Billing() {
 
   useEffect(() => {
     void loadReadiness();
+    void loadPendingSales();
     void loadCustomers("");
   }, []);
+
+  async function loadPendingSales() {
+    try {
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+        pageSize: "20",
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/sales/pending?" + params.toString(),
+        { headers: { Authorization: "Bearer " + getToken() } },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(
+            response,
+            "No se pudo cargar ventas pendientes de comprobante.",
+          ),
+        );
+      }
+      const result = await response.json();
+      setPendingSales(Array.isArray(result?.items) ? result.items : []);
+      setPendingSalesTotal(Number(result?.total || 0));
+    } catch (reason: any) {
+      setError(
+        reason?.message || "Error al cargar ventas pendientes de comprobante.",
+      );
+    }
+  }
 
   async function loadCustomers(query = customerQuery) {
     try {
@@ -836,6 +885,90 @@ export default function Billing() {
                 modulo de envio real.
               </p>
             </form>
+
+            <section className="rounded-2xl bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Ventas pendientes de comprobante
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Lista ventas completadas de Botica Premium que todavia no
+                    tienen boleta o factura interna preparada.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadPendingSales}
+                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Actualizar ventas
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Venta</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2">Productos</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {pendingSales.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={4}>
+                          No hay ventas pendientes de comprobante.
+                        </td>
+                      </tr>
+                    ) : (
+                      pendingSales.map((sale) => (
+                        <tr key={sale.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-slate-800">
+                              {sale.saleNumber}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {new Date(sale.createdAt).toLocaleString("es-PE")}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            <p>
+                              {sale.customerName || "Cliente no registrado"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {sale.customerDocumentType
+                                ? sale.customerDocumentType +
+                                  " " +
+                                  (sale.customerDocumentNumber || "")
+                                : "Sin documento"}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {(sale.items || []).length === 0
+                              ? "-"
+                              : (sale.items || [])
+                                  .map((item) => item.productName)
+                                  .join(", ")}
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-900">
+                            {sale.currency || "PEN"}{" "}
+                            {Number(sale.total).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">
+                Total pendientes: {pendingSalesTotal}. En esta fase solo se
+                listan ventas; preparar boleta/factura interna sera el siguiente
+                paso.
+              </p>
+            </section>
 
             <section className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">

@@ -442,6 +442,88 @@ export class ElectronicBillingService {
     return { customer, created: !existing };
   }
 
+  async getPendingSalesForBilling(params: {
+    tenantId: string;
+    userId: string;
+    businessUnit: string;
+    warehouse: string;
+    pageSize: number;
+  }) {
+    const context = await this.resolveContext(
+      params.tenantId,
+      params.userId,
+      params.businessUnit,
+      params.warehouse,
+    );
+    const pageSize = Number.isFinite(params.pageSize)
+      ? Math.min(Math.max(Math.trunc(params.pageSize), 1), 50)
+      : 20;
+
+    const where: Prisma.PharmacySaleWhereInput = {
+      tenantId: params.tenantId,
+      companyId: context.company.id,
+      businessUnitId: context.businessUnit.id,
+      warehouseId: context.warehouse.id,
+      status: 'COMPLETED' as any,
+      electronicDocuments: { none: {} },
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.pharmacySale.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        take: pageSize,
+        select: {
+          id: true,
+          saleNumber: true,
+          createdAt: true,
+          customerName: true,
+          customerDocumentType: true,
+          customerDocumentNumber: true,
+          currency: true,
+          total: true,
+          items: {
+            select: {
+              id: true,
+              genericName: true,
+              commercialName: true,
+              concentration: true,
+              presentation: true,
+              quantity: true,
+              total: true,
+            },
+            orderBy: [{ createdAt: 'asc' }],
+            take: 3,
+          },
+        },
+      }),
+      this.prisma.pharmacySale.count({ where }),
+    ]);
+
+    return {
+      items: items.map((sale) => ({
+        ...sale,
+        total: sale.total.toString(),
+        items: sale.items.map((item) => ({
+          ...item,
+          productName: [
+            item.commercialName || item.genericName,
+            item.concentration,
+            item.presentation,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          quantity: item.quantity.toString(),
+          total: item.total.toString(),
+        })),
+      })),
+      total,
+      company: context.company,
+      businessUnit: context.businessUnit,
+      warehouse: context.warehouse,
+    };
+  }
+
   async searchCustomers(params: {
     tenantId: string;
     userId: string;

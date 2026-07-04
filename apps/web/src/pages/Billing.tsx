@@ -126,6 +126,229 @@ type FiscalProfileForm = {
   active: boolean;
 };
 
+const PERU_DEPARTMENTS: Record<string, string[]> = {
+  AMAZONAS: [
+    "BAGUA",
+    "BONGARA",
+    "CHACHAPOYAS",
+    "CONDORCANQUI",
+    "LUYA",
+    "RODRIGUEZ DE MENDOZA",
+    "UTCUBAMBA",
+  ],
+  ANCASH: [
+    "AIJA",
+    "ANTONIO RAYMONDI",
+    "ASUNCION",
+    "BOLOGNESI",
+    "CARHUAZ",
+    "CARLOS FERMIN FITZCARRALD",
+    "CASMA",
+    "CORONGO",
+    "HUARAZ",
+    "HUARI",
+    "HUARMEY",
+    "HUAYLAS",
+    "MARISCAL LUZURIAGA",
+    "OCROS",
+    "PALLASCA",
+    "POMABAMBA",
+    "RECUAY",
+    "SANTA",
+    "SIHUAS",
+    "YUNGAY",
+  ],
+  APURIMAC: [
+    "ABANCAY",
+    "ANDAHUAYLAS",
+    "ANTABAMBA",
+    "AYMARAES",
+    "CHINCHEROS",
+    "COTABAMBAS",
+    "GRAU",
+  ],
+  AREQUIPA: [
+    "AREQUIPA",
+    "CAMANA",
+    "CARAVELI",
+    "CASTILLA",
+    "CAYLLOMA",
+    "CONDESUYOS",
+    "ISLAY",
+    "LA UNION",
+  ],
+  AYACUCHO: [
+    "CANGALLO",
+    "HUAMANGA",
+    "HUANCA SANCOS",
+    "HUANTA",
+    "LA MAR",
+    "LUCANAS",
+    "PARINACOCHAS",
+    "PAUCAR DEL SARA SARA",
+    "SUCRE",
+    "VICTOR FAJARDO",
+    "VILCAS HUAMAN",
+  ],
+  CAJAMARCA: [
+    "CAJABAMBA",
+    "CAJAMARCA",
+    "CELENDIN",
+    "CHOTA",
+    "CONTUMAZA",
+    "CUTERVO",
+    "HUALGAYOC",
+    "JAEN",
+    "SAN IGNACIO",
+    "SAN MARCOS",
+    "SAN MIGUEL",
+    "SAN PABLO",
+    "SANTA CRUZ",
+  ],
+  CALLAO: ["CALLAO"],
+  CUSCO: [
+    "ACOMAYO",
+    "ANTA",
+    "CALCA",
+    "CANAS",
+    "CANCHIS",
+    "CHUMBIVILCAS",
+    "CUSCO",
+    "ESPINAR",
+    "LA CONVENCION",
+    "PARURO",
+    "PAUCARTAMBO",
+    "QUISPICANCHI",
+    "URUBAMBA",
+  ],
+  HUANCAVELICA: [
+    "ACOBAMBA",
+    "ANGARAES",
+    "CASTROVIRREYNA",
+    "CHURCAMPA",
+    "HUANCAVELICA",
+    "HUAYTARA",
+    "TAYACAJA",
+  ],
+  HUANUCO: [
+    "AMBO",
+    "DOS DE MAYO",
+    "HUACAYBAMBA",
+    "HUAMALIES",
+    "HUANUCO",
+    "LAURICOCHA",
+    "LEONCIO PRADO",
+    "MARAÑON",
+    "PACHITEA",
+    "PUERTO INCA",
+    "YAROWILCA",
+  ],
+  ICA: ["CHINCHA", "ICA", "NASCA", "PALPA", "PISCO"],
+  JUNIN: [
+    "CHANCHAMAYO",
+    "CHUPACA",
+    "CONCEPCION",
+    "HUANCAYO",
+    "JAUJA",
+    "JUNIN",
+    "SATIPO",
+    "TARMA",
+    "YAULI",
+  ],
+  LA_LIBERTAD: [
+    "ASCOPE",
+    "BOLIVAR",
+    "CHEPEN",
+    "GRAN CHIMU",
+    "JULCAN",
+    "OTUZCO",
+    "PACASMAYO",
+    "PATAZ",
+    "SANCHEZ CARRION",
+    "SANTIAGO DE CHUCO",
+    "TRUJILLO",
+    "VIRU",
+  ],
+  LAMBAYEQUE: ["CHICLAYO", "FERREÑAFE", "LAMBAYEQUE"],
+  LIMA: [
+    "BARRANCA",
+    "CAJATAMBO",
+    "CANTA",
+    "CAÑETE",
+    "HUARAL",
+    "HUAROCHIRI",
+    "HUAURA",
+    "LIMA",
+    "OYON",
+    "YAUYOS",
+  ],
+  LORETO: [
+    "ALTO AMAZONAS",
+    "DATEM DEL MARAÑON",
+    "LORETO",
+    "MARISCAL RAMON CASTILLA",
+    "MAYNAS",
+    "PUTUMAYO",
+    "REQUENA",
+    "UCAYALI",
+  ],
+  MADRE_DE_DIOS: ["MANU", "TAHUAMANU", "TAMBOPATA"],
+  MOQUEGUA: ["GENERAL SANCHEZ CERRO", "ILO", "MARISCAL NIETO"],
+  PASCO: ["DANIEL ALCIDES CARRION", "OXAPAMPA", "PASCO"],
+  PIURA: [
+    "AYABACA",
+    "HUANCABAMBA",
+    "MORROPON",
+    "PAITA",
+    "PIURA",
+    "SECHURA",
+    "SULLANA",
+    "TALARA",
+  ],
+  PUNO: [
+    "AZANGARO",
+    "CARABAYA",
+    "CHUCUITO",
+    "EL COLLAO",
+    "HUANCANE",
+    "LAMPA",
+    "MELGAR",
+    "MOHO",
+    "PUNO",
+    "SAN ANTONIO DE PUTINA",
+    "SAN ROMAN",
+    "SANDIA",
+    "YUNGUYO",
+  ],
+  SAN_MARTIN: [
+    "BELLAVISTA",
+    "EL DORADO",
+    "HUALLAGA",
+    "LAMAS",
+    "MARISCAL CACERES",
+    "MOYOBAMBA",
+    "PICOTA",
+    "RIOJA",
+    "SAN MARTIN",
+    "TOCACHE",
+  ],
+  TACNA: ["CANDARAVE", "JORGE BASADRE", "TACNA", "TARATA"],
+  TUMBES: ["CONTRALMIRANTE VILLAR", "TUMBES", "ZARUMILLA"],
+  UCAYALI: ["ATALAYA", "CORONEL PORTILLO", "PADRE ABAD", "PURUS"],
+};
+
+const COUNTRIES = [
+  { code: "PE", name: "PERU" },
+  { code: "BO", name: "BOLIVIA" },
+  { code: "CL", name: "CHILE" },
+  { code: "CO", name: "COLOMBIA" },
+  { code: "EC", name: "ECUADOR" },
+  { code: "AR", name: "ARGENTINA" },
+  { code: "BR", name: "BRASIL" },
+  { code: "US", name: "ESTADOS UNIDOS" },
+  { code: "ES", name: "ESPAÑA" },
+];
+
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 const BUSINESS_UNIT = "BOTICA";
 const WAREHOUSE = "PRINCIPAL";
@@ -560,6 +783,12 @@ export default function Billing() {
     [data?.sequences],
   );
 
+  const selectedDepartmentKey = form.department.replace(/ /g, "_");
+  const selectedProvinces = useMemo(
+    () => PERU_DEPARTMENTS[selectedDepartmentKey] || [],
+    [selectedDepartmentKey],
+  );
+
   const context = data?.company
     ? [
         data.company.legalName || data.company.tradeName || data.company.code,
@@ -828,27 +1057,49 @@ export default function Billing() {
                 </Field>
 
                 <Field label="Departamento">
-                  <input
+                  <select
                     value={form.department}
                     onChange={(event) =>
-                      setForm({ ...form, department: event.target.value })
+                      setForm({
+                        ...form,
+                        department: event.target.value,
+                        province: "",
+                      })
                     }
-                    maxLength={100}
                     className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="AREQUIPA"
-                  />
+                  >
+                    <option value="">Seleccionar departamento</option>
+                    {Object.keys(PERU_DEPARTMENTS).map((department) => (
+                      <option
+                        key={department}
+                        value={department.replace(/_/g, " ")}
+                      >
+                        {department.replace(/_/g, " ")}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label="Provincia">
-                  <input
+                  <select
                     value={form.province}
                     onChange={(event) =>
                       setForm({ ...form, province: event.target.value })
                     }
-                    maxLength={100}
                     className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="AREQUIPA"
-                  />
+                    disabled={!form.department}
+                  >
+                    <option value="">
+                      {form.department
+                        ? "Seleccionar provincia"
+                        : "Seleccione primero departamento"}
+                    </option>
+                    {selectedProvinces.map((province) => (
+                      <option key={province} value={province}>
+                        {province}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
 
                 <Field label="Distrito">
@@ -865,6 +1116,7 @@ export default function Billing() {
 
                 <Field label="Pais">
                   <input
+                    list="billing-country-options"
                     value={form.countryCode}
                     onChange={(event) =>
                       setForm({
@@ -876,6 +1128,15 @@ export default function Billing() {
                     className="h-10 w-full rounded-lg border px-3 text-sm"
                     placeholder="PE"
                   />
+                  <datalist id="billing-country-options">
+                    {COUNTRIES.map((country) => (
+                      <option
+                        key={country.code}
+                        value={country.code}
+                        label={country.name}
+                      />
+                    ))}
+                  </datalist>
                 </Field>
 
                 <Field label="Proveedor electronico">

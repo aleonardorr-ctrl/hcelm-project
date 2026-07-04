@@ -203,6 +203,7 @@ export default function Billing() {
   >("");
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [pendingSalesTotal, setPendingSalesTotal] = useState(0);
+  const [documentSaving, setDocumentSaving] = useState("");
   const [customers, setCustomers] = useState<CommercialCustomer[]>([]);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerForm, setCustomerForm] =
@@ -243,6 +244,52 @@ export default function Billing() {
     void loadPendingSales();
     void loadCustomers("");
   }, []);
+
+  async function createDraftDocument(
+    saleId: string,
+    documentType: "BOLETA" | "FACTURA",
+  ) {
+    const savingKey = saleId + ":" + documentType;
+    setDocumentSaving(savingKey);
+    setError("");
+    setSuccess("");
+    try {
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/documents/draft?" + params.toString(),
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + getToken(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ saleId, documentType }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "No se pudo preparar el comprobante."),
+        );
+      }
+      const result = await response.json();
+      setSuccess(
+        result?.alreadyExisted
+          ? "El comprobante ya estaba preparado."
+          : "Comprobante " +
+              (result?.document?.fullNumber || "") +
+              " preparado en borrador.",
+      );
+      await loadPendingSales();
+      await loadReadiness();
+    } catch (reason: any) {
+      setError(reason?.message || "Error al preparar comprobante.");
+    } finally {
+      setDocumentSaving("");
+    }
+  }
 
   async function loadPendingSales() {
     try {
@@ -914,12 +961,13 @@ export default function Billing() {
                       <th className="px-3 py-2">Cliente</th>
                       <th className="px-3 py-2">Productos</th>
                       <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-right">Accion</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {pendingSales.length === 0 ? (
                       <tr>
-                        <td className="px-3 py-4 text-slate-500" colSpan={4}>
+                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
                           No hay ventas pendientes de comprobante.
                         </td>
                       </tr>
@@ -956,6 +1004,38 @@ export default function Billing() {
                           <td className="px-3 py-2 text-right font-bold text-slate-900">
                             {sale.currency || "PEN"}{" "}
                             {Number(sale.total).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  createDraftDocument(sale.id, "BOLETA")
+                                }
+                                disabled={
+                                  documentSaving === sale.id + ":BOLETA"
+                                }
+                                className="rounded-lg border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                              >
+                                {documentSaving === sale.id + ":BOLETA"
+                                  ? "Preparando..."
+                                  : "Boleta"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  createDraftDocument(sale.id, "FACTURA")
+                                }
+                                disabled={
+                                  documentSaving === sale.id + ":FACTURA"
+                                }
+                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+                              >
+                                {documentSaving === sale.id + ":FACTURA"
+                                  ? "Preparando..."
+                                  : "Factura"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

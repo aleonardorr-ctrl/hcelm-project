@@ -442,6 +442,231 @@ export class ElectronicBillingService {
     return { customer, created: !existing };
   }
 
+  async createDraftDocumentFromSale(params: {
+    tenantId: string;
+    userId: string;
+    businessUnit: string;
+    warehouse: string;
+    saleId: string;
+    documentType: ElectronicDocumentType;
+  }) {
+    const context = await this.resolveContext(
+      params.tenantId,
+      params.userId,
+      params.businessUnit,
+      params.warehouse,
+    );
+    this.assertAdministrator(context.userRole, context.membershipRole);
+
+    if (
+      params.documentType !== ElectronicDocumentType.BOLETA &&
+      params.documentType !== ElectronicDocumentType.FACTURA
+    ) {
+      throw new BadRequestException(
+        'En esta etapa solo se preparan boletas y facturas.',
+      );
+    }
+
+    const idempotencyKey =
+      'BILLING:DRAFT:' + params.saleId + ':' + params.documentType;
+
+    const existing = await this.prisma.electronicDocument.findUnique({
+      where: {
+        tenantId_idempotencyKey: { tenantId: params.tenantId, idempotencyKey },
+      },
+      include: { lines: true },
+    });
+    if (existing) return { document: existing, alreadyExisted: true };
+
+    return this.prisma.$transaction(async (tx) => {
+      const sale = await tx.pharmacySale.findFirst({
+        where: {
+          id: params.saleId,
+          tenantId: params.tenantId,
+          companyId: context.company.id,
+          businessUnitId: context.businessUnit.id,
+          warehouseId: context.warehouse.id,
+          status: 'COMPLETED' as any,
+          electronicDocuments: { none: {} },
+        },
+        include: {
+          items: {
+            orderBy: { createdAt: 'asc' },
+            include: {
+              companyMedication: {
+                select: {
+                  sunatProductCode: true,
+                  sunatUnitCode: true,
+                  taxAffectationCode: true,
+                  taxRate: true,
+                },
+              },
+            },
+          },
+          commercialCustomer: true,
+        },
+      });
+      if (!sale) {
+        throw new NotFoundException(
+          'Venta no encontrada o ya tiene comprobante preparado.',
+        );
+      }
+      if (!sale.items.length) {
+        throw new BadRequestException('La venta no tiene items para facturar.');
+      }
+
+      const profile = await tx.companyFiscalProfile.findUnique({
+        where: { companyId: context.company.id },
+      });
+      if (!profile?.fiscalAddress?.trim()) {
+        throw new BadRequestException(
+          'Complete primero el perfil fiscal de la empresa emisora.',
+        );
+      }
+
+      const sequence = await tx.electronicDocumentSequence.findFirst({
+        where: {
+          tenantId: params.tenantId,
+          companyId: context.company.id,
+          businessUnitId: context.businessUnit.id,
+          warehouseId: context.warehouse.id,
+          documentType: params.documentType,
+          active: true,
+        },
+        orderBy: { series: 'asc' },
+      });
+      if (!sequence) {
+        throw new BadRequestException(
+          'Configure primero la serie fiscal correspondiente.',
+        );
+      }
+
+      const customer = sale.commercialCustomer;
+      const saleDocumentType = String(
+        sale.customerDocumentType || '',
+      ).toUpperCase();
+      const customerDocumentType =
+        (customer?.documentType as any) || saleDocumentType || null;
+      const customerDocumentNumber =
+        customer?.documentNumber || sale.customerDocumentNumber || null;
+      const customerName =
+        customer?.displayName || sale.customerName || 'CLIENTE VARIOS';
+
+      if (
+        params.documentType === ElectronicDocumentType.FACTURA &&
+        (customerDocumentType !== 'RUC' || !customerDocumentNumber)
+      ) {
+        throw new BadRequestException(
+          'Para preparar factura, la venta debe tener cliente empresa con RUC.',
+        );
+      }
+
+      const nextNumber = sequence.currentNumber + 1;
+      await tx.electronicDocumentSequence.update({
+        where: { id: sequence.id },
+        data: { currentNumber: nextNumber },
+      });
+
+      let taxableAmount = new Prisma.Decimal(0);
+      let exoneratedAmount = new Prisma.Decimal(0);
+      let unaffectedAmount = new Prisma.Decimal(0);
+      let igvTotal = new Prisma.Decimal(0);
+
+      const lines = sale.items.map((item, index) => {
+        const taxAffectationCode =
+          item.companyMedication.taxAffectationCode || '10';
+        const taxRate = new Prisma.Decimal(
+          item.companyMedication.taxRate || 18,
+        );
+        const lineTotal = new Prisma.Decimal(item.total);
+        const lineValue =
+          taxAffectationCode === '10' && taxRate.gt(0)
+            ? lineTotal.div(new Prisma.Decimal(1).plus(taxRate.div(100)))
+            : lineTotal;
+        const igvAmount = lineTotal.minus(lineValue).toDecimalPlaces(4);
+
+        if (taxAffectationCode === '10')
+          taxableAmount = taxableAmount.plus(lineValue);
+        else if (taxAffectationCode.startsWith('2'))
+          exoneratedAmount = exoneratedAmount.plus(lineValue);
+        else unaffectedAmount = unaffectedAmount.plus(lineValue);
+        igvTotal = igvTotal.plus(igvAmount);
+
+        return {
+          tenantId: params.tenantId,
+          saleItemId: item.id,
+          lineNumber: index + 1,
+          companySku: item.companySku,
+          sunatProductCode: item.companyMedication.sunatProductCode,
+          description: [
+            item.commercialName || item.genericName,
+            item.concentration,
+            item.presentation,
+          ]
+            .filter(Boolean)
+            .join(' '),
+          unitCode: item.companyMedication.sunatUnitCode || 'NIU',
+          quantity: item.quantity,
+          unitValue: lineValue.div(item.quantity).toDecimalPlaces(4),
+          unitPrice: item.unitPrice,
+          discountAmount: item.discountAmount,
+          taxAffectationCode,
+          taxRate,
+          igvAmount,
+          lineValue: lineValue.toDecimalPlaces(4),
+          lineTotal,
+        };
+      });
+
+      const fullNumber =
+        sequence.series + '-' + String(nextNumber).padStart(8, '0');
+      const document = await tx.electronicDocument.create({
+        data: {
+          tenantId: params.tenantId,
+          companyId: context.company.id,
+          businessUnitId: context.businessUnit.id,
+          warehouseId: context.warehouse.id,
+          saleId: sale.id,
+          customerId: customer?.id || null,
+          documentType: params.documentType,
+          status: 'DRAFT' as any,
+          environment: profile.environment,
+          series: sequence.series,
+          number: nextNumber,
+          fullNumber,
+          issueDate: new Date(),
+          operationTypeCode: '0101',
+          currency: sale.currency,
+          issuerRuc: context.company.ruc,
+          issuerLegalName: context.company.legalName,
+          issuerTradeName: context.company.tradeName,
+          issuerAddress: profile.fiscalAddress,
+          issuerUbigeo: profile.ubigeo,
+          customerDocumentType: customerDocumentType as any,
+          customerDocumentNumber,
+          customerName,
+          customerAddress: customer?.address || null,
+          customerEmail: customer?.email || null,
+          customerPhone: customer?.phone || null,
+          taxableAmount: taxableAmount.toDecimalPlaces(4),
+          exoneratedAmount: exoneratedAmount.toDecimalPlaces(4),
+          unaffectedAmount: unaffectedAmount.toDecimalPlaces(4),
+          freeAmount: 0,
+          discountTotal: sale.discountTotal,
+          igvTotal: igvTotal.toDecimalPlaces(4),
+          otherTaxTotal: 0,
+          total: sale.total,
+          idempotencyKey,
+          createdById: params.userId,
+          lines: { create: lines },
+        },
+        include: { lines: true },
+      });
+
+      return { document, alreadyExisted: false };
+    });
+  }
+
   async getPendingSalesForBilling(params: {
     tenantId: string;
     userId: string;

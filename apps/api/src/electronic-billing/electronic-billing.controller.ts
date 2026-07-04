@@ -71,6 +71,23 @@ export class ElectronicBillingController {
     });
   }
 
+  @Post('documents/draft')
+  createDraftDocument(
+    @CurrentUser() user: any,
+    @Body() body: any,
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
+  ) {
+    return this.service.createDraftDocumentFromSale({
+      tenantId: this.tenantId(user),
+      userId: this.userId(user),
+      businessUnit,
+      warehouse,
+      saleId: String(body?.saleId || ''),
+      documentType: body?.documentType,
+    });
+  }
+
   @Get('sales/pending')
   pendingSales(
     @CurrentUser() user: any,

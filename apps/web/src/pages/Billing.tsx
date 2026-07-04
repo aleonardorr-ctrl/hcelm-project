@@ -24,6 +24,24 @@ type Sequence = {
   active: boolean;
 };
 
+type DraftDocument = {
+  id: string;
+  documentType: "BOLETA" | "FACTURA" | string;
+  status: string;
+  fullNumber: string;
+  issueDate: string;
+  customerName?: string | null;
+  customerDocumentType?: string | null;
+  customerDocumentNumber?: string | null;
+  currency?: string | null;
+  taxableAmount: string | number;
+  igvTotal: string | number;
+  total: string | number;
+  createdAt: string;
+  sale?: { id: string; saleNumber: string } | null;
+  _count?: { lines: number };
+};
+
 type PendingSale = {
   id: string;
   saleNumber: string;
@@ -201,6 +219,8 @@ export default function Billing() {
   const [sequenceSaving, setSequenceSaving] = useState<
     "" | "BOLETA" | "FACTURA"
   >("");
+  const [draftDocuments, setDraftDocuments] = useState<DraftDocument[]>([]);
+  const [draftDocumentsTotal, setDraftDocumentsTotal] = useState(0);
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [pendingSalesTotal, setPendingSalesTotal] = useState(0);
   const [documentSaving, setDocumentSaving] = useState("");
@@ -241,9 +261,34 @@ export default function Billing() {
 
   useEffect(() => {
     void loadReadiness();
+    void loadDraftDocuments();
     void loadPendingSales();
     void loadCustomers("");
   }, []);
+
+  async function loadDraftDocuments() {
+    try {
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+        pageSize: "20",
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/documents/drafts?" + params.toString(),
+        { headers: { Authorization: "Bearer " + getToken() } },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "No se pudo cargar comprobantes borrador."),
+        );
+      }
+      const result = await response.json();
+      setDraftDocuments(Array.isArray(result?.items) ? result.items : []);
+      setDraftDocumentsTotal(Number(result?.total || 0));
+    } catch (reason: any) {
+      setError(reason?.message || "Error al cargar comprobantes borrador.");
+    }
+  }
 
   async function createDraftDocument(
     saleId: string,
@@ -282,6 +327,7 @@ export default function Billing() {
               (result?.document?.fullNumber || "") +
               " preparado en borrador.",
       );
+      await loadDraftDocuments();
       await loadPendingSales();
       await loadReadiness();
     } catch (reason: any) {
@@ -932,6 +978,89 @@ export default function Billing() {
                 modulo de envio real.
               </p>
             </form>
+
+            <section className="rounded-2xl bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Comprobantes borrador
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Revisa boletas y facturas internas preparadas antes de
+                    generar XML, firma digital o envio SUNAT.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadDraftDocuments}
+                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Actualizar borradores
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Comprobante</th>
+                      <th className="px-3 py-2">Venta</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2 text-right">IGV</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {draftDocuments.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
+                          No hay comprobantes borrador.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftDocuments.map((document) => (
+                        <tr key={document.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-slate-800">
+                              {document.fullNumber}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {document.documentType} / {document.status}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {document.sale?.saleNumber || "-"}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            <p>
+                              {document.customerName || "Cliente no registrado"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {document.customerDocumentType
+                                ? document.customerDocumentType +
+                                  " " +
+                                  (document.customerDocumentNumber || "")
+                                : "Sin documento"}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700">
+                            {Number(document.igvTotal).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-900">
+                            {document.currency || "PEN"}{" "}
+                            {Number(document.total).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Total borradores: {draftDocumentsTotal}. Estos documentos aun no
+                son comprobantes SUNAT aceptados.
+              </p>
+            </section>
 
             <section className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

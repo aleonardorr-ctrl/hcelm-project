@@ -442,6 +442,70 @@ export class ElectronicBillingService {
     return { customer, created: !existing };
   }
 
+  async getDraftDocuments(params: {
+    tenantId: string;
+    userId: string;
+    businessUnit: string;
+    warehouse: string;
+    pageSize: number;
+  }) {
+    const context = await this.resolveContext(
+      params.tenantId,
+      params.userId,
+      params.businessUnit,
+      params.warehouse,
+    );
+    const pageSize = Number.isFinite(params.pageSize)
+      ? Math.min(Math.max(Math.trunc(params.pageSize), 1), 50)
+      : 20;
+    const where: Prisma.ElectronicDocumentWhereInput = {
+      tenantId: params.tenantId,
+      companyId: context.company.id,
+      businessUnitId: context.businessUnit.id,
+      warehouseId: context.warehouse.id,
+      status: 'DRAFT' as any,
+    };
+
+    const [items, total] = await Promise.all([
+      this.prisma.electronicDocument.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        take: pageSize,
+        select: {
+          id: true,
+          documentType: true,
+          status: true,
+          fullNumber: true,
+          issueDate: true,
+          customerName: true,
+          customerDocumentType: true,
+          customerDocumentNumber: true,
+          currency: true,
+          taxableAmount: true,
+          igvTotal: true,
+          total: true,
+          createdAt: true,
+          sale: { select: { id: true, saleNumber: true } },
+          _count: { select: { lines: true } },
+        },
+      }),
+      this.prisma.electronicDocument.count({ where }),
+    ]);
+
+    return {
+      items: items.map((document) => ({
+        ...document,
+        taxableAmount: document.taxableAmount.toString(),
+        igvTotal: document.igvTotal.toString(),
+        total: document.total.toString(),
+      })),
+      total,
+      company: context.company,
+      businessUnit: context.businessUnit,
+      warehouse: context.warehouse,
+    };
+  }
+
   async createDraftDocumentFromSale(params: {
     tenantId: string;
     userId: string;

@@ -71,6 +71,22 @@ export class ElectronicBillingController {
     });
   }
 
+  @Get('documents/drafts')
+  draftDocuments(
+    @CurrentUser() user: any,
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
+    @Query('pageSize') pageSize = '20',
+  ) {
+    return this.service.getDraftDocuments({
+      tenantId: this.tenantId(user),
+      userId: this.userId(user),
+      businessUnit,
+      warehouse,
+      pageSize: Number(pageSize),
+    });
+  }
+
   @Post('documents/draft')
   createDraftDocument(
     @CurrentUser() user: any,

@@ -163,16 +163,20 @@ export class ElectronicBillingService {
   async updateFiscalProfile(params: {
     tenantId: string;
     userId: string;
+    businessUnit: string;
+    warehouse: string;
     data: UpdateCompanyFiscalProfileDto;
   }) {
-    const membership = await this.resolveCompanyMembership(
+    const context = await this.resolveContext(
       params.tenantId,
       params.userId,
+      params.businessUnit,
+      params.warehouse,
     );
-    this.assertAdministrator(membership.userRole, membership.membershipRole);
+    this.assertAdministrator(context.userRole, context.membershipRole);
 
     const existing = await this.prisma.companyFiscalProfile.findUnique({
-      where: { companyId: membership.company.id },
+      where: { companyId: context.company.id },
     });
     const provider =
       params.data.provider ??
@@ -233,11 +237,11 @@ export class ElectronicBillingService {
     }
 
     const profile = await this.prisma.companyFiscalProfile.upsert({
-      where: { companyId: membership.company.id },
+      where: { companyId: context.company.id },
       update: commonData,
       create: {
         tenantId: params.tenantId,
-        companyId: membership.company.id,
+        companyId: context.company.id,
         ...commonData,
       },
     });

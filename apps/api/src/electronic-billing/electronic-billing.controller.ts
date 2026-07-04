@@ -47,10 +47,14 @@ export class ElectronicBillingController {
   updateFiscalProfile(
     @CurrentUser() user: any,
     @Body() body: UpdateCompanyFiscalProfileDto,
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
   ) {
     return this.service.updateFiscalProfile({
       tenantId: this.tenantId(user),
       userId: this.userId(user),
+      businessUnit,
+      warehouse,
       data: body,
     });
   }

@@ -143,6 +143,9 @@ export default function Billing() {
   const [form, setForm] = useState<FiscalProfileForm>(emptyForm());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sequenceSaving, setSequenceSaving] = useState<
+    "" | "BOLETA" | "FACTURA"
+  >("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -233,6 +236,48 @@ export default function Billing() {
       setError(reason?.message || "Error al guardar perfil fiscal.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createSequence(documentType: "BOLETA" | "FACTURA") {
+    const series = documentType === "BOLETA" ? "B001" : "F001";
+    setSequenceSaving(documentType);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(API_BASE + "/electronic-billing/sequences", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + getToken(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          businessUnit: BUSINESS_UNIT,
+          warehouse: WAREHOUSE,
+          documentType,
+          series,
+          currentNumber: 0,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "No se pudo crear la serie fiscal."),
+        );
+      }
+
+      const result = await response.json();
+      setSuccess(
+        result?.alreadyExisted
+          ? "La serie " + series + " ya estaba configurada."
+          : "Serie " + series + " creada correctamente.",
+      );
+      await loadReadiness();
+    } catch (reason: any) {
+      setError(reason?.message || "Error al crear serie fiscal.");
+    } finally {
+      setSequenceSaving("");
     }
   }
 
@@ -351,6 +396,42 @@ export default function Billing() {
                 }
                 ready={data?.catalog?.ready}
               />
+            </section>
+
+            <section className="rounded-2xl bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Series fiscales
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Configura las series iniciales para emitir boletas y
+                    facturas desde ventas cuando el modulo de comprobantes este
+                    listo.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <SequencePanel
+                  title="Boleta electronica"
+                  expectedSeries="B001"
+                  sequence={boletaSequence}
+                  saving={sequenceSaving === "BOLETA"}
+                  onCreate={() => createSequence("BOLETA")}
+                />
+                <SequencePanel
+                  title="Factura electronica"
+                  expectedSeries="F001"
+                  sequence={facturaSequence}
+                  saving={sequenceSaving === "FACTURA"}
+                  onCreate={() => createSequence("FACTURA")}
+                />
+              </div>
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Advertencia: una vez usada una serie, su numeracion no debe
+                reiniciarse ni modificarse sin control administrativo y
+                auditoria.
+              </p>
             </section>
 
             <section className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
@@ -646,6 +727,63 @@ export default function Billing() {
             </section>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SequencePanel({
+  title,
+  expectedSeries,
+  sequence,
+  saving,
+  onCreate,
+}: {
+  title: string;
+  expectedSeries: string;
+  sequence?: Sequence;
+  saving: boolean;
+  onCreate: () => void;
+}) {
+  const configured = Boolean(sequence);
+  return (
+    <div className="rounded-xl border bg-slate-50 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-bold text-slate-900">{title}</p>
+          <p className="mt-1 text-sm text-slate-600">
+            Serie esperada: <span className="font-bold">{expectedSeries}</span>
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Estado:{" "}
+            <span
+              className={
+                configured
+                  ? "font-bold text-emerald-700"
+                  : "font-bold text-amber-700"
+              }
+            >
+              {configured ? "Configurada" : "Pendiente"}
+            </span>
+          </p>
+          {sequence && (
+            <p className="mt-1 text-sm text-slate-600">
+              Correlativo actual: {sequence.currentNumber}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          disabled={configured || saving}
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          {configured
+            ? "Creada"
+            : saving
+              ? "Creando..."
+              : "Crear " + expectedSeries}
+        </button>
       </div>
     </div>
   );

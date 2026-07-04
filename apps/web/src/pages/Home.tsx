@@ -65,9 +65,10 @@ const platformModules: PlatformModule[] = [
     title: "Facturación SUNAT",
     subtitle: "Boletas, facturas y XML",
     description:
-      "Series, correlativos, comprobantes, XML, firma digital, CDR y futura conexión SUNAT/OSE.",
+      "Preparación fiscal, series, correlativos, clientes, comprobantes, XML, firma digital, CDR y futura conexión SUNAT/OSE.",
     emoji: "🧾",
-    status: "proxima_fase",
+    to: "/billing",
+    status: "proceso",
     moduleKey: "BILLING",
   },
   {

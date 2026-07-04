@@ -32,7 +32,7 @@ export class ElectronicBillingController {
   @Get('readiness')
   readiness(
     @CurrentUser() user: any,
-    @Query('businessUnit') businessUnit = 'FARMACIA',
+    @Query('businessUnit') businessUnit = 'BOTICA',
     @Query('warehouse') warehouse = 'PRINCIPAL',
   ) {
     return this.service.getReadiness({

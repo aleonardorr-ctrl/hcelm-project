@@ -40,6 +40,7 @@ import Pharmacy from "./pages/Pharmacy";
 import PharmacyCatalogs from "./pages/PharmacyCatalogs";
 import PharmacyInventory from "./pages/PharmacyInventory";
 import PharmacySales from "./pages/PharmacySales";
+import Billing from "./pages/Billing";
 import ClinicalNavigation from "./components/clinical/ClinicalNavigation";
 
 const API_URL = "http://localhost:3000/api";
@@ -468,10 +469,7 @@ function AppRoutes() {
           path="/billing"
           element={
             <ModuleProtected moduleKey="BILLING">
-              <ModulePlaceholder
-                title="Caja y facturacion"
-                description="Modulo habilitado para cobros, pagos y comprobantes de los servicios y productos vendidos."
-              />
+              <Billing />
             </ModuleProtected>
           }
         />

@@ -486,26 +486,52 @@ export class ElectronicBillingService {
     warehouseValue: string,
   ) {
     const membership = await this.resolveCompanyMembership(tenantId, userId);
-    const businessUnitCode = businessUnitValue.trim().toUpperCase();
-    const warehouseCode = warehouseValue.trim().toUpperCase();
+    const allowedCompanyIds = await this.activeMembershipCompanyIds(
+      tenantId,
+      userId,
+    );
+    const requestedBusinessUnit =
+      businessUnitValue?.trim().toUpperCase() || 'BOTICA';
+    const businessUnitCode =
+      requestedBusinessUnit === 'FARMACIA' ? 'BOTICA' : requestedBusinessUnit;
+    const warehouseCode = warehouseValue?.trim().toUpperCase() || 'PRINCIPAL';
+
     const businessUnit = await this.prisma.businessUnit.findFirst({
       where: {
         tenantId,
-        companyId: membership.company.id,
         code: businessUnitCode,
         active: true,
+        ...(allowedCompanyIds.length
+          ? { companyId: { in: allowedCompanyIds } }
+          : {}),
+        company: { active: true },
       },
-      select: { id: true, code: true, name: true },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        companyId: true,
+        company: {
+          select: {
+            id: true,
+            code: true,
+            legalName: true,
+            tradeName: true,
+            ruc: true,
+          },
+        },
+      },
     });
     if (!businessUnit) {
       throw new NotFoundException(
         'Unidad de negocio no encontrada o inactiva.',
       );
     }
+
     const warehouse = await this.prisma.warehouse.findFirst({
       where: {
         tenantId,
-        companyId: membership.company.id,
+        companyId: businessUnit.companyId,
         businessUnitId: businessUnit.id,
         code: warehouseCode,
         active: true,
@@ -515,7 +541,43 @@ export class ElectronicBillingService {
     if (!warehouse) {
       throw new NotFoundException('Almacen no encontrado o inactivo.');
     }
-    return { ...membership, businessUnit, warehouse };
+
+    const matchedMembership = await this.prisma.userCompanyMembership.findFirst(
+      {
+        where: {
+          tenantId,
+          userId,
+          companyId: businessUnit.companyId,
+          active: true,
+        },
+        select: { role: true },
+      },
+    );
+
+    return {
+      company: businessUnit.company,
+      userRole: membership.userRole,
+      membershipRole: matchedMembership?.role ?? membership.membershipRole,
+      businessUnit: {
+        id: businessUnit.id,
+        code: businessUnit.code,
+        name: businessUnit.name,
+      },
+      warehouse,
+    };
+  }
+
+  private async activeMembershipCompanyIds(tenantId: string, userId: string) {
+    const memberships = await this.prisma.userCompanyMembership.findMany({
+      where: {
+        tenantId,
+        userId,
+        active: true,
+        company: { active: true },
+      },
+      select: { companyId: true },
+    });
+    return memberships.map((item) => item.companyId);
   }
 
   private async resolveCompanyMembership(tenantId: string, userId: string) {

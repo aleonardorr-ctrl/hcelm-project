@@ -76,10 +76,14 @@ export class ElectronicBillingController {
     @CurrentUser() user: any,
     @Query('q') query = '',
     @Query('pageSize') pageSize = '20',
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
   ) {
     return this.service.searchCustomers({
       tenantId: this.tenantId(user),
       userId: this.userId(user),
+      businessUnit,
+      warehouse,
       query,
       pageSize: Number(pageSize),
     });
@@ -89,10 +93,14 @@ export class ElectronicBillingController {
   upsertCustomer(
     @CurrentUser() user: any,
     @Body() body: UpsertCommercialCustomerDto,
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
   ) {
     return this.service.upsertCustomer({
       tenantId: this.tenantId(user),
       userId: this.userId(user),
+      businessUnit,
+      warehouse,
       data: body,
     });
   }

@@ -24,6 +24,30 @@ type Sequence = {
   active: boolean;
 };
 
+type CommercialCustomer = {
+  id: string;
+  customerType: "NATURAL_PERSON" | "LEGAL_ENTITY" | "FOREIGN_CUSTOMER" | string;
+  documentType: "DNI" | "RUC" | "CE" | "PASSPORT" | "OTHER" | string;
+  documentNumber: string;
+  displayName: string;
+  legalName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+};
+
+type CustomerForm = {
+  customerType: "NATURAL_PERSON" | "LEGAL_ENTITY";
+  documentType: "DNI" | "RUC";
+  documentNumber: string;
+  displayName: string;
+  legalName: string;
+  email: string;
+  phone: string;
+  address: string;
+  electronicDeliveryConsent: boolean;
+};
+
 type ReadinessResponse = {
   company?: {
     code?: string;
@@ -88,6 +112,20 @@ function emptyForm(): FiscalProfileForm {
   };
 }
 
+function emptyCustomerForm(): CustomerForm {
+  return {
+    customerType: "NATURAL_PERSON",
+    documentType: "DNI",
+    documentNumber: "",
+    displayName: "",
+    legalName: "",
+    email: "",
+    phone: "",
+    address: "",
+    electronicDeliveryConsent: false,
+  };
+}
+
 function getToken() {
   return sessionStorage.getItem("ame_token") || "";
 }
@@ -146,6 +184,11 @@ export default function Billing() {
   const [sequenceSaving, setSequenceSaving] = useState<
     "" | "BOLETA" | "FACTURA"
   >("");
+  const [customers, setCustomers] = useState<CommercialCustomer[]>([]);
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerForm, setCustomerForm] =
+    useState<CustomerForm>(emptyCustomerForm());
+  const [customerSaving, setCustomerSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -178,7 +221,92 @@ export default function Billing() {
 
   useEffect(() => {
     void loadReadiness();
+    void loadCustomers("");
   }, []);
+
+  async function loadCustomers(query = customerQuery) {
+    try {
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+        q: query,
+        pageSize: "10",
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/customers/search?" + params.toString(),
+        { headers: { Authorization: "Bearer " + getToken() } },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "No se pudo cargar clientes comerciales."),
+        );
+      }
+      const result = await response.json();
+      setCustomers(Array.isArray(result?.items) ? result.items : []);
+    } catch (reason: any) {
+      setError(reason?.message || "Error al cargar clientes comerciales.");
+    }
+  }
+
+  async function saveCustomer(event: FormEvent) {
+    event.preventDefault();
+    setCustomerSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const isLegal = customerForm.customerType === "LEGAL_ENTITY";
+      const payload = {
+        customerType: customerForm.customerType,
+        documentType: customerForm.documentType,
+        documentNumber: customerForm.documentNumber.trim(),
+        displayName: customerForm.displayName.trim(),
+        legalName: isLegal
+          ? customerForm.legalName.trim() || customerForm.displayName.trim()
+          : undefined,
+        email: customerForm.email.trim() || undefined,
+        phone: customerForm.phone.trim() || undefined,
+        address: customerForm.address.trim() || undefined,
+        countryCode: "PE",
+        electronicDeliveryConsent: customerForm.electronicDeliveryConsent,
+      };
+
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/customers?" + params.toString(),
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + getToken(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "No se pudo guardar el cliente comercial."),
+        );
+      }
+
+      const result = await response.json();
+      setSuccess(
+        result?.created
+          ? "Cliente comercial registrado."
+          : "Cliente comercial actualizado.",
+      );
+      setCustomerForm(emptyCustomerForm());
+      setCustomerQuery("");
+      await loadCustomers("");
+    } catch (reason: any) {
+      setError(reason?.message || "Error al guardar cliente comercial.");
+    } finally {
+      setCustomerSaving(false);
+    }
+  }
 
   async function saveFiscalProfile(event: FormEvent) {
     event.preventDefault();
@@ -708,6 +836,230 @@ export default function Billing() {
                 modulo de envio real.
               </p>
             </form>
+
+            <section className="rounded-2xl bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Clientes comerciales
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Registra clientes para boletas y facturas. Para factura, el
+                    cliente debe ser empresa con RUC valido.
+                  </p>
+                </div>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void loadCustomers(customerQuery);
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    value={customerQuery}
+                    onChange={(event) => setCustomerQuery(event.target.value)}
+                    className="h-10 w-56 rounded-lg border px-3 text-sm"
+                    placeholder="Buscar DNI, RUC o nombre"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    Buscar
+                  </button>
+                </form>
+              </div>
+
+              <form
+                onSubmit={saveCustomer}
+                className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+              >
+                <Field label="Tipo de cliente">
+                  <select
+                    value={customerForm.customerType}
+                    onChange={(event) => {
+                      const value = event.target
+                        .value as CustomerForm["customerType"];
+                      setCustomerForm({
+                        ...customerForm,
+                        customerType: value,
+                        documentType: value === "LEGAL_ENTITY" ? "RUC" : "DNI",
+                      });
+                    }}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                  >
+                    <option value="NATURAL_PERSON">Persona natural</option>
+                    <option value="LEGAL_ENTITY">Empresa</option>
+                  </select>
+                </Field>
+                <Field label="Documento">
+                  <select
+                    value={customerForm.documentType}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        documentType: event.target
+                          .value as CustomerForm["documentType"],
+                      })
+                    }
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                  >
+                    <option value="DNI">DNI</option>
+                    <option value="RUC">RUC</option>
+                  </select>
+                </Field>
+                <Field label="Numero">
+                  <input
+                    required
+                    value={customerForm.documentNumber}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        documentNumber: event.target.value,
+                      })
+                    }
+                    maxLength={20}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="DNI o RUC"
+                  />
+                </Field>
+                <Field label="Nombre visible">
+                  <input
+                    required
+                    value={customerForm.displayName}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        displayName: event.target.value,
+                      })
+                    }
+                    maxLength={200}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Nombre o razon social"
+                  />
+                </Field>
+                <Field label="Razon social">
+                  <input
+                    value={customerForm.legalName}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        legalName: event.target.value,
+                      })
+                    }
+                    maxLength={200}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Obligatoria para RUC"
+                  />
+                </Field>
+                <Field label="Correo">
+                  <input
+                    type="email"
+                    value={customerForm.email}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        email: event.target.value,
+                      })
+                    }
+                    maxLength={180}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="cliente@correo.com"
+                  />
+                </Field>
+                <Field label="Telefono">
+                  <input
+                    value={customerForm.phone}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        phone: event.target.value,
+                      })
+                    }
+                    maxLength={30}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Celular o telefono"
+                  />
+                </Field>
+                <Field label="Direccion">
+                  <input
+                    value={customerForm.address}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        address: event.target.value,
+                      })
+                    }
+                    maxLength={255}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Direccion fiscal o de contacto"
+                  />
+                </Field>
+                <label className="flex items-center gap-3 rounded-lg border bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 xl:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={customerForm.electronicDeliveryConsent}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        electronicDeliveryConsent: event.target.checked,
+                      })
+                    }
+                    className="h-4 w-4"
+                  />
+                  Autoriza envio electronico por correo o mensajeria
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={customerSaving}
+                    className="h-10 rounded-lg bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-60"
+                  >
+                    {customerSaving ? "Guardando..." : "Guardar cliente"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-5 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Documento</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2">Contacto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {customers.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={3}>
+                          Sin clientes comerciales registrados.
+                        </td>
+                      </tr>
+                    ) : (
+                      customers.map((customer) => (
+                        <tr key={customer.id}>
+                          <td className="px-3 py-2 font-semibold text-slate-800">
+                            {customer.documentType} {customer.documentNumber}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {customer.displayName}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {customer.email || customer.phone || "-"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Advertencia: para emitir factura se usara cliente con RUC
+                valido. Para boletas de montos altos, el sistema pedira
+                identificacion del cliente segun reglas SUNAT.
+              </p>
+            </section>
 
             <section className="rounded-2xl bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold text-slate-900">

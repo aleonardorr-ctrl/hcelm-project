@@ -336,11 +336,15 @@ export class ElectronicBillingService {
   async upsertCustomer(params: {
     tenantId: string;
     userId: string;
+    businessUnit: string;
+    warehouse: string;
     data: UpsertCommercialCustomerDto;
   }) {
-    const membership = await this.resolveCompanyMembership(
+    const context = await this.resolveContext(
       params.tenantId,
       params.userId,
+      params.businessUnit,
+      params.warehouse,
     );
     const documentNumber = this.normalizeDocument(
       params.data.documentType,
@@ -359,7 +363,7 @@ export class ElectronicBillingService {
     const existing = await this.prisma.commercialCustomer.findUnique({
       where: {
         companyId_documentType_documentNumber: {
-          companyId: membership.company.id,
+          companyId: context.company.id,
           documentType: params.data.documentType,
           documentNumber,
         },
@@ -400,7 +404,7 @@ export class ElectronicBillingService {
     const customer = await this.prisma.commercialCustomer.upsert({
       where: {
         companyId_documentType_documentNumber: {
-          companyId: membership.company.id,
+          companyId: context.company.id,
           documentType: params.data.documentType,
           documentNumber,
         },
@@ -408,7 +412,7 @@ export class ElectronicBillingService {
       update: optionalData,
       create: {
         tenantId: params.tenantId,
-        companyId: membership.company.id,
+        companyId: context.company.id,
         customerType: params.data.customerType,
         documentType: params.data.documentType,
         documentNumber,
@@ -441,12 +445,16 @@ export class ElectronicBillingService {
   async searchCustomers(params: {
     tenantId: string;
     userId: string;
+    businessUnit: string;
+    warehouse: string;
     query: string;
     pageSize: number;
   }) {
-    const membership = await this.resolveCompanyMembership(
+    const context = await this.resolveContext(
       params.tenantId,
       params.userId,
+      params.businessUnit,
+      params.warehouse,
     );
     const query = params.query.trim();
     const pageSize = Number.isFinite(params.pageSize)
@@ -454,7 +462,7 @@ export class ElectronicBillingService {
       : 20;
     const where: Prisma.CommercialCustomerWhereInput = {
       tenantId: params.tenantId,
-      companyId: membership.company.id,
+      companyId: context.company.id,
       active: true,
     };
     if (query) {
@@ -479,7 +487,7 @@ export class ElectronicBillingService {
     return {
       items,
       total,
-      company: membership.company,
+      company: context.company,
     };
   }
 

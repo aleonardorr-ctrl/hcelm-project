@@ -99,8 +99,6 @@ type CompletedSale = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-const BUSINESS_UNIT = "BOTICA";
-const WAREHOUSE = "PRINCIPAL";
 const OPERATING_COMPANY = "Suministros Críticos EIRL";
 const OPERATING_UNIT = "Botica Premium";
 const OPERATING_WAREHOUSE = "Almacén principal";
@@ -110,15 +108,55 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CARD: "Tarjeta",
   YAPE: "Yape",
   PLIN: "Plin",
-  BANK_TRANSFER: "Transferencia bancaria",
+  BANK_TRANSFER: "Transferencia / deposito bancario",
   OTHER: "Otro",
 };
 
+const SALE_STEPS = [
+  "Buscar producto con stock",
+  "Agregar cantidad al carrito",
+  "Registrar cliente",
+  "Elegir medio de pago",
+  "Revisar y completar venta",
+];
+
 const BLOCK_LABELS: Record<string, string> = {
-  REQUIRES_PRESCRIPTION: "Requiere receta valida",
+  REQUIRES_PRESCRIPTION: "Requiere receta: venta bloqueada",
   OUT_OF_STOCK: "Sin stock disponible",
   MISSING_PRICE: "Lote FEFO sin precio",
 };
+
+function ProductBlockHelp({ product }: { product: SaleProduct }) {
+  const label = BLOCK_LABELS[product.blockReason || ""] || "No disponible";
+
+  if (product.blockReason === "REQUIRES_PRESCRIPTION") {
+    return (
+      <div className="mt-2 max-w-64 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+        <p className="font-bold">{label}</p>
+        <p className="mt-1">
+          Para venderlo debe registrar una receta valida. Para probar
+          facturacion SUNAT, use un producto de venta libre.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Link
+            to="/pharmacy/catalogs"
+            className="rounded-md border border-amber-300 bg-white px-2 py-1 font-bold text-amber-900 hover:bg-amber-100"
+          >
+            Revisar catalogo
+          </Link>
+          <Link
+            to="/pharmacy/inventory"
+            className="rounded-md bg-amber-700 px-2 py-1 font-bold text-white hover:bg-amber-800"
+          >
+            Producto libre
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  return <div className="mt-1 max-w-40 text-xs text-slate-500">{label}</div>;
+}
 
 function getToken() {
   return sessionStorage.getItem("ame_token") || "";
@@ -185,8 +223,6 @@ export default function PharmacySales() {
     try {
       const params = new URLSearchParams({
         q: searchValue.trim(),
-        businessUnit: BUSINESS_UNIT,
-        warehouse: WAREHOUSE,
         page: "1",
         pageSize: "30",
       });
@@ -313,8 +349,6 @@ export default function PharmacySales() {
       for (const item of cart) {
         const params = new URLSearchParams({
           quantity: String(item.quantity),
-          businessUnit: BUSINESS_UNIT,
-          warehouse: WAREHOUSE,
         });
         const response = await fetch(
           `${API_BASE}/medication-catalog/catalog/${item.product.id}/fefo-preview?${params}`,
@@ -392,8 +426,6 @@ export default function PharmacySales() {
         },
         body: JSON.stringify({
           idempotencyKey,
-          businessUnit: BUSINESS_UNIT,
-          warehouse: WAREHOUSE,
           customerName: customerName.trim() || undefined,
           customerDocumentType: customerDocumentNumber.trim()
             ? customerDocumentType
@@ -487,6 +519,24 @@ export default function PharmacySales() {
           </div>
         </header>
 
+        <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold uppercase text-emerald-700">
+            Como registrar una venta
+          </h2>
+          <div className="mt-3 grid gap-3 md:grid-cols-5">
+            {SALE_STEPS.map((step, index) => (
+              <div key={step} className="rounded-xl border bg-slate-50 p-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-700 text-sm font-bold text-white">
+                  {index + 1}
+                </div>
+                <p className="mt-2 text-sm font-semibold text-slate-800">
+                  {step}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         {error && (
           <div
             role="alert"
@@ -500,6 +550,11 @@ export default function PharmacySales() {
           <section className="rounded-lg border border-emerald-300 bg-emerald-50 p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                  Productos con receta no se desbloquean manualmente. Para la
+                  prueba de facturacion, busque o registre un producto de venta
+                  libre con stock y precio.
+                </p>
                 <p className="text-sm font-bold uppercase text-emerald-700">
                   Venta completada
                 </p>
@@ -565,7 +620,31 @@ export default function PharmacySales() {
                           colSpan={4}
                           className="px-4 py-10 text-center text-slate-500"
                         >
-                          No se encontraron productos.
+                          <div className="space-y-3">
+                            <p className="font-semibold">
+                              No se encontraron productos con stock en Botica
+                              Premium.
+                            </p>
+                            <p className="text-sm">
+                              Para hacer una venta de prueba, primero registre
+                              un producto, lote, precio y stock en el inventario
+                              de Botica Premium.
+                            </p>
+                            <div className="flex flex-wrap justify-center gap-2">
+                              <Link
+                                to="/pharmacy/inventory"
+                                className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800"
+                              >
+                                Ir a inventario
+                              </Link>
+                              <Link
+                                to="/pharmacy/catalogs"
+                                className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                              >
+                                Ir a catalogo
+                              </Link>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                     )}
@@ -679,13 +758,14 @@ export default function PharmacySales() {
                             }
                             className="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                           >
-                            {product.saleAllowed ? "Agregar" : "Bloqueado"}
+                            {product.saleAllowed
+                              ? "Agregar"
+                              : product.blockReason === "REQUIRES_PRESCRIPTION"
+                                ? "Receta"
+                                : "Bloqueado"}
                           </button>
                           {!product.saleAllowed && (
-                            <div className="mt-1 max-w-28 text-xs text-slate-500">
-                              {BLOCK_LABELS[product.blockReason || ""] ||
-                                "No disponible"}
-                            </div>
+                            <ProductBlockHelp product={product} />
                           )}
                         </td>
                       </tr>
@@ -855,8 +935,12 @@ export default function PharmacySales() {
               ) : (
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600">
-                    Número de operación
+                    Numero de operacion
                   </label>
+                  <p className="mb-1 text-xs text-slate-500">
+                    Para Yape, Plin, tarjeta o transferencia/deposito, registre
+                    el numero de operacion o referencia.
+                  </p>
                   <input
                     value={paymentReference}
                     onChange={(event) => {

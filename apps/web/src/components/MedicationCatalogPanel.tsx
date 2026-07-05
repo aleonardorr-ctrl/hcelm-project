@@ -189,7 +189,11 @@ const PHARMACEUTICAL_FORM_OPTIONS = [
   "CAPSULA",
   "JARABE",
   "SUSPENSION",
+  "SOLUCION",
+  "SOLUCION_TOPICA",
+  "SOLUCION_ORAL",
   "SOLUCION_INYECTABLE",
+  "LIQUIDO",
   "AMPOLLA",
   "VIAL",
   "CREMA",
@@ -197,8 +201,13 @@ const PHARMACEUTICAL_FORM_OPTIONS = [
   "GEL",
   "GOTAS",
   "SPRAY",
+  "AEROSOL",
   "POLVO",
   "SOBRE",
+  "PARCHE",
+  "JABON",
+  "TOALLA",
+  "OTRO",
 ];
 
 const ROUTE_OPTIONS = [
@@ -231,7 +240,7 @@ const EMPTY_PRODUCT_FORM: ProductForm = {
   unitMeasure: "",
   laboratory: "",
   sanitaryRegistration: "",
-  requiresPrescription: true,
+  requiresPrescription: false,
   controlled: false,
   coldChain: false,
   taxable: true,
@@ -1137,6 +1146,14 @@ function CreateProductPanel({
             ))}
           </select>
         </label>
+
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-900">
+          <p className="font-bold">Ejemplo para prueba: alcohol 70%</p>
+          <p className="mt-1">
+            Use tipo Producto sanitario, forma SOLUCION_TOPICA, via TOPICA,
+            presentacion Frasco x 120 ml y deje Requiere receta sin marcar.
+          </p>
+        </div>
 
         <TextInput
           label="Presentacion *"

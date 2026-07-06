@@ -616,7 +616,10 @@ export default function Billing() {
       );
       if (!response.ok) {
         throw new Error(
-          await readError(response, "No se pudo preparar el comprobante."),
+          await readError(
+            response,
+            "No se pudo preparar el comprobante. Si la venta ya no aparece en pendientes, revise Comprobantes borrador.",
+          ),
         );
       }
       const result = await response.json();
@@ -625,7 +628,7 @@ export default function Billing() {
           ? "El comprobante ya estaba preparado."
           : "Comprobante " +
               (result?.document?.fullNumber || "") +
-              " preparado en borrador.",
+              " preparado en borrador. La venta salio de pendientes y ahora figura en Comprobantes borrador.",
       );
       await loadDraftDocuments();
       await loadPendingSales();
@@ -958,7 +961,7 @@ export default function Billing() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-xs font-bold uppercase text-cyan-700">
-                Preparacion fiscal
+                Configuracion fiscal
               </p>
               <h1 className="text-3xl font-bold text-slate-900">
                 Facturacion SUNAT
@@ -986,7 +989,7 @@ export default function Billing() {
         </header>
 
         {saleFromPos && (
-          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
+          <section className="rounded-2xl border border-emerald-300 bg-emerald-50 p-5 text-emerald-950 shadow-sm">
             <p className="text-xs font-bold uppercase text-emerald-700">
               Venta recibida desde caja
             </p>
@@ -995,8 +998,8 @@ export default function Billing() {
             </h2>
             <p className="mt-2 text-sm">
               {sourceSaleNumber ? "Venta " + sourceSaleNumber + ". " : ""}
-              Verifique la identidad del comprador y luego genere boleta o
-              factura desde ventas pendientes.
+              Primero verifique la identidad del comprador. Luego use Ventas
+              pendientes de comprobante, que esta justo debajo.
             </p>
             <ol className="mt-3 grid gap-2 text-sm font-semibold md:grid-cols-3">
               <li className="rounded-lg bg-white p-3">1. Validar DNI o RUC</li>
@@ -1005,7 +1008,7 @@ export default function Billing() {
             </ol>
           </section>
         )}
-        <section className="rounded-2xl bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-cyan-300 bg-cyan-50 p-5 shadow-sm">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase text-cyan-700">
@@ -1015,9 +1018,12 @@ export default function Billing() {
                 Verificacion de identidad del comprador
               </h2>
               <p className="mt-1 text-sm text-slate-600">
-                Valide el documento antes de emitir boleta o factura. La
+                Paso 1. Valide el documento antes de emitir boleta o factura. La
                 confirmacion externa con SUNAT/RENIEC requiere proveedor
-                configurado en backend.
+                configurado en backend. Orden recomendado: verifique comprador,
+                registre cliente si falta, luego emita desde ventas pendientes.
+                Importante: verificar aqui un RUC no cambia una venta ya creada;
+                para factura, la venta debe estar asociada a comprador con RUC.
               </p>
             </div>
             <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
@@ -1116,6 +1122,466 @@ export default function Billing() {
           </section>
         ) : (
           <>
+            <section className="rounded-2xl border border-emerald-300 bg-emerald-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Ventas pendientes de comprobante
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Paso 2. Seleccione una venta y prepare boleta o factura. La
+                    factura solo se activa si esa venta ya tiene comprador con
+                    RUC asociado. Al preparar una boleta o factura, la venta
+                    sale de esta lista y aparece en Comprobantes borrador.
+                  </p>
+                  <div className="mt-3 rounded-lg border border-cyan-100 bg-cyan-50 p-3 text-sm text-cyan-900">
+                    <p className="font-bold">Guia rapida de emision</p>
+                    <p className="mt-1">
+                      Una venta solo puede tener un comprobante preparado. Si ya
+                      genero boleta o factura, busquela arriba en Comprobantes
+                      borrador.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadPendingSales}
+                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Actualizar ventas
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Venta</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2">Productos</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-right">Accion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {pendingSales.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
+                          No hay ventas pendientes de comprobante.
+                        </td>
+                      </tr>
+                    ) : (
+                      pendingSales.map((sale) => (
+                        <tr key={sale.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-slate-800">
+                              {sale.saleNumber}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {new Date(sale.createdAt).toLocaleString("es-PE")}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            <p>
+                              {sale.customerName || "Cliente no registrado"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {sale.customerDocumentType
+                                ? sale.customerDocumentType +
+                                  " " +
+                                  (sale.customerDocumentNumber || "")
+                                : "Sin documento"}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {(sale.items || []).length === 0
+                              ? "-"
+                              : (sale.items || [])
+                                  .map((item) => item.productName)
+                                  .join(", ")}
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-900">
+                            {sale.currency || "PEN"}{" "}
+                            {Number(sale.total).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  createDraftDocument(sale.id, "BOLETA")
+                                }
+                                disabled={
+                                  documentSaving === sale.id + ":BOLETA"
+                                }
+                                className="rounded-lg border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                              >
+                                {documentSaving === sale.id + ":BOLETA"
+                                  ? "Preparando..."
+                                  : "Boleta"}
+                              </button>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Boleta: para DNI, cliente varios o venta menor.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  createDraftDocument(sale.id, "FACTURA")
+                                }
+                                disabled={
+                                  sale.customerDocumentType !== "RUC" ||
+                                  !sale.customerDocumentNumber ||
+                                  documentSaving === sale.id + ":FACTURA"
+                                }
+                                title={
+                                  sale.customerDocumentType === "RUC" &&
+                                  sale.customerDocumentNumber
+                                    ? "Preparar factura"
+                                    : "Factura requiere cliente con RUC"
+                                }
+                                className={
+                                  "rounded-lg px-3 py-1.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-60 " +
+                                  (sale.customerDocumentType === "RUC" &&
+                                  sale.customerDocumentNumber
+                                    ? "bg-slate-900 hover:bg-slate-800"
+                                    : "bg-slate-300")
+                                }
+                              >
+                                {documentSaving === sale.id + ":FACTURA"
+                                  ? "Preparando..."
+                                  : "Factura"}
+                              </button>
+                              {sale.customerDocumentType !== "RUC" && (
+                                <p className="mt-1 text-xs font-semibold text-amber-700">
+                                  Factura requiere que esta venta tenga RUC
+                                  asociado. Use Boleta para DNI o cliente sin
+                                  RUC.
+                                </p>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">
+                Total pendientes: {pendingSalesTotal}. En esta fase solo se
+                listan ventas; preparar boleta/factura interna sera el siguiente
+                paso.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-violet-300 bg-violet-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Comprobantes borrador
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Paso 3. Revise aqui las boletas y facturas DRAFT preparadas
+                    antes de generar XML, firma digital o envio SUNAT. DRAFT
+                    significa borrador interno: aun no fue enviado ni aceptado
+                    por SUNAT.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadDraftDocuments}
+                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Actualizar borradores
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Comprobante</th>
+                      <th className="px-3 py-2">Venta</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2 text-right">IGV</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {draftDocuments.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
+                          No hay comprobantes borrador.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftDocuments.map((document) => (
+                        <tr key={document.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-slate-800">
+                              {document.fullNumber}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {document.documentType} / {document.status}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {document.sale?.saleNumber || "-"}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            <p>
+                              {document.customerName || "Cliente no registrado"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {document.customerDocumentType
+                                ? document.customerDocumentType +
+                                  " " +
+                                  (document.customerDocumentNumber || "")
+                                : "Sin documento"}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700">
+                            {Number(document.igvTotal).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-900">
+                            {document.currency || "PEN"}{" "}
+                            {Number(document.total).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Total borradores: {draftDocumentsTotal}. Estos documentos aun no
+                son comprobantes SUNAT aceptados.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Clientes comerciales
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Registra clientes para boletas y facturas. Para factura, el
+                    cliente debe ser empresa con RUC valido.
+                  </p>
+                </div>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void loadCustomers(customerQuery);
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    value={customerQuery}
+                    onChange={(event) => setCustomerQuery(event.target.value)}
+                    className="h-10 w-56 rounded-lg border px-3 text-sm"
+                    placeholder="Buscar DNI, RUC o nombre"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    Buscar
+                  </button>
+                </form>
+              </div>
+
+              <form
+                onSubmit={saveCustomer}
+                className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+              >
+                <Field label="Tipo de cliente">
+                  <select
+                    value={customerForm.customerType}
+                    onChange={(event) => {
+                      const value = event.target
+                        .value as CustomerForm["customerType"];
+                      setCustomerForm({
+                        ...customerForm,
+                        customerType: value,
+                        documentType: value === "LEGAL_ENTITY" ? "RUC" : "DNI",
+                      });
+                    }}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                  >
+                    <option value="NATURAL_PERSON">Persona natural</option>
+                    <option value="LEGAL_ENTITY">Empresa</option>
+                  </select>
+                </Field>
+                <Field label="Documento">
+                  <select
+                    value={customerForm.documentType}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        documentType: event.target
+                          .value as CustomerForm["documentType"],
+                      })
+                    }
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                  >
+                    <option value="DNI">DNI</option>
+                    <option value="RUC">RUC</option>
+                  </select>
+                </Field>
+                <Field label="Numero">
+                  <input
+                    required
+                    value={customerForm.documentNumber}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        documentNumber: event.target.value,
+                      })
+                    }
+                    maxLength={20}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="DNI o RUC"
+                  />
+                </Field>
+                <Field label="Nombre visible">
+                  <input
+                    required
+                    value={customerForm.displayName}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        displayName: event.target.value,
+                      })
+                    }
+                    maxLength={200}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Nombre o razon social"
+                  />
+                </Field>
+                <Field label="Razon social">
+                  <input
+                    value={customerForm.legalName}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        legalName: event.target.value,
+                      })
+                    }
+                    maxLength={200}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Obligatoria para RUC"
+                  />
+                </Field>
+                <Field label="Correo">
+                  <input
+                    type="email"
+                    value={customerForm.email}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        email: event.target.value,
+                      })
+                    }
+                    maxLength={180}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="cliente@correo.com"
+                  />
+                </Field>
+                <Field label="Telefono">
+                  <input
+                    value={customerForm.phone}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        phone: event.target.value,
+                      })
+                    }
+                    maxLength={30}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Celular o telefono"
+                  />
+                </Field>
+                <Field label="Direccion">
+                  <input
+                    value={customerForm.address}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        address: event.target.value,
+                      })
+                    }
+                    maxLength={255}
+                    className="h-10 w-full rounded-lg border px-3 text-sm"
+                    placeholder="Direccion fiscal o de contacto"
+                  />
+                </Field>
+                <label className="flex items-center gap-3 rounded-lg border bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 xl:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={customerForm.electronicDeliveryConsent}
+                    onChange={(event) =>
+                      setCustomerForm({
+                        ...customerForm,
+                        electronicDeliveryConsent: event.target.checked,
+                      })
+                    }
+                    className="h-4 w-4"
+                  />
+                  Autoriza envio electronico por correo o mensajeria
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={customerSaving}
+                    className="h-10 rounded-lg bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-60"
+                  >
+                    {customerSaving ? "Guardando..." : "Guardar cliente"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="mt-5 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Documento</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2">Contacto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {customers.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={3}>
+                          Sin clientes comerciales registrados.
+                        </td>
+                      </tr>
+                    ) : (
+                      customers.map((customer) => (
+                        <tr key={customer.id}>
+                          <td className="px-3 py-2 font-semibold text-slate-800">
+                            {customer.documentType} {customer.documentNumber}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {customer.displayName}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {customer.email || customer.phone || "-"}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Advertencia: para emitir factura se usara cliente con RUC
+                valido. Para boletas de montos altos, el sistema pedira
+                identificacion del cliente segun reglas SUNAT.
+              </p>
+            </section>
+
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <StatusCard
                 title="Perfil fiscal"
@@ -1499,430 +1965,6 @@ export default function Billing() {
                 modulo de envio real.
               </p>
             </form>
-
-            <section className="rounded-2xl bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Comprobantes borrador
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Revisa boletas y facturas internas preparadas antes de
-                    generar XML, firma digital o envio SUNAT.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadDraftDocuments}
-                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  Actualizar borradores
-                </button>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-xl border">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Comprobante</th>
-                      <th className="px-3 py-2">Venta</th>
-                      <th className="px-3 py-2">Cliente</th>
-                      <th className="px-3 py-2 text-right">IGV</th>
-                      <th className="px-3 py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {draftDocuments.length === 0 ? (
-                      <tr>
-                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
-                          No hay comprobantes borrador.
-                        </td>
-                      </tr>
-                    ) : (
-                      draftDocuments.map((document) => (
-                        <tr key={document.id}>
-                          <td className="px-3 py-2">
-                            <p className="font-semibold text-slate-800">
-                              {document.fullNumber}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {document.documentType} / {document.status}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            {document.sale?.saleNumber || "-"}
-                          </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            <p>
-                              {document.customerName || "Cliente no registrado"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {document.customerDocumentType
-                                ? document.customerDocumentType +
-                                  " " +
-                                  (document.customerDocumentNumber || "")
-                                : "Sin documento"}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-700">
-                            {Number(document.igvTotal).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2 text-right font-bold text-slate-900">
-                            {document.currency || "PEN"}{" "}
-                            {Number(document.total).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                Total borradores: {draftDocumentsTotal}. Estos documentos aun no
-                son comprobantes SUNAT aceptados.
-              </p>
-            </section>
-
-            <section className="rounded-2xl bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Ventas pendientes de comprobante
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Lista ventas completadas de Botica Premium que todavia no
-                    tienen boleta o factura interna preparada.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={loadPendingSales}
-                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  Actualizar ventas
-                </button>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-xl border">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Venta</th>
-                      <th className="px-3 py-2">Cliente</th>
-                      <th className="px-3 py-2">Productos</th>
-                      <th className="px-3 py-2 text-right">Total</th>
-                      <th className="px-3 py-2 text-right">Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {pendingSales.length === 0 ? (
-                      <tr>
-                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
-                          No hay ventas pendientes de comprobante.
-                        </td>
-                      </tr>
-                    ) : (
-                      pendingSales.map((sale) => (
-                        <tr key={sale.id}>
-                          <td className="px-3 py-2">
-                            <p className="font-semibold text-slate-800">
-                              {sale.saleNumber}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {new Date(sale.createdAt).toLocaleString("es-PE")}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            <p>
-                              {sale.customerName || "Cliente no registrado"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {sale.customerDocumentType
-                                ? sale.customerDocumentType +
-                                  " " +
-                                  (sale.customerDocumentNumber || "")
-                                : "Sin documento"}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {(sale.items || []).length === 0
-                              ? "-"
-                              : (sale.items || [])
-                                  .map((item) => item.productName)
-                                  .join(", ")}
-                          </td>
-                          <td className="px-3 py-2 text-right font-bold text-slate-900">
-                            {sale.currency || "PEN"}{" "}
-                            {Number(sale.total).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  createDraftDocument(sale.id, "BOLETA")
-                                }
-                                disabled={
-                                  documentSaving === sale.id + ":BOLETA"
-                                }
-                                className="rounded-lg border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                              >
-                                {documentSaving === sale.id + ":BOLETA"
-                                  ? "Preparando..."
-                                  : "Boleta"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  createDraftDocument(sale.id, "FACTURA")
-                                }
-                                disabled={
-                                  documentSaving === sale.id + ":FACTURA"
-                                }
-                                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-60"
-                              >
-                                {documentSaving === sale.id + ":FACTURA"
-                                  ? "Preparando..."
-                                  : "Factura"}
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-4 rounded-lg bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">
-                Total pendientes: {pendingSalesTotal}. En esta fase solo se
-                listan ventas; preparar boleta/factura interna sera el siguiente
-                paso.
-              </p>
-            </section>
-
-            <section className="rounded-2xl bg-white p-5 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">
-                    Clientes comerciales
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Registra clientes para boletas y facturas. Para factura, el
-                    cliente debe ser empresa con RUC valido.
-                  </p>
-                </div>
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void loadCustomers(customerQuery);
-                  }}
-                  className="flex gap-2"
-                >
-                  <input
-                    value={customerQuery}
-                    onChange={(event) => setCustomerQuery(event.target.value)}
-                    className="h-10 w-56 rounded-lg border px-3 text-sm"
-                    placeholder="Buscar DNI, RUC o nombre"
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                  >
-                    Buscar
-                  </button>
-                </form>
-              </div>
-
-              <form
-                onSubmit={saveCustomer}
-                className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-              >
-                <Field label="Tipo de cliente">
-                  <select
-                    value={customerForm.customerType}
-                    onChange={(event) => {
-                      const value = event.target
-                        .value as CustomerForm["customerType"];
-                      setCustomerForm({
-                        ...customerForm,
-                        customerType: value,
-                        documentType: value === "LEGAL_ENTITY" ? "RUC" : "DNI",
-                      });
-                    }}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                  >
-                    <option value="NATURAL_PERSON">Persona natural</option>
-                    <option value="LEGAL_ENTITY">Empresa</option>
-                  </select>
-                </Field>
-                <Field label="Documento">
-                  <select
-                    value={customerForm.documentType}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        documentType: event.target
-                          .value as CustomerForm["documentType"],
-                      })
-                    }
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                  >
-                    <option value="DNI">DNI</option>
-                    <option value="RUC">RUC</option>
-                  </select>
-                </Field>
-                <Field label="Numero">
-                  <input
-                    required
-                    value={customerForm.documentNumber}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        documentNumber: event.target.value,
-                      })
-                    }
-                    maxLength={20}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="DNI o RUC"
-                  />
-                </Field>
-                <Field label="Nombre visible">
-                  <input
-                    required
-                    value={customerForm.displayName}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        displayName: event.target.value,
-                      })
-                    }
-                    maxLength={200}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="Nombre o razon social"
-                  />
-                </Field>
-                <Field label="Razon social">
-                  <input
-                    value={customerForm.legalName}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        legalName: event.target.value,
-                      })
-                    }
-                    maxLength={200}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="Obligatoria para RUC"
-                  />
-                </Field>
-                <Field label="Correo">
-                  <input
-                    type="email"
-                    value={customerForm.email}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        email: event.target.value,
-                      })
-                    }
-                    maxLength={180}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="cliente@correo.com"
-                  />
-                </Field>
-                <Field label="Telefono">
-                  <input
-                    value={customerForm.phone}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        phone: event.target.value,
-                      })
-                    }
-                    maxLength={30}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="Celular o telefono"
-                  />
-                </Field>
-                <Field label="Direccion">
-                  <input
-                    value={customerForm.address}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        address: event.target.value,
-                      })
-                    }
-                    maxLength={255}
-                    className="h-10 w-full rounded-lg border px-3 text-sm"
-                    placeholder="Direccion fiscal o de contacto"
-                  />
-                </Field>
-                <label className="flex items-center gap-3 rounded-lg border bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-800 xl:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={customerForm.electronicDeliveryConsent}
-                    onChange={(event) =>
-                      setCustomerForm({
-                        ...customerForm,
-                        electronicDeliveryConsent: event.target.checked,
-                      })
-                    }
-                    className="h-4 w-4"
-                  />
-                  Autoriza envio electronico por correo o mensajeria
-                </label>
-                <div className="flex items-end">
-                  <button
-                    type="submit"
-                    disabled={customerSaving}
-                    className="h-10 rounded-lg bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-60"
-                  >
-                    {customerSaving ? "Guardando..." : "Guardar cliente"}
-                  </button>
-                </div>
-              </form>
-
-              <div className="mt-5 overflow-hidden rounded-xl border">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Documento</th>
-                      <th className="px-3 py-2">Cliente</th>
-                      <th className="px-3 py-2">Contacto</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {customers.length === 0 ? (
-                      <tr>
-                        <td className="px-3 py-4 text-slate-500" colSpan={3}>
-                          Sin clientes comerciales registrados.
-                        </td>
-                      </tr>
-                    ) : (
-                      customers.map((customer) => (
-                        <tr key={customer.id}>
-                          <td className="px-3 py-2 font-semibold text-slate-800">
-                            {customer.documentType} {customer.documentNumber}
-                          </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            {customer.displayName}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {customer.email || customer.phone || "-"}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                Advertencia: para emitir factura se usara cliente con RUC
-                valido. Para boletas de montos altos, el sistema pedira
-                identificacion del cliente segun reglas SUNAT.
-              </p>
-            </section>
 
             <section className="rounded-2xl bg-white p-5 shadow-sm">
               <h2 className="text-xl font-bold text-slate-900">

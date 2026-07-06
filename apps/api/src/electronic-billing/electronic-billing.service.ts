@@ -506,6 +506,103 @@ export class ElectronicBillingService {
     };
   }
 
+  async associateCustomerToSale(params: {
+    tenantId: string;
+    userId: string;
+    businessUnit: string;
+    warehouse: string;
+    saleId: string;
+    documentType: string;
+    documentNumber: string;
+    displayName: string;
+  }) {
+    const context = await this.resolveContext(
+      params.tenantId,
+      params.userId,
+      params.businessUnit,
+      params.warehouse,
+    );
+    this.assertAdministrator(context.userRole, context.membershipRole);
+
+    const documentType = params.documentType.trim().toUpperCase();
+    const documentNumber = params.documentNumber.trim().toUpperCase();
+    const displayName = params.displayName.trim();
+
+    if (!params.saleId.trim()) {
+      throw new BadRequestException('Seleccione una venta pendiente.');
+    }
+    if (documentType === 'DNI') {
+      if (!/^\d{8}$/.test(documentNumber)) {
+        throw new BadRequestException(
+          'El DNI debe contener exactamente 8 digitos.',
+        );
+      }
+    } else if (documentType === 'RUC') {
+      if (
+        !/^\d{11}$/.test(documentNumber) ||
+        !this.isValidRuc(documentNumber)
+      ) {
+        throw new BadRequestException('El RUC no tiene formato valido.');
+      }
+    } else if (!documentNumber) {
+      throw new BadRequestException(
+        'Ingrese el numero de documento del comprador.',
+      );
+    }
+
+    const existingCustomer = await this.prisma.commercialCustomer.findFirst({
+      where: {
+        tenantId: params.tenantId,
+        companyId: context.company.id,
+        documentType: documentType as any,
+        documentNumber,
+        active: true,
+      },
+      select: { id: true, displayName: true, legalName: true, tradeName: true },
+    });
+
+    const customerName =
+      existingCustomer?.displayName ||
+      existingCustomer?.legalName ||
+      existingCustomer?.tradeName ||
+      displayName ||
+      documentType + ' ' + documentNumber;
+
+    const sale = await this.prisma.pharmacySale.updateMany({
+      where: {
+        id: params.saleId,
+        tenantId: params.tenantId,
+        companyId: context.company.id,
+        businessUnitId: context.businessUnit.id,
+        warehouseId: context.warehouse.id,
+        status: 'COMPLETED' as any,
+        electronicDocuments: { none: {} },
+      },
+      data: {
+        customerName,
+        customerDocumentType: documentType as any,
+        customerDocumentNumber: documentNumber,
+        commercialCustomerId: existingCustomer?.id || null,
+      },
+    });
+
+    if (sale.count === 0) {
+      throw new NotFoundException(
+        'Venta no encontrada o ya tiene comprobante preparado.',
+      );
+    }
+
+    return {
+      updated: true,
+      customer: {
+        documentType,
+        documentNumber,
+        displayName: customerName,
+        commercialCustomerId: existingCustomer?.id || null,
+      },
+    };
+  }
+
   async createDraftDocumentFromSale(params: {
     tenantId: string;
     userId: string;

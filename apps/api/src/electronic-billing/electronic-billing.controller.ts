@@ -104,6 +104,25 @@ export class ElectronicBillingController {
     });
   }
 
+  @Post('sales/customer')
+  associateCustomerToSale(
+    @CurrentUser() user: any,
+    @Body() body: any,
+    @Query('businessUnit') businessUnit = 'BOTICA',
+    @Query('warehouse') warehouse = 'PRINCIPAL',
+  ) {
+    return this.service.associateCustomerToSale({
+      tenantId: this.tenantId(user),
+      userId: this.userId(user),
+      businessUnit,
+      warehouse,
+      saleId: String(body?.saleId || ''),
+      documentType: String(body?.documentType || ''),
+      documentNumber: String(body?.documentNumber || ''),
+      displayName: String(body?.displayName || ''),
+    });
+  }
+
   @Get('sales/pending')
   pendingSales(
     @CurrentUser() user: any,

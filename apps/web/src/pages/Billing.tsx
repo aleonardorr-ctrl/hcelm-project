@@ -514,6 +514,10 @@ export default function Billing() {
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [pendingSalesTotal, setPendingSalesTotal] = useState(0);
   const [documentSaving, setDocumentSaving] = useState("");
+  const [saleCustomerSaving, setSaleCustomerSaving] = useState("");
+  const [saleCustomerSelections, setSaleCustomerSelections] = useState<
+    Record<string, string>
+  >({});
   const [customers, setCustomers] = useState<CommercialCustomer[]>([]);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerForm, setCustomerForm] =
@@ -637,6 +641,123 @@ export default function Billing() {
       setError(reason?.message || "Error al preparar comprobante.");
     } finally {
       setDocumentSaving("");
+    }
+  }
+
+  async function associateRegisteredCustomerToSale(saleId: string) {
+    const customerId = saleCustomerSelections[saleId] || "";
+    const customer = customers.find((item) => item.id === customerId);
+    if (!customer) {
+      setError(
+        "Seleccione primero un cliente comercial registrado para esta venta.",
+      );
+      return;
+    }
+
+    setSaleCustomerSaving(saleId);
+    setError("");
+    setSuccess("");
+    try {
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/sales/customer?" + params.toString(),
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + getToken(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            saleId,
+            documentType: customer.documentType,
+            documentNumber: customer.documentNumber,
+            displayName: customer.displayName,
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(
+            response,
+            "No se pudo asociar el cliente registrado a la venta.",
+          ),
+        );
+      }
+      setSuccess(
+        "Cliente registrado asociado a la venta. Si tiene RUC, la factura queda habilitada para esa venta.",
+      );
+      setSaleCustomerSelections((current) => {
+        const next = { ...current };
+        delete next[saleId];
+        return next;
+      });
+      await loadPendingSales();
+      await loadCustomers("");
+    } catch (reason: any) {
+      setError(reason?.message || "Error al asociar cliente registrado.");
+    } finally {
+      setSaleCustomerSaving("");
+    }
+  }
+
+  async function associateVerifiedCustomerToSale(saleId: string) {
+    setSaleCustomerSaving(saleId);
+    setError("");
+    setSuccess("");
+    try {
+      const documentType = identityDocumentType;
+      const documentNumber = identityDocumentNumber.trim();
+      const displayName = identityName.trim();
+
+      if (!documentNumber) {
+        throw new Error("Ingrese y verifique el documento del comprador.");
+      }
+      if (documentType === "RUC" && !displayName) {
+        throw new Error(
+          "Ingrese la razon social o nombre comercial del comprador.",
+        );
+      }
+
+      const params = new URLSearchParams({
+        businessUnit: BUSINESS_UNIT,
+        warehouse: WAREHOUSE,
+      });
+      const response = await fetch(
+        API_BASE + "/electronic-billing/sales/customer?" + params.toString(),
+        {
+          method: "POST",
+          headers: {
+            Authorization: "Bearer " + getToken(),
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            saleId,
+            documentType,
+            documentNumber,
+            displayName,
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readError(
+            response,
+            "No se pudo asociar el comprador a la venta.",
+          ),
+        );
+      }
+      setSuccess(
+        "Comprador asociado a la venta. Si el documento es RUC, la factura queda habilitada para esa venta.",
+      );
+      await loadPendingSales();
+      await loadCustomers("");
+    } catch (reason: any) {
+      setError(reason?.message || "Error al asociar comprador.");
+    } finally {
+      setSaleCustomerSaving("");
     }
   }
 
@@ -949,7 +1070,7 @@ export default function Billing() {
 
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-6 md:px-6">
-      <div className="mx-auto max-w-7xl space-y-5">
+      <div className="mx-auto w-full max-w-[1800px] space-y-5">
         <header className="rounded-2xl bg-white p-5 shadow-sm">
           <nav className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500">
             <Link to="/home" className="hover:text-cyan-700">
@@ -1183,14 +1304,15 @@ export default function Billing() {
                           </td>
                           <td className="px-3 py-2 text-slate-700">
                             <p>
-                              {sale.customerName || "Cliente no registrado"}
+                              {sale.customerName ||
+                                "Cliente no asociado a esta venta"}
                             </p>
                             <p className="text-xs text-slate-500">
                               {sale.customerDocumentType
                                 ? sale.customerDocumentType +
                                   " " +
                                   (sale.customerDocumentNumber || "")
-                                : "Sin documento"}
+                                : "Sin documento asociado a esta venta"}
                             </p>
                           </td>
                           <td className="px-3 py-2 text-slate-600">
@@ -1206,6 +1328,62 @@ export default function Billing() {
                           </td>
                           <td className="px-3 py-2 text-right">
                             <div className="flex flex-wrap justify-end gap-2">
+                              <div className="flex w-full flex-col gap-1 text-left sm:w-72">
+                                <select
+                                  value={saleCustomerSelections[sale.id] || ""}
+                                  onChange={(event) =>
+                                    setSaleCustomerSelections((current) => ({
+                                      ...current,
+                                      [sale.id]: event.target.value,
+                                    }))
+                                  }
+                                  className="rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-800"
+                                >
+                                  <option value="">
+                                    Elegir cliente registrado
+                                  </option>
+                                  {customers.map((customer) => (
+                                    <option
+                                      key={customer.id}
+                                      value={customer.id}
+                                    >
+                                      {customer.documentType}{" "}
+                                      {customer.documentNumber} -{" "}
+                                      {customer.displayName}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    associateRegisteredCustomerToSale(sale.id)
+                                  }
+                                  disabled={
+                                    saleCustomerSaving === sale.id ||
+                                    !saleCustomerSelections[sale.id]
+                                  }
+                                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {saleCustomerSaving === sale.id
+                                    ? "Asociando..."
+                                    : "Asociar cliente registrado"}
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  associateVerifiedCustomerToSale(sale.id)
+                                }
+                                disabled={
+                                  saleCustomerSaving === sale.id ||
+                                  !identityDocumentNumber.trim()
+                                }
+                                className="rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-bold text-cyan-900 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {saleCustomerSaving === sale.id
+                                  ? "Asociando..."
+                                  : "Usar comprador verificado"}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1254,8 +1432,8 @@ export default function Billing() {
                               {sale.customerDocumentType !== "RUC" && (
                                 <p className="mt-1 text-xs font-semibold text-amber-700">
                                   Factura requiere que esta venta tenga RUC
-                                  asociado. Use Boleta para DNI o cliente sin
-                                  RUC.
+                                  asociado. Primero use comprador verificado.
+                                  Use Boleta para DNI o cliente sin RUC.
                                 </p>
                               )}
                             </div>

@@ -185,6 +185,16 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString("es-PE");
 }
 
+function redirectToBillingAfterSale(sale: CompletedSale) {
+  const params = new URLSearchParams({
+    fromSale: "1",
+    saleId: sale.id,
+    saleNumber: sale.saleNumber,
+  });
+
+  window.location.assign("/billing?" + params.toString());
+}
+
 export default function PharmacySales() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchRequestRef = useRef(0);
@@ -445,7 +455,8 @@ export default function PharmacySales() {
         );
       }
       const result = await response.json();
-      setSuccess(result.sale as CompletedSale);
+      const completedSale = result.sale as CompletedSale;
+      setSuccess(completedSale);
       setReviewOpen(false);
       setCart([]);
       setCustomerName("");
@@ -454,7 +465,7 @@ export default function PharmacySales() {
       setReceivedAmount("");
       setIdempotencyKey("");
       setQuery("");
-      void loadProducts("");
+      window.setTimeout(() => redirectToBillingAfterSale(completedSale), 150);
     } catch (reason: any) {
       setError(reason?.message || "Error al completar la venta.");
     } finally {

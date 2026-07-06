@@ -111,6 +111,14 @@ type ReadinessResponse = {
   rules?: Record<string, unknown>;
 };
 
+type IdentityDocumentType = "DNI" | "RUC" | "CE" | "PASSPORT" | "OTHER";
+
+type IdentityCheckResult = {
+  status: "idle" | "valid-local" | "invalid" | "provider-pending";
+  title: string;
+  detail: string;
+};
+
 type FiscalProfileForm = {
   fiscalAddress: string;
   ubigeo: string;
@@ -407,6 +415,62 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString("es-PE");
 }
 
+function validateIdentityDocument(
+  documentType: IdentityDocumentType,
+  documentNumber: string,
+): IdentityCheckResult {
+  const clean = documentNumber.trim();
+
+  if (!clean) {
+    return {
+      status: "invalid",
+      title: "Documento pendiente",
+      detail: "Ingrese el numero de documento del comprador.",
+    };
+  }
+
+  if (documentType === "DNI" && !/^\d{8}$/.test(clean)) {
+    return {
+      status: "invalid",
+      title: "DNI no valido",
+      detail: "El DNI debe tener 8 digitos.",
+    };
+  }
+
+  if (documentType === "RUC" && !/^\d{11}$/.test(clean)) {
+    return {
+      status: "invalid",
+      title: "RUC no valido",
+      detail: "El RUC debe tener 11 digitos.",
+    };
+  }
+
+  if (documentType === "DNI") {
+    return {
+      status: "provider-pending",
+      title: "DNI con formato correcto",
+      detail:
+        "Falta configurar proveedor RENIEC o proveedor autorizado para confirmar nombres y apellidos.",
+    };
+  }
+
+  if (documentType === "RUC") {
+    return {
+      status: "provider-pending",
+      title: "RUC con formato correcto",
+      detail:
+        "Falta configurar consulta SUNAT o proveedor autorizado para confirmar razon social, estado y condicion.",
+    };
+  }
+
+  return {
+    status: "valid-local",
+    title: "Documento registrado",
+    detail:
+      "Documento aceptado localmente. La verificacion externa se configurara por proveedor.",
+  };
+}
+
 function toDateInput(value?: string | null) {
   if (!value) return "";
   return String(value).slice(0, 10);
@@ -435,6 +499,9 @@ function profileToForm(profile?: FiscalProfile | null): FiscalProfileForm {
 }
 
 export default function Billing() {
+  const sourceSaleParams = new URLSearchParams(window.location.search);
+  const saleFromPos = sourceSaleParams.get("fromSale") === "1";
+  const sourceSaleNumber = sourceSaleParams.get("saleNumber") || "";
   const [data, setData] = useState<ReadinessResponse | null>(null);
   const [form, setForm] = useState<FiscalProfileForm>(emptyForm());
   const [loading, setLoading] = useState(true);
@@ -453,6 +520,15 @@ export default function Billing() {
     useState<CustomerForm>(emptyCustomerForm());
   const [customerSaving, setCustomerSaving] = useState(false);
   const [error, setError] = useState("");
+  const [identityDocumentType, setIdentityDocumentType] =
+    useState<IdentityDocumentType>("DNI");
+  const [identityDocumentNumber, setIdentityDocumentNumber] = useState("");
+  const [identityName, setIdentityName] = useState("");
+  const [identityResult, setIdentityResult] = useState<IdentityCheckResult>({
+    status: "idle",
+    title: "Verificacion pendiente",
+    detail: "Ingrese el documento del comprador.",
+  });
   const [success, setSuccess] = useState("");
 
   async function loadReadiness() {
@@ -774,6 +850,13 @@ export default function Billing() {
     }
   }
 
+  function handleIdentityCheck(event: { preventDefault: () => void }) {
+    event.preventDefault();
+    setIdentityResult(
+      validateIdentityDocument(identityDocumentType, identityDocumentNumber),
+    );
+  }
+
   const boletaSequence = useMemo(
     () => data?.sequences?.find((item) => item.documentType === "BOLETA"),
     [data?.sequences],
@@ -838,6 +921,119 @@ export default function Billing() {
             </div>
           </div>
         </header>
+
+        {saleFromPos && (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-950">
+            <p className="text-xs font-bold uppercase text-emerald-700">
+              Venta recibida desde caja
+            </p>
+            <h2 className="mt-1 text-xl font-bold">
+              Venta lista para emitir comprobante
+            </h2>
+            <p className="mt-2 text-sm">
+              {sourceSaleNumber ? "Venta " + sourceSaleNumber + ". " : ""}
+              Verifique la identidad del comprador y luego genere boleta o
+              factura desde ventas pendientes.
+            </p>
+            <ol className="mt-3 grid gap-2 text-sm font-semibold md:grid-cols-3">
+              <li className="rounded-lg bg-white p-3">1. Validar DNI o RUC</li>
+              <li className="rounded-lg bg-white p-3">2. Confirmar cliente</li>
+              <li className="rounded-lg bg-white p-3">3. Crear comprobante</li>
+            </ol>
+          </section>
+        )}
+        <section className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase text-cyan-700">
+                Paso 1
+              </p>
+              <h2 className="text-xl font-bold text-slate-900">
+                Verificacion de identidad del comprador
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Valide el documento antes de emitir boleta o factura. La
+                confirmacion externa con SUNAT/RENIEC requiere proveedor
+                configurado en backend.
+              </p>
+            </div>
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+              Integracion externa pendiente
+            </span>
+          </div>
+
+          <form
+            onSubmit={handleIdentityCheck}
+            className="mt-4 grid gap-3 lg:grid-cols-[160px_1fr_1fr_auto]"
+          >
+            <label className="text-sm font-semibold text-slate-700">
+              Documento
+              <select
+                value={identityDocumentType}
+                onChange={(event) =>
+                  setIdentityDocumentType(
+                    event.target.value as IdentityDocumentType,
+                  )
+                }
+                className="mt-1 w-full rounded-lg border p-2"
+              >
+                <option value="DNI">DNI</option>
+                <option value="RUC">RUC</option>
+                <option value="CE">Carnet extranjeria</option>
+                <option value="PASSPORT">Pasaporte</option>
+                <option value="OTHER">Otro</option>
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-slate-700">
+              Numero
+              <input
+                value={identityDocumentNumber}
+                onChange={(event) =>
+                  setIdentityDocumentNumber(event.target.value)
+                }
+                className="mt-1 w-full rounded-lg border p-2"
+                placeholder={
+                  identityDocumentType === "RUC"
+                    ? "11 digitos"
+                    : identityDocumentType === "DNI"
+                      ? "8 digitos"
+                      : "Numero de documento"
+                }
+              />
+            </label>
+            <label className="text-sm font-semibold text-slate-700">
+              Nombre o razon social
+              <input
+                value={identityName}
+                onChange={(event) => setIdentityName(event.target.value)}
+                className="mt-1 w-full rounded-lg border p-2"
+                placeholder="Se completara con proveedor oficial"
+              />
+            </label>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"
+              >
+                Verificar
+              </button>
+            </div>
+          </form>
+
+          <div
+            className={
+              "mt-4 rounded-lg border p-3 text-sm " +
+              (identityResult.status === "invalid"
+                ? "border-red-200 bg-red-50 text-red-800"
+                : identityResult.status === "provider-pending"
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-900")
+            }
+          >
+            <p className="font-bold">{identityResult.title}</p>
+            <p className="mt-1">{identityResult.detail}</p>
+          </div>
+        </section>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">

@@ -529,6 +529,7 @@ export default function Billing() {
     title: "Verificacion pendiente",
     detail: "Ingrese el documento del comprador.",
   });
+  const [identityChecking, setIdentityChecking] = useState(false);
   const [success, setSuccess] = useState("");
 
   async function loadReadiness() {
@@ -850,11 +851,73 @@ export default function Billing() {
     }
   }
 
-  function handleIdentityCheck(event: { preventDefault: () => void }) {
+  async function handleIdentityCheck(event: { preventDefault: () => void }) {
     event.preventDefault();
-    setIdentityResult(
-      validateIdentityDocument(identityDocumentType, identityDocumentNumber),
+    const localResult = validateIdentityDocument(
+      identityDocumentType,
+      identityDocumentNumber,
     );
+
+    if (localResult.status === "invalid") {
+      setIdentityResult(localResult);
+      return;
+    }
+
+    setIdentityChecking(true);
+    setIdentityResult({
+      status: "provider-pending",
+      title: "Consultando verificacion",
+      detail: "HCELM esta consultando el adaptador de identidad configurado.",
+    });
+
+    try {
+      const response = await fetch(API_BASE + "/identity-lookup/verify", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + getToken(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          documentType: identityDocumentType,
+          documentNumber: identityDocumentNumber,
+          name: identityName,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "No se pudo verificar la identidad."),
+        );
+      }
+
+      const result = await response.json();
+      setIdentityResult({
+        status:
+          result.status === "INVALID"
+            ? "invalid"
+            : result.verified
+              ? "valid-local"
+              : "provider-pending",
+        title: result.title || "Verificacion recibida",
+        detail:
+          result.detail ||
+          "El adaptador de identidad respondio sin detalle adicional.",
+      });
+
+      const resolvedName =
+        result.person?.fullName || result.company?.legalName || "";
+      if (resolvedName) setIdentityName(resolvedName);
+    } catch (reason: any) {
+      setIdentityResult({
+        status: "invalid",
+        title: "No se pudo consultar identidad",
+        detail:
+          reason?.message ||
+          "Revise que el backend este encendido y vuelva a intentar.",
+      });
+    } finally {
+      setIdentityChecking(false);
+    }
   }
 
   const boletaSequence = useMemo(
@@ -1013,9 +1076,10 @@ export default function Billing() {
             <div className="flex items-end">
               <button
                 type="submit"
-                className="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800"
+                disabled={identityChecking}
+                className="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-60"
               >
-                Verificar
+                {identityChecking ? "Verificando..." : "Verificar"}
               </button>
             </div>
           </form>

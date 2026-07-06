@@ -28,8 +28,11 @@ import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { WaitingRoomModule } from './waiting-room/waiting-room.module';
 
+import { IdentityLookupModule } from './identity-lookup/identity-lookup.module';
+
 @Module({
   imports: [
+    IdentityLookupModule,
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,

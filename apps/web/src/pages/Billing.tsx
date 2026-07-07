@@ -1129,102 +1129,6 @@ export default function Billing() {
             </ol>
           </section>
         )}
-        <section className="rounded-2xl border border-cyan-300 bg-cyan-50 p-5 shadow-sm">
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase text-cyan-700">
-                Paso 1
-              </p>
-              <h2 className="text-xl font-bold text-slate-900">
-                Verificacion de identidad del comprador
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Paso 1. Valide el documento antes de emitir boleta o factura. La
-                confirmacion externa con SUNAT/RENIEC requiere proveedor
-                configurado en backend. Orden recomendado: verifique comprador,
-                registre cliente si falta, luego emita desde ventas pendientes.
-                Importante: verificar aqui un RUC no cambia una venta ya creada;
-                para factura, la venta debe estar asociada a comprador con RUC.
-              </p>
-            </div>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
-              Integracion externa pendiente
-            </span>
-          </div>
-
-          <form
-            onSubmit={handleIdentityCheck}
-            className="mt-4 grid gap-3 lg:grid-cols-[160px_1fr_1fr_auto]"
-          >
-            <label className="text-sm font-semibold text-slate-700">
-              Documento
-              <select
-                value={identityDocumentType}
-                onChange={(event) =>
-                  setIdentityDocumentType(
-                    event.target.value as IdentityDocumentType,
-                  )
-                }
-                className="mt-1 w-full rounded-lg border p-2"
-              >
-                <option value="DNI">DNI</option>
-                <option value="RUC">RUC</option>
-                <option value="CE">Carnet extranjeria</option>
-                <option value="PASSPORT">Pasaporte</option>
-                <option value="OTHER">Otro</option>
-              </select>
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Numero
-              <input
-                value={identityDocumentNumber}
-                onChange={(event) =>
-                  setIdentityDocumentNumber(event.target.value)
-                }
-                className="mt-1 w-full rounded-lg border p-2"
-                placeholder={
-                  identityDocumentType === "RUC"
-                    ? "11 digitos"
-                    : identityDocumentType === "DNI"
-                      ? "8 digitos"
-                      : "Numero de documento"
-                }
-              />
-            </label>
-            <label className="text-sm font-semibold text-slate-700">
-              Nombre o razon social
-              <input
-                value={identityName}
-                onChange={(event) => setIdentityName(event.target.value)}
-                className="mt-1 w-full rounded-lg border p-2"
-                placeholder="Se completara con proveedor oficial"
-              />
-            </label>
-            <div className="flex items-end">
-              <button
-                type="submit"
-                disabled={identityChecking}
-                className="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-60"
-              >
-                {identityChecking ? "Verificando..." : "Verificar"}
-              </button>
-            </div>
-          </form>
-
-          <div
-            className={
-              "mt-4 rounded-lg border p-3 text-sm " +
-              (identityResult.status === "invalid"
-                ? "border-red-200 bg-red-50 text-red-800"
-                : identityResult.status === "provider-pending"
-                  ? "border-amber-200 bg-amber-50 text-amber-900"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-900")
-            }
-          >
-            <p className="font-bold">{identityResult.title}</p>
-            <p className="mt-1">{identityResult.detail}</p>
-          </div>
-        </section>
 
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
@@ -1243,14 +1147,35 @@ export default function Billing() {
           </section>
         ) : (
           <>
+            <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+              <p className="text-xs font-bold uppercase text-slate-500">
+                Flujo operativo diario
+              </p>
+              <h2 className="text-xl font-bold text-slate-900">
+                Venta → comprador → cliente → boleta/factura → borrador
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                La configuracion de la empresa emisora, perfil fiscal y series
+                queda separada como administracion fiscal para no confundirla
+                con la emision diaria.
+              </p>
+            </section>
+
             <section className="rounded-2xl border border-emerald-300 bg-emerald-50 p-5 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
+                  <p className="text-xs font-bold uppercase text-emerald-700">
+                    Paso 1 - Venta pendiente
+                  </p>
                   <h2 className="text-xl font-bold text-slate-900">
                     Ventas pendientes de comprobante
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Paso 2. Seleccione una venta y prepare boleta o factura. La
+                    Primero elija la venta terminada en Botica Premium. El
+                    comprobante se prepara desde esta fila.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Paso 1. Seleccione una venta y prepare boleta o factura. La
                     factura solo se activa si esa venta ya tiene comprador con
                     RUC asociado. Al preparar una boleta o factura, la venta
                     sale de esta lista y aparece en Comprobantes borrador.
@@ -1451,97 +1376,125 @@ export default function Billing() {
               </p>
             </section>
 
-            <section className="rounded-2xl border border-violet-300 bg-violet-50 p-5 shadow-sm">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <section className="rounded-2xl border border-cyan-300 bg-cyan-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
+                  <p className="text-xs font-bold uppercase text-cyan-700">
+                    Paso 1
+                  </p>
+                  <p className="text-xs font-bold uppercase text-cyan-700">
+                    Paso 2 - Comprador
+                  </p>
                   <h2 className="text-xl font-bold text-slate-900">
-                    Comprobantes borrador
+                    Verificacion de identidad del comprador
                   </h2>
                   <p className="mt-1 text-sm text-slate-600">
-                    Paso 3. Revise aqui las boletas y facturas DRAFT preparadas
-                    antes de generar XML, firma digital o envio SUNAT. DRAFT
-                    significa borrador interno: aun no fue enviado ni aceptado
-                    por SUNAT.
+                    Escriba DNI o RUC para buscar si el comprador ya esta
+                    registrado. Si existe, HCELM autollenara los datos
+                    disponibles.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Paso 2. Valide el documento antes de emitir boleta o
+                    factura. La confirmacion externa con SUNAT/RENIEC requiere
+                    proveedor configurado en backend. Orden recomendado:
+                    verifique comprador, registre cliente si falta, luego emita
+                    desde ventas pendientes. Importante: verificar aqui un RUC
+                    no cambia una venta ya creada; para factura, la venta debe
+                    estar asociada a comprador con RUC.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={loadDraftDocuments}
-                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  Actualizar borradores
-                </button>
+                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                  Integracion externa pendiente
+                </span>
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-xl border">
-                <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2">Comprobante</th>
-                      <th className="px-3 py-2">Venta</th>
-                      <th className="px-3 py-2">Cliente</th>
-                      <th className="px-3 py-2 text-right">IGV</th>
-                      <th className="px-3 py-2 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
-                    {draftDocuments.length === 0 ? (
-                      <tr>
-                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
-                          No hay comprobantes borrador.
-                        </td>
-                      </tr>
-                    ) : (
-                      draftDocuments.map((document) => (
-                        <tr key={document.id}>
-                          <td className="px-3 py-2">
-                            <p className="font-semibold text-slate-800">
-                              {document.fullNumber}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {document.documentType} / {document.status}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            {document.sale?.saleNumber || "-"}
-                          </td>
-                          <td className="px-3 py-2 text-slate-700">
-                            <p>
-                              {document.customerName || "Cliente no registrado"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {document.customerDocumentType
-                                ? document.customerDocumentType +
-                                  " " +
-                                  (document.customerDocumentNumber || "")
-                                : "Sin documento"}
-                            </p>
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-700">
-                            {Number(document.igvTotal).toFixed(2)}
-                          </td>
-                          <td className="px-3 py-2 text-right font-bold text-slate-900">
-                            {document.currency || "PEN"}{" "}
-                            {Number(document.total).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <form
+                onSubmit={handleIdentityCheck}
+                className="mt-4 grid gap-3 lg:grid-cols-[160px_1fr_1fr_auto]"
+              >
+                <label className="text-sm font-semibold text-slate-700">
+                  Documento
+                  <select
+                    value={identityDocumentType}
+                    onChange={(event) =>
+                      setIdentityDocumentType(
+                        event.target.value as IdentityDocumentType,
+                      )
+                    }
+                    className="mt-1 w-full rounded-lg border p-2"
+                  >
+                    <option value="DNI">DNI</option>
+                    <option value="RUC">RUC</option>
+                    <option value="CE">Carnet extranjeria</option>
+                    <option value="PASSPORT">Pasaporte</option>
+                    <option value="OTHER">Otro</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold text-slate-700">
+                  Numero
+                  <input
+                    value={identityDocumentNumber}
+                    onChange={(event) =>
+                      setIdentityDocumentNumber(event.target.value)
+                    }
+                    className="mt-1 w-full rounded-lg border p-2"
+                    placeholder={
+                      identityDocumentType === "RUC"
+                        ? "11 digitos"
+                        : identityDocumentType === "DNI"
+                          ? "8 digitos"
+                          : "Numero de documento"
+                    }
+                  />
+                </label>
+                <label className="text-sm font-semibold text-slate-700">
+                  Nombre o razon social
+                  <input
+                    value={identityName}
+                    onChange={(event) => setIdentityName(event.target.value)}
+                    className="mt-1 w-full rounded-lg border p-2"
+                    placeholder="Se completara con proveedor oficial"
+                  />
+                </label>
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={identityChecking}
+                    className="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800 disabled:opacity-60"
+                  >
+                    {identityChecking ? "Verificando..." : "Verificar"}
+                  </button>
+                </div>
+              </form>
+
+              <div
+                className={
+                  "mt-4 rounded-lg border p-3 text-sm " +
+                  (identityResult.status === "invalid"
+                    ? "border-red-200 bg-red-50 text-red-800"
+                    : identityResult.status === "provider-pending"
+                      ? "border-amber-200 bg-amber-50 text-amber-900"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-900")
+                }
+              >
+                <p className="font-bold">{identityResult.title}</p>
+                <p className="mt-1">{identityResult.detail}</p>
               </div>
-              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                Total borradores: {draftDocumentsTotal}. Estos documentos aun no
-                son comprobantes SUNAT aceptados.
-              </p>
             </section>
 
             <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
+                  <p className="text-xs font-bold uppercase text-amber-700">
+                    Paso 3 - Registrar o confirmar cliente
+                  </p>
                   <h2 className="text-xl font-bold text-slate-900">
                     Clientes comerciales
                   </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Use esta seccion solo si el comprador no existe o si falta
+                    completar sus datos comerciales.
+                  </p>
                   <p className="mt-1 text-sm text-slate-600">
                     Registra clientes para boletas y facturas. Para factura, el
                     cliente debe ser empresa con RUC valido.
@@ -1760,7 +1713,99 @@ export default function Billing() {
               </p>
             </section>
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="rounded-2xl border border-violet-300 bg-violet-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase text-violet-700">
+                    Paso 4 - Borrador e impresion
+                  </p>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    Comprobantes borrador
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Aqui quedan las boletas y facturas internas preparadas. En
+                    esta fase aun no se envian a SUNAT.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Paso 4. Revise aqui las boletas y facturas DRAFT preparadas
+                    antes de generar XML, firma digital o envio SUNAT. DRAFT
+                    significa borrador interno: aun no fue enviado ni aceptado
+                    por SUNAT.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadDraftDocuments}
+                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Actualizar borradores
+                </button>
+              </div>
+
+              <div className="mt-4 overflow-hidden rounded-xl border">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50 text-left text-xs font-bold uppercase text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2">Comprobante</th>
+                      <th className="px-3 py-2">Venta</th>
+                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2 text-right">IGV</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {draftDocuments.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-4 text-slate-500" colSpan={5}>
+                          No hay comprobantes borrador.
+                        </td>
+                      </tr>
+                    ) : (
+                      draftDocuments.map((document) => (
+                        <tr key={document.id}>
+                          <td className="px-3 py-2">
+                            <p className="font-semibold text-slate-800">
+                              {document.fullNumber}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {document.documentType} / {document.status}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            {document.sale?.saleNumber || "-"}
+                          </td>
+                          <td className="px-3 py-2 text-slate-700">
+                            <p>
+                              {document.customerName || "Cliente no registrado"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {document.customerDocumentType
+                                ? document.customerDocumentType +
+                                  " " +
+                                  (document.customerDocumentNumber || "")
+                                : "Sin documento"}
+                            </p>
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700">
+                            {Number(document.igvTotal).toFixed(2)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-900">
+                            {document.currency || "PEN"}{" "}
+                            {Number(document.total).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                Total borradores: {draftDocumentsTotal}. Estos documentos aun no
+                son comprobantes SUNAT aceptados.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
               <StatusCard
                 title="Perfil fiscal"
                 value={statusText(data?.readiness?.profileReady)}
@@ -1801,9 +1846,12 @@ export default function Billing() {
               />
             </section>
 
-            <section className="rounded-2xl bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
+                  <p className="text-xs font-bold uppercase text-slate-600">
+                    Administracion fiscal
+                  </p>
                   <h2 className="text-xl font-bold text-slate-900">
                     Series fiscales
                   </h2>
@@ -1834,6 +1882,26 @@ export default function Billing() {
                 Advertencia: una vez usada una serie, su numeracion no debe
                 reiniciarse ni modificarse sin control administrativo y
                 auditoria.
+              </p>
+            </section>
+
+            <section className="rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
+              <p className="text-xs font-bold uppercase text-slate-600">
+                Administracion fiscal
+              </p>
+              <h2 className="text-xl font-bold text-slate-900">
+                Flujo de capacitacion
+              </h2>
+              <div className="mt-4 grid gap-3 md:grid-cols-5">
+                <Step number="1" text="Verificar empresa/RUC" />
+                <Step number="2" text="Completar perfil fiscal" />
+                <Step number="3" text="Crear series" />
+                <Step number="4" text="Revisar catalogo" />
+                <Step number="5" text="Emitir desde venta" />
+              </div>
+              <p className="mt-4 rounded-lg bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">
+                En esta etapa HCELM solo prepara la base fiscal. El envio real,
+                XML, firma y CDR se implementaran despues.
               </p>
             </section>
 
@@ -2143,23 +2211,6 @@ export default function Billing() {
                 modulo de envio real.
               </p>
             </form>
-
-            <section className="rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-bold text-slate-900">
-                Flujo de capacitacion
-              </h2>
-              <div className="mt-4 grid gap-3 md:grid-cols-5">
-                <Step number="1" text="Verificar empresa/RUC" />
-                <Step number="2" text="Completar perfil fiscal" />
-                <Step number="3" text="Crear series" />
-                <Step number="4" text="Revisar catalogo" />
-                <Step number="5" text="Emitir desde venta" />
-              </div>
-              <p className="mt-4 rounded-lg bg-cyan-50 p-3 text-sm font-semibold text-cyan-900">
-                En esta etapa HCELM solo prepara la base fiscal. El envio real,
-                XML, firma y CDR se implementaran despues.
-              </p>
-            </section>
           </>
         )}
       </div>

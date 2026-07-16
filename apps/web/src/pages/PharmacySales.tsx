@@ -185,6 +185,163 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString("es-PE");
 }
 
+type FefoVisualState = {
+  key: "NORMAL" | "WATCH" | "PROMOTION" | "CRITICAL" | "UNKNOWN";
+  label: string;
+  detail: string;
+  discountPercent: number;
+  containerClass: string;
+  symbolClass: string;
+  symbol: string;
+};
+
+function getDaysUntilExpiration(value?: string | null) {
+  if (!value) return null;
+
+  const expiration = new Date(value);
+  expiration.setHours(23, 59, 59, 999);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Math.ceil(
+    (expiration.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+}
+
+function getFefoVisualState(value?: string | null): FefoVisualState {
+  const days = getDaysUntilExpiration(value);
+
+  if (days === null) {
+    return {
+      key: "UNKNOWN",
+      label: "Sin fecha registrada",
+      detail: "Revisar información del lote",
+      discountPercent: 0,
+      containerClass:
+        "border-slate-400 bg-slate-100 text-slate-900 ring-2 ring-slate-200",
+      symbolClass: "rounded-md border-2 border-slate-700 bg-white",
+      symbol: "?",
+    };
+  }
+
+  if (days < 0) {
+    return {
+      key: "CRITICAL",
+      label: "Lote vencido",
+      detail: "Bloqueado: no debe venderse",
+      discountPercent: 0,
+      containerClass:
+        "border-red-700 bg-red-100 text-red-950 ring-2 ring-red-300",
+      symbolClass:
+        "border-2 border-red-900 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
+      symbol: "!",
+    };
+  }
+
+  if (days <= 30) {
+    return {
+      key: "CRITICAL",
+      label: "Vencimiento crítico",
+      detail: `${days} día(s): requiere revisión y autorización`,
+      discountPercent: 0,
+      containerClass:
+        "border-red-700 bg-red-100 text-red-950 ring-2 ring-red-300",
+      symbolClass:
+        "border-2 border-red-900 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
+      symbol: "!",
+    };
+  }
+
+  if (days <= 90) {
+    return {
+      key: "PROMOTION",
+      label: "Promoción FEFO",
+      detail: `${days} día(s) para vencer`,
+      discountPercent: 15,
+      containerClass:
+        "border-orange-700 bg-orange-100 text-orange-950 ring-2 ring-orange-300",
+      symbolClass:
+        "rotate-45 border-2 border-orange-900 bg-orange-600 text-white",
+      symbol: "◆",
+    };
+  }
+
+  if (days <= 180) {
+    return {
+      key: "WATCH",
+      label: "Vigilar rotación",
+      detail: `${days} día(s) para vencer`,
+      discountPercent: 0,
+      containerClass:
+        "border-yellow-700 bg-yellow-100 text-yellow-950 ring-2 ring-yellow-300",
+      symbolClass:
+        "border-2 border-yellow-900 bg-yellow-400 text-yellow-950 [clip-path:polygon(50%_0%,100%_100%,0%_100%)]",
+      symbol: "▲",
+    };
+  }
+
+  return {
+    key: "NORMAL",
+    label: "Vencimiento normal",
+    detail: `${days} día(s) para vencer`,
+    discountPercent: 0,
+    containerClass:
+      "border-emerald-700 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-300",
+    symbolClass:
+      "rounded-full border-2 border-emerald-900 bg-emerald-600 text-white",
+    symbol: "●",
+  };
+}
+
+function FefoStatusBadge({
+  expirationDate,
+}: {
+  expirationDate?: string | null;
+}) {
+  const status = getFefoVisualState(expirationDate);
+
+  return (
+    <div
+      className={`mt-3 min-w-56 rounded-xl border-2 p-3 shadow-sm ${status.containerClass}`}
+      aria-label={`${status.label}. ${status.detail}`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center text-sm font-black ${status.symbolClass}`}
+          aria-hidden="true"
+        >
+          <span
+            className={
+              status.key === "PROMOTION" ? "-rotate-45 text-lg" : "text-lg"
+            }
+          >
+            {status.symbol}
+          </span>
+        </span>
+
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-wide">
+            {status.label}
+          </p>
+          <p className="mt-0.5 text-xs font-semibold">{status.detail}</p>
+        </div>
+      </div>
+
+      {status.discountPercent > 0 && (
+        <div className="mt-2 rounded-lg border-2 border-orange-800 bg-white px-3 py-2 text-center">
+          <span className="text-xs font-black uppercase text-orange-900">
+            Descuento sugerido
+          </span>
+          <strong className="ml-2 text-lg text-orange-800">
+            {status.discountPercent} %
+          </strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function redirectToBillingAfterSale(sale: CompletedSale) {
   const params = new URLSearchParams({
     fromSale: "1",
@@ -780,13 +937,20 @@ export default function PharmacySales() {
                             {product.availableStock}
                           </div>
                           {product.fefoLot ? (
-                            <div className="text-xs text-slate-500">
-                              {product.fefoLot.lotNumber} / vence{" "}
-                              {formatDate(product.fefoLot.expirationDate)}
-                            </div>
+                            <>
+                              <div className="text-xs font-semibold text-slate-600">
+                                Lote {product.fefoLot.lotNumber}
+                              </div>
+                              <div className="mt-0.5 text-xs text-slate-500">
+                                Vence: {formatDate(product.fefoLot.expirationDate)}
+                              </div>
+                              <FefoStatusBadge
+                                expirationDate={product.fefoLot.expirationDate}
+                              />
+                            </>
                           ) : (
-                            <div className="text-xs text-red-700">
-                              Sin lote disponible
+                            <div className="mt-2 rounded-xl border-2 border-red-700 bg-red-100 p-3 text-xs font-black text-red-950 ring-2 ring-red-300">
+                              ⛔ Sin lote disponible
                             </div>
                           )}
                         </td>

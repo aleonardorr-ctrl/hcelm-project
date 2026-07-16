@@ -3,6 +3,8 @@
 // Funcion: Rutas, navegacion y acceso segun modulos habilitados.
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -19,28 +21,32 @@ import {
   useLocation,
 } from "react-router-dom";
 
-import Anamnesis from "./pages/Anamnesis";
-import Catalogs from "./pages/Catalogs";
-import Certificates from "./pages/Certificates";
-import DataQuality from "./pages/DataQuality";
-import Home from "./pages/Home";
-import InstitutionSettings from "./pages/InstitutionSettings";
-import Login from "./pages/Login";
-import NewEncounter from "./pages/NewEncounter";
-import OrganizationAdministration from "./pages/OrganizationAdministration";
-import Patients from "./pages/Patients";
-import ProfessionalVerification from "./pages/ProfessionalVerification";
+const Anamnesis = lazy(() => import("./pages/Anamnesis"));
+const Catalogs = lazy(() => import("./pages/Catalogs"));
+const Certificates = lazy(() => import("./pages/Certificates"));
+const DataQuality = lazy(() => import("./pages/DataQuality"));
+const Home = lazy(() => import("./pages/Home"));
+const InstitutionSettings = lazy(() => import("./pages/InstitutionSettings"));
+const Login = lazy(() => import("./pages/Login"));
+const NewEncounter = lazy(() => import("./pages/NewEncounter"));
+const OrganizationAdministration = lazy(
+  () => import("./pages/OrganizationAdministration"),
+);
+const Patients = lazy(() => import("./pages/Patients"));
+const ProfessionalVerification = lazy(
+  () => import("./pages/ProfessionalVerification"),
+);
 import {
   clearAuthSession,
   getAuthToken,
   hasProfessionalVerification,
   hasValidToken,
 } from "./lib/auth";
-import Pharmacy from "./pages/Pharmacy";
-import PharmacyCatalogs from "./pages/PharmacyCatalogs";
-import PharmacyInventory from "./pages/PharmacyInventory";
-import PharmacySales from "./pages/PharmacySales";
-import Billing from "./pages/Billing";
+const Pharmacy = lazy(() => import("./pages/Pharmacy"));
+const PharmacyCatalogs = lazy(() => import("./pages/PharmacyCatalogs"));
+const PharmacyInventory = lazy(() => import("./pages/PharmacyInventory"));
+const PharmacySales = lazy(() => import("./pages/PharmacySales"));
+const Billing = lazy(() => import("./pages/Billing"));
 import ClinicalNavigation from "./components/clinical/ClinicalNavigation";
 
 const API_URL = "http://localhost:3000/api";
@@ -360,10 +366,24 @@ function ClinicalNavigationSlot() {
   );
 }
 
+function LoadingPage() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="text-center">
+        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-cyan-600" />
+        <p className="mt-4 font-semibold text-slate-700">Cargando sección...</p>
+        <p className="mt-1 text-sm text-slate-500">
+          HCELM está preparando únicamente el módulo solicitado.
+        </p>
+      </div>
+    </div>
+  );
+}
 function AppRoutes() {
   return (
-    <div style={{ padding: "20px", maxWidth: "1200px", margin: "0 auto" }}>
-      <Routes>
+    <div style={{ padding: "20px", maxWidth: "1800px", margin: "0 auto" }}>
+      <Suspense fallback={<LoadingPage />}>
+        <Routes>
         <Route path="/" element={<RootRedirect />} />
         <Route path="/login" element={<Login />} />
 
@@ -526,8 +546,9 @@ function AppRoutes() {
           }
         />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }

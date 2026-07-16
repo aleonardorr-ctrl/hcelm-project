@@ -55,3 +55,9 @@ iniciar-sistema.ps1
 dist/
 .cache/
 *.log
+# Copias, parches y registros temporales HCELM
+scripts/maintenance/logs/
+patch-*.js
+*.backup-*
+.turbo/
+node_modules/

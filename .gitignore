@@ -46,3 +46,12 @@ Nuevo Documento de texto (2).txt
 # Scripts locales
 iniciar.ps1
 iniciar-sistema.ps1
+# Respaldos y archivos temporales HCELM
+*.backup_*
+*.vacio-backup
+*.tmp
+*.bak
+*.zip
+dist/
+.cache/
+*.log

@@ -108,7 +108,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CARD: "Tarjeta",
   YAPE: "Yape",
   PLIN: "Plin",
-  BANK_TRANSFER: "Transferencia / deposito bancario",
+  BANK_TRANSFER: "Transferencia / depósito bancario",
   OTHER: "Otro",
 };
 
@@ -135,14 +135,14 @@ function ProductBlockHelp({ product }: { product: SaleProduct }) {
         <p className="font-bold">{label}</p>
         <p className="mt-1">
           Para venderlo debe registrar una receta valida. Para probar
-          facturacion SUNAT, use un producto de venta libre.
+          facturación SUNAT, use un producto de venta libre.
         </p>
         <div className="mt-2 flex flex-wrap gap-2">
           <Link
             to="/pharmacy/catalogs"
             className="rounded-md border border-amber-300 bg-white px-2 py-1 font-bold text-amber-900 hover:bg-amber-100"
           >
-            Revisar catalogo
+            Revisar catálogo
           </Link>
           <Link
             to="/pharmacy/inventory"
@@ -349,7 +349,7 @@ export default function PharmacySales() {
       paymentMethod !== "OTHER" &&
       !paymentReference.trim()
     ) {
-      setError("Ingrese el numero de operacion del medio de pago.");
+      setError("Ingrese el número de operación del medio de pago.");
       return;
     }
     setReviewing(true);
@@ -486,46 +486,82 @@ export default function PharmacySales() {
   }, [query]);
 
   return (
-    <div className="min-h-screen bg-slate-100 px-4 py-6 md:px-6">
-      <div className="mx-auto max-w-7xl space-y-5">
-        <header className="rounded-lg bg-white p-5 shadow-sm">
-          <nav className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-500">
-            <Link to="/home" className="hover:text-emerald-700">
-              Plataforma
-            </Link>
-            <span>/</span>
-            <Link to="/pharmacy" className="hover:text-emerald-700">
-              Botica Premium
-            </Link>
-            <span>/</span>
-            <span className="text-slate-900">Nueva venta</span>
-          </nav>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase text-emerald-700">
-                Punto de venta
-              </p>
-              <h1 className="text-2xl font-bold text-slate-900">
-                Venta OTC - Botica Premium
-              </h1>
-              <p className="mt-1 text-sm text-slate-600">
-                Contexto: {OPERATING_COMPANY} / {OPERATING_UNIT} /{" "}
-                {OPERATING_WAREHOUSE}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
+    <div className="min-h-screen bg-slate-100 px-3 py-4 sm:px-4 md:px-6 md:py-6">
+      <div className="mx-auto w-full max-w-[1800px] space-y-5">
+        <header className="overflow-hidden rounded-2xl bg-white shadow-sm">
+          <div className="overflow-x-auto border-b border-slate-200 px-4 py-3 sm:px-5">
+            <nav
+              aria-label="Ruta de navegación"
+              className="flex min-w-max items-center gap-2 text-sm font-semibold text-slate-500"
+            >
               <Link
-                to="/pharmacy/inventory"
-                className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                to="/home"
+                className="rounded-md px-2 py-1 hover:bg-slate-100 hover:text-emerald-700"
               >
-                Inventario y Kardex
+                Plataforma
               </Link>
+              <span aria-hidden="true">›</span>
               <Link
                 to="/pharmacy"
-                className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
+                className="rounded-md px-2 py-1 hover:bg-slate-100 hover:text-emerald-700"
               >
-                Volver a Farmacia
+                Botica Premium
               </Link>
+              <span aria-hidden="true">›</span>
+              <span className="px-2 py-1 text-slate-900">Ventas</span>
+            </nav>
+          </div>
+
+          <div className="p-4 sm:p-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                  Punto de venta
+                </p>
+                <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">
+                  Nueva venta
+                </h1>
+                <p className="mt-2 text-sm text-slate-600">
+                  {OPERATING_COMPANY}
+                  <span className="mx-1.5 text-slate-300">/</span>
+                  {OPERATING_UNIT}
+                  <span className="mx-1.5 text-slate-300">/</span>
+                  {OPERATING_WAREHOUSE}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <Link
+                  to="/pharmacy"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  ← Farmacia
+                </Link>
+                <a
+                  href="#buscar-productos"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-emerald-700 px-4 py-2 text-center text-sm font-bold text-white hover:bg-emerald-800"
+                >
+                  Continuar venta ↓
+                </a>
+                <Link
+                  to="/pharmacy/inventory"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Inventario
+                </Link>
+                <Link
+                  to="/pharmacy/catalogs"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Catálogo
+                </Link>
+                <Link
+                  to="/billing"
+                  className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-2 text-center text-sm font-bold text-cyan-800 hover:bg-cyan-100 sm:col-span-1"
+                >
+                  Facturación
+                </Link>
+              </div>
             </div>
           </div>
         </header>
@@ -563,7 +599,7 @@ export default function PharmacySales() {
               <div>
                 <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
                   Productos con receta no se desbloquean manualmente. Para la
-                  prueba de facturacion, busque o registre un producto de venta
+                  prueba de facturación, busque o registre un producto de venta
                   libre con stock y precio.
                 </p>
                 <p className="text-sm font-bold uppercase text-emerald-700">
@@ -590,9 +626,12 @@ export default function PharmacySales() {
           </section>
         )}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
           <main className="space-y-5">
-            <section className="overflow-hidden rounded-lg bg-white shadow-sm">
+            <section
+              id="buscar-productos"
+              className="scroll-mt-4 overflow-hidden rounded-2xl bg-white shadow-sm"
+            >
               <form
                 onSubmit={search}
                 className="flex flex-col gap-3 border-b p-4 sm:flex-row"
@@ -652,7 +691,7 @@ export default function PharmacySales() {
                                 to="/pharmacy/catalogs"
                                 className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
                               >
-                                Ir a catalogo
+                                Ir a catálogo
                               </Link>
                             </div>
                           </div>
@@ -819,7 +858,7 @@ export default function PharmacySales() {
             </section>
           </main>
 
-          <aside className="self-start rounded-lg bg-white shadow-sm xl:sticky xl:top-4">
+          <aside className="self-start rounded-2xl bg-white shadow-sm lg:sticky lg:top-4">
             <div className="border-b p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -881,9 +920,10 @@ export default function PharmacySales() {
                       Cantidad
                       <input
                         type="number"
-                        min="0.001"
-                        max={Number(item.product.availableStock)}
-                        step="0.001"
+                        min="1"
+                        max={Math.floor(Number(item.product.availableStock))}
+                        step="1"
+                        inputMode="numeric"
                         value={item.quantity}
                         onFocus={(event) => event.currentTarget.select()}
                         onClick={(event) => event.currentTarget.select()}
@@ -946,11 +986,11 @@ export default function PharmacySales() {
               ) : (
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600">
-                    Numero de operacion
+                    Número de operación
                   </label>
                   <p className="mb-1 text-xs text-slate-500">
-                    Para Yape, Plin, tarjeta o transferencia/deposito, registre
-                    el numero de operacion o referencia.
+                    Para Yape, Plin, tarjeta o transferencia/depósito, registre
+                    el número de operación o referencia.
                   </p>
                   <input
                     value={paymentReference}

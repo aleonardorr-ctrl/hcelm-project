@@ -158,9 +158,10 @@ export class PharmacySalesService {
           notes: params.data.notes?.trim() || null,
           createdById: params.userId,
         },
-      });
+      });      let saleSubtotal = new Prisma.Decimal(0);
+      let saleDiscountTotal = new Prisma.Decimal(0);
+      let saleTotal = new Prisma.Decimal(0);
 
-      let saleSubtotal = new Prisma.Decimal(0);
       for (let index = 0; index < params.data.items.length; index += 1) {
         const input = params.data.items[index];
         const medication = await tx.medication.findFirst({
@@ -187,9 +188,47 @@ export class PharmacySalesService {
               medication.genericName +
               ' requiere receta. La venta OTC fue bloqueada.',
           );
+        }        const saleItemId = randomUUID();
+
+        const pricingPreview =
+          await this.inventoryService.buildFefoPricingPreviewInTransaction(tx, {
+            tenantId: params.tenantId,
+            userId: params.userId,
+            medicationId: medication.id,
+            businessUnit: scope.businessUnitCode,
+            warehouse: scope.warehouseCode,
+            companyId: scope.companyId,
+            businessUnitId: scope.businessUnitId,
+            warehouseId: scope.warehouseId,
+            quantity: input.quantity,
+          });
+
+        if (!pricingPreview.sufficientStock) {
+          throw new ConflictException(
+            'Stock insuficiente para ' +
+              medication.genericName +
+              '. Disponible: ' +
+              pricingPreview.availableQuantity.toString() +
+              '.',
+          );
         }
 
-        const saleItemId = randomUUID();
+        if (pricingPreview.blocked) {
+          throw new ConflictException(
+            medication.genericName +
+              ': ' +
+              (pricingPreview.blockedReasons.join(' ') ||
+                'La política FEFO bloqueó esta venta.'),
+          );
+        }
+
+        const previewByLotId = new Map(
+          pricingPreview.allocations.map((allocation) => [
+            allocation.lotId,
+            allocation,
+          ]),
+        );
+
         const inventoryResult =
           await this.inventoryService.decreaseStockFefoInTransaction(tx, {
             tenantId: params.tenantId,
@@ -217,8 +256,10 @@ export class PharmacySalesService {
           select: { id: true, lotNumber: true, expirationDate: true },
         });
         const lotsById = new Map(lots.map((lot) => [lot.id, lot]));
-
         let lineSubtotal = new Prisma.Decimal(0);
+        let lineDiscountAmount = new Prisma.Decimal(0);
+        let lineTotal = new Prisma.Decimal(0);
+
         for (const movement of inventoryResult.movements) {
           if (
             movement.companyId !== scope.companyId ||
@@ -229,21 +270,96 @@ export class PharmacySalesService {
               'La asignacion FEFO no pertenece al contexto de la venta.',
             );
           }
-          if (
-            !movement.unitPrice ||
-            new Prisma.Decimal(movement.unitPrice).lte(0)
-          ) {
+
+          const previewAllocation = previewByLotId.get(movement.lotId);
+
+          if (!previewAllocation) {
             throw new ConflictException(
-              'Todos los lotes vendidos deben tener un precio de venta mayor que cero.',
+              'La asignación final de inventario no coincide con la revisión FEFO.',
             );
           }
-          lineSubtotal = lineSubtotal.plus(
-            new Prisma.Decimal(movement.quantity).mul(movement.unitPrice),
+
+          const movementQuantity = new Prisma.Decimal(movement.quantity);
+          const previewQuantity = new Prisma.Decimal(
+            previewAllocation.allocatedQuantity,
           );
+
+          if (!movementQuantity.eq(previewQuantity)) {
+            throw new ConflictException(
+              'La cantidad final del lote no coincide con la revisión FEFO.',
+            );
+          }
+
+          if (
+            !previewAllocation.originalSalePrice ||
+            !previewAllocation.finalSalePrice
+          ) {
+            throw new ConflictException(
+              'El lote FEFO no tiene precios válidos para completar la venta.',
+            );
+          }
+
+          const originalPrice = new Prisma.Decimal(
+            previewAllocation.originalSalePrice,
+          );
+          const finalPrice = new Prisma.Decimal(
+            previewAllocation.finalSalePrice,
+          );
+
+          if (originalPrice.lte(0) || finalPrice.lte(0)) {
+            throw new ConflictException(
+              'Todos los precios FEFO deben ser mayores que cero.',
+            );
+          }
+
+          if (
+            movement.unitCost &&
+            new Prisma.Decimal(movement.unitCost).gt(0) &&
+            finalPrice.lt(new Prisma.Decimal(movement.unitCost))
+          ) {
+            throw new ConflictException(
+              'La política FEFO intentó vender un lote por debajo de su costo.',
+            );
+          }
+
+          const originalAmount = movementQuantity
+            .mul(originalPrice)
+            .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+          const finalAmount = movementQuantity
+            .mul(finalPrice)
+            .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+          const discountAmount = originalAmount
+            .minus(finalAmount)
+            .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+
+          lineSubtotal = lineSubtotal.plus(originalAmount);
+          lineDiscountAmount = lineDiscountAmount.plus(discountAmount);
+          lineTotal = lineTotal.plus(finalAmount);
         }
-        lineSubtotal = lineSubtotal.toDecimalPlaces(4);
+
+        lineSubtotal = lineSubtotal.toDecimalPlaces(
+          4,
+          Prisma.Decimal.ROUND_HALF_UP,
+        );
+        lineDiscountAmount = lineDiscountAmount.toDecimalPlaces(
+          4,
+          Prisma.Decimal.ROUND_HALF_UP,
+        );
+        lineTotal = lineTotal.toDecimalPlaces(
+          4,
+          Prisma.Decimal.ROUND_HALF_UP,
+        );
+
         const quantity = new Prisma.Decimal(input.quantity);
-        const weightedUnitPrice = lineSubtotal.div(quantity).toDecimalPlaces(4);
+        const weightedUnitPrice = lineSubtotal
+          .div(quantity)
+          .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+        const effectiveDiscountPercent = lineSubtotal.isZero()
+          ? new Prisma.Decimal(0)
+          : lineDiscountAmount
+              .div(lineSubtotal)
+              .mul(100)
+              .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
         await tx.pharmacySaleItem.create({
           data: {
@@ -257,15 +373,19 @@ export class PharmacySalesService {
             commercialName: medication.commercialName,
             concentration: medication.concentration,
             presentation: medication.presentation,
-            quantity,
+                        quantity,
             unitPrice: weightedUnitPrice,
-            discountPercent: 0,
-            discountAmount: 0,
+            discountPercent: effectiveDiscountPercent,
+            discountAmount: lineDiscountAmount,
             taxAmount: 0,
             subtotal: lineSubtotal,
-            total: lineSubtotal,
+            total: lineTotal,
             requiresPrescription: false,
             priceOverride: false,
+            priceOverrideReason:
+              lineDiscountAmount.gt(0)
+                ? 'Descuento automático por política FEFO'
+                : null,
           },
         });
 
@@ -282,38 +402,57 @@ export class PharmacySalesService {
               lotNumber: lot.lotNumber,
               expirationDate: lot.expirationDate,
               quantity: movement.quantity,
-              unitCost: movement.unitCost,
-              unitPrice: movement.unitPrice!,
+                            unitCost: movement.unitCost,
+              unitPrice: previewByLotId.get(movement.lotId)!.finalSalePrice!,
             },
           });
         }
         saleSubtotal = saleSubtotal.plus(lineSubtotal);
+        saleDiscountTotal = saleDiscountTotal.plus(lineDiscountAmount);
+        saleTotal = saleTotal.plus(lineTotal);
       }
 
       saleSubtotal = saleSubtotal.toDecimalPlaces(
         4,
         Prisma.Decimal.ROUND_HALF_UP,
       );
-      if (saleSubtotal.lte(0)) {
+      saleDiscountTotal = saleDiscountTotal.toDecimalPlaces(
+        4,
+        Prisma.Decimal.ROUND_HALF_UP,
+      );
+      saleTotal = saleTotal.toDecimalPlaces(
+        4,
+        Prisma.Decimal.ROUND_HALF_UP,
+      );
+
+      if (saleSubtotal.lte(0) || saleTotal.lte(0)) {
         throw new ConflictException(
           'El total de la venta debe ser mayor que cero.',
         );
       }
-      const paymentData = this.preparePayment(
-        params.data.payment,
-        saleSubtotal,
-      );
+
+      if (!saleSubtotal.minus(saleDiscountTotal).eq(saleTotal)) {
+        throw new ConflictException(
+          'Los totales FEFO de la venta no son consistentes.',
+        );
+      }
+
+      const paymentData = this.preparePayment(params.data.payment, saleTotal);
 
       await tx.pharmacySale.update({
         where: { id: saleId },
-        data: { subtotal: saleSubtotal, total: saleSubtotal },
+        data: {
+          subtotal: saleSubtotal,
+          discountTotal: saleDiscountTotal,
+          total: saleTotal,
+        },
       });
       await tx.pharmacySalePayment.create({
         data: {
           tenantId: params.tenantId,
           saleId,
-          method: params.data.payment.method,
-          amount: saleSubtotal,
+                    method: params.data.payment.method,
+          amount: saleTotal,
           reference: paymentData.reference,
           receivedAmount: paymentData.receivedAmount,
           changeAmount: paymentData.changeAmount,

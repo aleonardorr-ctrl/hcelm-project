@@ -59,8 +59,22 @@ type FefoAllocation = {
   expirationDate?: string | null;
   allocatedQuantity: string | number;
   availableStock: string | number;
-  salePrice?: string | number | null;
   currency: string;
+  purchasePrice?: string | number | null;
+  originalSalePrice?: string | number | null;
+  configuredDiscountPercent?: string | number;
+  appliedDiscountPercent?: string | number;
+  discountLimitedByCost?: boolean;
+  finalSalePrice?: string | number | null;
+  salePrice?: string | number | null;
+  fefoRuleKey?: string;
+  fefoRuleLabel?: string;
+  fefoAction?: string;
+  requiresAuthorization?: boolean;
+  blockedReason?: string | null;
+  originalSubtotal?: string | number | null;
+  discountAmount?: string | number | null;
+  finalSubtotal?: string | number | null;
 };
 
 type FefoResponse = {
@@ -68,6 +82,13 @@ type FefoResponse = {
   availableQuantity: string | number;
   missingQuantity: string | number;
   allocations: FefoAllocation[];
+  pricingAuthority?: string;
+  requiresAuthorization?: boolean;
+  blocked?: boolean;
+  blockedReasons?: string[];
+  originalTotal?: string | number;
+  discountTotal?: string | number;
+  finalTotal?: string | number;
 };
 
 type CartItem = {
@@ -75,6 +96,8 @@ type CartItem = {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  originalSubtotal?: number;
+  discountAmount?: number;
   allocations: FefoAllocation[];
 };
 
@@ -725,25 +748,36 @@ export default function PharmacySales() {
           );
         }
         const preview = (await response.json()) as FefoResponse;
+
         if (!preview.sufficientStock) {
           throw new Error(
             `${item.product.genericName}: stock insuficiente. Disponible ${preview.availableQuantity}.`,
           );
         }
-        let subtotal = 0;
-        for (const allocation of preview.allocations) {
-          const price = Number(allocation.salePrice || 0);
-          if (price <= 0) {
-            throw new Error(
-              `${item.product.genericName}: el lote FEFO no tiene precio de venta.`,
-            );
-          }
-          subtotal += Number(allocation.allocatedQuantity) * price;
+
+        if (preview.blocked) {
+          const reason =
+            preview.blockedReasons?.filter(Boolean).join(" ") ||
+            "La revisión FEFO bloqueó este producto.";
+          throw new Error(`${item.product.genericName}: ${reason}`);
         }
+
+        const originalSubtotal = Number(preview.originalTotal || 0);
+        const discountAmount = Number(preview.discountTotal || 0);
+        const subtotal = Number(preview.finalTotal || 0);
+
+        if (!Number.isFinite(subtotal) || subtotal <= 0) {
+          throw new Error(
+            `${item.product.genericName}: el servidor no devolvió un total FEFO válido.`,
+          );
+        }
+
         reviewed.push({
           ...item,
           unitPrice: subtotal / item.quantity,
           subtotal,
+          originalSubtotal,
+          discountAmount,
           allocations: preview.allocations,
         });
       }
@@ -1302,7 +1336,19 @@ export default function PharmacySales() {
                         className="ml-2 w-24 rounded-lg border px-2 py-1.5 text-right"
                       />
                     </label>
-                    <strong>{formatMoney(item.subtotal)}</strong>
+                    <div className="text-right">
+                      {Number(item.discountAmount || 0) > 0 ? (
+                        <>
+                          <div className="text-xs text-slate-500 line-through">
+                            {formatMoney(item.originalSubtotal || item.subtotal)}
+                          </div>
+                          <div className="text-xs font-bold text-emerald-700">
+                            Descuento FEFO: -{formatMoney(item.discountAmount || 0)}
+                          </div>
+                        </>
+                      ) : null}
+                      <strong>{formatMoney(item.subtotal)}</strong>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1371,6 +1417,35 @@ export default function PharmacySales() {
                   />
                 </div>
               )}
+
+              {cart.some((item) => Number(item.discountAmount || 0) > 0) ? (
+                <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+                  <div className="flex justify-between">
+                    <span>Precio normal</span>
+                    <strong>
+                      {formatMoney(
+                        cart.reduce(
+                          (sum, item) =>
+                            sum + Number(item.originalSubtotal || item.subtotal),
+                          0,
+                        ),
+                      )}
+                    </strong>
+                  </div>
+                  <div className="mt-1 flex justify-between">
+                    <span>Descuento FEFO</span>
+                    <strong>
+                      -
+                      {formatMoney(
+                        cart.reduce(
+                          (sum, item) => sum + Number(item.discountAmount || 0),
+                          0,
+                        ),
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="flex items-end justify-between border-t pt-4">
                 <span className="font-semibold text-slate-600">Total</span>
@@ -1441,7 +1516,19 @@ export default function PharmacySales() {
                           .join(", ")}
                       </p>
                     </div>
-                    <strong>{formatMoney(item.subtotal)}</strong>
+                    <div className="text-right">
+                      {Number(item.discountAmount || 0) > 0 ? (
+                        <>
+                          <div className="text-xs text-slate-500 line-through">
+                            {formatMoney(item.originalSubtotal || item.subtotal)}
+                          </div>
+                          <div className="text-xs font-bold text-emerald-700">
+                            Descuento FEFO: -{formatMoney(item.discountAmount || 0)}
+                          </div>
+                        </>
+                      ) : null}
+                      <strong>{formatMoney(item.subtotal)}</strong>
+                    </div>
                   </div>
                 </div>
               ))}

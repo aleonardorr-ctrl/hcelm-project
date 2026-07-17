@@ -104,8 +104,29 @@ export class MedicationInventoryService {
     warehouse: string;
     quantity: number | string;
   }) {
+    return this.buildFefoPricingPreviewInTransaction(
+      this.prisma as unknown as TransactionClient,
+      params,
+    );
+  }
+
+  async buildFefoPricingPreviewInTransaction(
+    tx: TransactionClient,
+    params: {
+      tenantId: string;
+      userId: string | null;
+      medicationId: string;
+      businessUnit: string;
+      warehouse: string;
+      quantity: number | string;
+      companyId?: string;
+      businessUnitId?: string;
+      warehouseId?: string;
+    },
+  ) {
     const quantity = this.positiveQuantity(params.quantity);
-    const medication = await this.prisma.medication.findFirst({
+
+    const medication = await tx.medication.findFirst({
       where: {
         id: params.medicationId,
         tenantId: params.tenantId,
@@ -122,11 +143,13 @@ export class MedicationInventoryService {
         barcode: true,
       },
     });
-    if (!medication)
+
+    if (!medication) {
       throw new NotFoundException('Producto no encontrado o inactivo.');
+    }
 
     const scope = await this.resolveScope(
-      this.prisma as any,
+      tx,
       {
         tenantId: params.tenantId,
         userId: params.userId,
@@ -137,9 +160,28 @@ export class MedicationInventoryService {
       medication,
     );
 
+    if (
+      (params.companyId && params.companyId !== scope.companyId) ||
+      (params.businessUnitId &&
+        params.businessUnitId !== scope.businessUnitId) ||
+      (params.warehouseId && params.warehouseId !== scope.warehouseId)
+    ) {
+      throw new ConflictException(
+        'El contexto solicitado no coincide con la instalación activa de Farmacia.',
+      );
+    }
+
+    const rules = await this.loadFefoRules(
+      tx,
+      params.tenantId,
+      scope.companyId,
+      scope.businessUnitId,
+    );
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const lots = await this.prisma.medicationInventoryLot.findMany({
+
+    const lots = await tx.medicationInventoryLot.findMany({
       where: {
         tenantId: params.tenantId,
         companyId: scope.companyId,
@@ -160,19 +202,52 @@ export class MedicationInventoryService {
     });
 
     let remaining = quantity;
+
     const allocations = lots
       .map((lot) => {
         const available = new Prisma.Decimal(lot.stock);
         const allocated = Prisma.Decimal.min(available, remaining);
         remaining = Prisma.Decimal.max(remaining.minus(allocated), 0);
+
+        const pricing = this.calculateFefoLotPricing({
+          expirationDate: lot.expirationDate,
+          salePrice: lot.salePrice,
+          purchasePrice: lot.purchasePrice,
+          rules,
+          today,
+        });
+
         return {
           lotId: lot.id,
           lotNumber: lot.lotNumber,
           expirationDate: lot.expirationDate,
           availableStock: available,
           allocatedQuantity: allocated,
-          salePrice: lot.salePrice,
           currency: lot.currency,
+          purchasePrice: lot.purchasePrice,
+          originalSalePrice: pricing.originalSalePrice,
+          configuredDiscountPercent: pricing.configuredDiscountPercent,
+          appliedDiscountPercent: pricing.appliedDiscountPercent,
+          discountLimitedByCost: pricing.discountLimitedByCost,
+          finalSalePrice: pricing.finalSalePrice,
+          salePrice: pricing.finalSalePrice,
+          fefoRuleKey: pricing.ruleKey,
+          fefoRuleLabel: pricing.ruleLabel,
+          fefoAction: pricing.action,
+          requiresAuthorization: pricing.requiresAuthorization,
+          blockedReason: pricing.blockedReason,
+          originalSubtotal: pricing.originalSalePrice
+            ? allocated.mul(pricing.originalSalePrice).toDecimalPlaces(4)
+            : null,
+          discountAmount:
+            pricing.originalSalePrice && pricing.finalSalePrice
+              ? allocated
+                  .mul(pricing.originalSalePrice.minus(pricing.finalSalePrice))
+                  .toDecimalPlaces(4)
+              : null,
+          finalSubtotal: pricing.finalSalePrice
+            ? allocated.mul(pricing.finalSalePrice).toDecimalPlaces(4)
+            : null,
         };
       })
       .filter((item) => item.allocatedQuantity.gt(0));
@@ -182,17 +257,269 @@ export class MedicationInventoryService {
       new Prisma.Decimal(0),
     );
 
+    const requiresAuthorization = allocations.some(
+      (allocation) => allocation.requiresAuthorization,
+    );
+
+    const blockedReasons = Array.from(
+      new Set(
+        allocations
+          .map((allocation) => allocation.blockedReason)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const originalTotal = allocations.reduce(
+      (total, allocation) =>
+        allocation.originalSubtotal
+          ? total.plus(allocation.originalSubtotal)
+          : total,
+      new Prisma.Decimal(0),
+    );
+
+    const discountTotal = allocations.reduce(
+      (total, allocation) =>
+        allocation.discountAmount
+          ? total.plus(allocation.discountAmount)
+          : total,
+      new Prisma.Decimal(0),
+    );
+
+    const finalTotal = allocations.reduce(
+      (total, allocation) =>
+        allocation.finalSubtotal ? total.plus(allocation.finalSubtotal) : total,
+      new Prisma.Decimal(0),
+    );
+
+    const hasMissingPrice = allocations.some(
+      (allocation) => !allocation.originalSalePrice,
+    );
+
     return {
       medication,
+      scope: {
+        companyId: scope.companyId,
+        businessUnitId: scope.businessUnitId,
+        warehouseId: scope.warehouseId,
+        businessUnit: scope.businessUnitCode,
+        warehouse: scope.warehouseCode,
+      },
       requestedQuantity: quantity,
       availableQuantity,
       sufficientStock: remaining.isZero(),
       missingQuantity: remaining,
       strategy: 'FEFO',
+      pricingAuthority: 'SERVER',
+      requiresAuthorization,
+      blocked: requiresAuthorization || hasMissingPrice,
+      blockedReasons,
+      originalTotal: originalTotal.toDecimalPlaces(4),
+      discountTotal: discountTotal.toDecimalPlaces(4),
+      finalTotal: finalTotal.toDecimalPlaces(4),
       allocations,
     };
   }
 
+  private async loadFefoRules(
+    tx: TransactionClient,
+    tenantId: string,
+    companyId: string,
+    businessUnitId: string,
+  ) {
+    const storedRules = await tx.pharmacyFefoRule.findMany({
+      where: {
+        tenantId,
+        companyId,
+        businessUnitId,
+        active: true,
+      },
+      orderBy: [{ displayOrder: 'asc' }, { minDays: 'asc' }],
+      select: {
+        ruleKey: true,
+        label: true,
+        minDays: true,
+        maxDays: true,
+        discountPercent: true,
+        action: true,
+      },
+    });
+
+    if (storedRules.length) {
+      return storedRules.map((rule) => ({
+        ruleKey: rule.ruleKey,
+        label: rule.label,
+        minDays: rule.minDays,
+        maxDays: rule.maxDays,
+        discountPercent: new Prisma.Decimal(rule.discountPercent),
+        action: rule.action,
+      }));
+    }
+
+    return [
+      {
+        ruleKey: 'CRITICAL',
+        label: 'Vencimiento crítico',
+        minDays: 0,
+        maxDays: 30,
+        discountPercent: new Prisma.Decimal(20),
+        action: 'REQUIRE_AUTHORIZATION',
+      },
+      {
+        ruleKey: 'PROMOTION',
+        label: 'Promoción FEFO',
+        minDays: 31,
+        maxDays: 90,
+        discountPercent: new Prisma.Decimal(15),
+        action: 'SUGGEST_DISCOUNT',
+      },
+      {
+        ruleKey: 'WATCH',
+        label: 'Vigilar rotación',
+        minDays: 91,
+        maxDays: 180,
+        discountPercent: new Prisma.Decimal(0),
+        action: 'ALERT',
+      },
+      {
+        ruleKey: 'NORMAL',
+        label: 'Vencimiento normal',
+        minDays: 181,
+        maxDays: null,
+        discountPercent: new Prisma.Decimal(0),
+        action: 'NORMAL',
+      },
+    ];
+  }
+
+  private calculateFefoLotPricing(params: {
+    expirationDate: Date | null;
+    salePrice: Prisma.Decimal | null;
+    purchasePrice: Prisma.Decimal | null;
+    rules: Array<{
+      ruleKey: string;
+      label: string;
+      minDays: number;
+      maxDays: number | null;
+      discountPercent: Prisma.Decimal;
+      action: string;
+    }>;
+    today: Date;
+  }) {
+    const originalSalePrice = params.salePrice
+      ? new Prisma.Decimal(params.salePrice)
+      : null;
+
+    if (!originalSalePrice || originalSalePrice.lte(0)) {
+      return {
+        ruleKey: 'UNKNOWN',
+        ruleLabel: 'Precio no configurado',
+        action: 'BLOCK',
+        configuredDiscountPercent: new Prisma.Decimal(0),
+        appliedDiscountPercent: new Prisma.Decimal(0),
+        discountLimitedByCost: false,
+        originalSalePrice: null,
+        finalSalePrice: null,
+        requiresAuthorization: false,
+        blockedReason: 'El lote FEFO no tiene precio de venta válido.',
+      };
+    }
+
+    const daysUntilExpiration = params.expirationDate
+      ? Math.ceil(
+          (params.expirationDate.getTime() - params.today.getTime()) /
+            (1000 * 60 * 60 * 24),
+        )
+      : null;
+
+    const matchedRule =
+      daysUntilExpiration === null
+        ? null
+        : params.rules.find((rule) => {
+            const meetsMinimum = daysUntilExpiration >= rule.minDays;
+            const meetsMaximum =
+              rule.maxDays === null || daysUntilExpiration <= rule.maxDays;
+            return meetsMinimum && meetsMaximum;
+          });
+
+    if (!matchedRule) {
+      return {
+        ruleKey: 'UNKNOWN',
+        ruleLabel: 'Sin regla aplicable',
+        action: 'NORMAL',
+        configuredDiscountPercent: new Prisma.Decimal(0),
+        appliedDiscountPercent: new Prisma.Decimal(0),
+        discountLimitedByCost: false,
+        originalSalePrice,
+        finalSalePrice: originalSalePrice,
+        requiresAuthorization: false,
+        blockedReason: null,
+      };
+    }
+
+    const requiresAuthorization =
+      matchedRule.action === 'REQUIRE_AUTHORIZATION';
+
+    if (requiresAuthorization) {
+      return {
+        ruleKey: matchedRule.ruleKey,
+        ruleLabel: matchedRule.label,
+        action: matchedRule.action,
+        configuredDiscountPercent: matchedRule.discountPercent,
+        appliedDiscountPercent: new Prisma.Decimal(0),
+        discountLimitedByCost: false,
+        originalSalePrice,
+        finalSalePrice: originalSalePrice,
+        requiresAuthorization: true,
+        blockedReason:
+          'Este lote está en rango crítico y requiere autorización administrativa.',
+      };
+    }
+
+    const configuredDiscount = Prisma.Decimal.max(
+      new Prisma.Decimal(0),
+      Prisma.Decimal.min(matchedRule.discountPercent, new Prisma.Decimal(100)),
+    );
+
+    let finalSalePrice = originalSalePrice
+      .mul(new Prisma.Decimal(100).minus(configuredDiscount))
+      .div(100)
+      .toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+
+    let discountLimitedByCost = false;
+
+    if (params.purchasePrice) {
+      const purchasePrice = new Prisma.Decimal(params.purchasePrice);
+
+      if (purchasePrice.gt(0) && finalSalePrice.lt(purchasePrice)) {
+        finalSalePrice = purchasePrice.toDecimalPlaces(
+          4,
+          Prisma.Decimal.ROUND_HALF_UP,
+        );
+        discountLimitedByCost = true;
+      }
+    }
+
+    const appliedDiscountPercent = originalSalePrice.isZero()
+      ? new Prisma.Decimal(0)
+      : originalSalePrice
+          .minus(finalSalePrice)
+          .div(originalSalePrice)
+          .mul(100)
+          .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+
+    return {
+      ruleKey: matchedRule.ruleKey,
+      ruleLabel: matchedRule.label,
+      action: matchedRule.action,
+      configuredDiscountPercent: configuredDiscount,
+      appliedDiscountPercent,
+      discountLimitedByCost,
+      originalSalePrice,
+      finalSalePrice,
+      requiresAuthorization: false,
+      blockedReason: null,
+    };
+  }
   async decreaseStockFefo(params: {
     tenantId: string;
     userId: string | null;

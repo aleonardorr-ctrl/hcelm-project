@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 type PaymentMethod =
@@ -258,7 +258,7 @@ function readFefoRules(): FefoRule[] {
 
     const parsed = JSON.parse(saved);
 
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!Array.isArray(parsed) || parsed.length !== 4) {
       return DEFAULT_FEFO_RULES;
     }
 
@@ -273,12 +273,71 @@ function readFefoRules(): FefoRule[] {
         typeof rule.action === "string",
     );
 
-    return validRules.length > 0 ? validRules : DEFAULT_FEFO_RULES;
+    return validRules.length === 4 ? validRules : DEFAULT_FEFO_RULES;
   } catch {
     return DEFAULT_FEFO_RULES;
   }
 }
 
+function saveFefoRulesLocally(rules: FefoRule[]) {
+  localStorage.setItem(FEFO_STORAGE_KEY, JSON.stringify(rules));
+}
+
+async function loadFefoRulesFromServer(): Promise<FefoRule[]> {
+  const token = sessionStorage.getItem("ame_token");
+
+  if (!token) {
+    return readFefoRules();
+  }
+
+  const response = await fetch("/api/pharmacy-fefo/rules", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (response.status === 401) {
+    sessionStorage.removeItem("ame_token");
+    window.location.assign("/login");
+    return readFefoRules();
+  }
+
+  if (!response.ok) {
+    return readFefoRules();
+  }
+
+  const data = await response.json();
+  const rules = Array.isArray(data?.rules) ? data.rules : [];
+
+  if (rules.length !== 4) {
+    return readFefoRules();
+  }
+
+  const normalized = rules.filter(
+    (rule: unknown): rule is FefoRule => {
+      if (!rule || typeof rule !== "object") return false;
+
+      const candidate = rule as Partial<FefoRule>;
+
+      return (
+        typeof candidate.id === "string" &&
+        typeof candidate.label === "string" &&
+        typeof candidate.minDays === "number" &&
+        (typeof candidate.maxDays === "number" ||
+          candidate.maxDays === null) &&
+        typeof candidate.discountPercent === "number" &&
+        typeof candidate.action === "string"
+      );
+    },
+  );
+
+  if (normalized.length !== 4) {
+    return readFefoRules();
+  }
+
+  saveFefoRulesLocally(normalized);
+  return normalized;
+}
 function getDaysUntilExpiration(value?: string | null) {
   if (!value) return null;
 
@@ -293,9 +352,10 @@ function getDaysUntilExpiration(value?: string | null) {
   );
 }
 
-function getFefoRuleForDays(days: number): FefoRule {
-  const rules = readFefoRules();
-
+function getFefoRuleForDays(
+  days: number,
+  rules: FefoRule[],
+): FefoRule {
   const matched = rules.find((rule) => {
     const insideMinimum = days >= rule.minDays;
     const insideMaximum =
@@ -307,7 +367,10 @@ function getFefoRuleForDays(days: number): FefoRule {
   return matched ?? DEFAULT_FEFO_RULES[0];
 }
 
-function getFefoVisualState(value?: string | null): FefoVisualState {
+function getFefoVisualState(
+  value: string | null | undefined,
+  rules: FefoRule[],
+): FefoVisualState {
   const days = getDaysUntilExpiration(value);
 
   if (days === null) {
@@ -339,7 +402,7 @@ function getFefoVisualState(value?: string | null): FefoVisualState {
     };
   }
 
-  const rule = getFefoRuleForDays(days);
+  const rule = getFefoRuleForDays(days, rules);
 
   const visualByRule: Record<
     FefoRule["id"],
@@ -388,10 +451,12 @@ function getFefoVisualState(value?: string | null): FefoVisualState {
 }
 function FefoStatusBadge({
   expirationDate,
+  rules,
 }: {
   expirationDate?: string | null;
+  rules: FefoRule[];
 }) {
-  const status = getFefoVisualState(expirationDate);
+  const status = getFefoVisualState(expirationDate, rules);
 
   return (
     <div
@@ -449,6 +514,43 @@ function redirectToBillingAfterSale(sale: CompletedSale) {
 }
 
 export default function PharmacySales() {
+  const [fefoRules, setFefoRules] =
+    useState<FefoRule[]>(readFefoRules);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshFefoRules() {
+      try {
+        const serverRules = await loadFefoRulesFromServer();
+
+        if (!cancelled) {
+          setFefoRules(serverRules);
+        }
+      } catch {
+        if (!cancelled) {
+          setFefoRules(readFefoRules());
+        }
+      }
+    }
+
+    void refreshFefoRules();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void refreshFefoRules();
+      }
+    };
+
+    window.addEventListener("focus", refreshFefoRules);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refreshFefoRules);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchRequestRef = useRef(0);
   const [query, setQuery] = useState("");
@@ -1048,6 +1150,7 @@ export default function PharmacySales() {
                               </div>
                               <FefoStatusBadge
                                 expirationDate={product.fefoLot.expirationDate}
+                                rules={fefoRules}
                               />
                             </>
                           ) : (

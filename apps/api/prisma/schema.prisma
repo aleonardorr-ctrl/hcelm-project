@@ -1516,3 +1516,25 @@ model PrescriptionReferral {
   @@index([tenantId, sourceCompanyId, status, createdAt])
   @@index([tenantId, prescriptionId])
 }
+
+model PharmacyFefoRule {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  companyId       String   @db.Uuid
+  businessUnitId  String   @db.Uuid
+  ruleKey         String   @db.VarChar(30)
+  label           String   @db.VarChar(120)
+  minDays         Int
+  maxDays         Int?
+  discountPercent Decimal  @default(0) @db.Decimal(5, 2)
+  action          String   @db.VarChar(40)
+  active          Boolean  @default(true)
+  displayOrder    Int      @default(0)
+  updatedById     String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, companyId, businessUnitId, ruleKey])
+  @@index([tenantId, companyId, businessUnitId, active, displayOrder])
+  @@index([updatedById])
+}

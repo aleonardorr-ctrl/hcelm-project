@@ -46,6 +46,9 @@ const Pharmacy = lazy(() => import("./pages/Pharmacy"));
 const PharmacyCatalogs = lazy(() => import("./pages/PharmacyCatalogs"));
 const PharmacyInventory = lazy(() => import("./pages/PharmacyInventory"));
 const PharmacySales = lazy(() => import("./pages/PharmacySales"));
+const PharmacyFefoSettings = lazy(
+  () => import("./pages/PharmacyFefoSettings"),
+);
 const Billing = lazy(() => import("./pages/Billing"));
 import ClinicalNavigation from "./components/clinical/ClinicalNavigation";
 
@@ -482,6 +485,14 @@ function AppRoutes() {
                 title="Drogueria"
                 description="Modulo habilitado para su desarrollo independiente y posterior integracion con inventarios y ventas."
               />
+            </ModuleProtected>
+          }
+        />
+        <Route
+          path="/pharmacy/settings/fefo"
+          element={
+            <ModuleProtected moduleKey="PHARMACY">
+              <PharmacyFefoSettings />
             </ModuleProtected>
           }
         />

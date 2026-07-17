@@ -185,15 +185,99 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleDateString("es-PE");
 }
 
+type FefoRuleAction =
+  | "NORMAL"
+  | "ALERT"
+  | "SUGGEST_DISCOUNT"
+  | "REQUIRE_AUTHORIZATION";
+
+type FefoRule = {
+  id: "NORMAL" | "WATCH" | "PROMOTION" | "CRITICAL";
+  label: string;
+  minDays: number;
+  maxDays: number | null;
+  discountPercent: number;
+  action: FefoRuleAction;
+};
+
 type FefoVisualState = {
   key: "NORMAL" | "WATCH" | "PROMOTION" | "CRITICAL" | "UNKNOWN";
   label: string;
   detail: string;
   discountPercent: number;
+  action: FefoRuleAction | "UNKNOWN";
   containerClass: string;
   symbolClass: string;
   symbol: string;
 };
+
+const FEFO_STORAGE_KEY = "hcelm_fefo_rules_v1";
+
+const DEFAULT_FEFO_RULES: FefoRule[] = [
+  {
+    id: "NORMAL",
+    label: "Vencimiento normal",
+    minDays: 181,
+    maxDays: null,
+    discountPercent: 0,
+    action: "NORMAL",
+  },
+  {
+    id: "WATCH",
+    label: "Vigilar rotación",
+    minDays: 91,
+    maxDays: 180,
+    discountPercent: 0,
+    action: "ALERT",
+  },
+  {
+    id: "PROMOTION",
+    label: "Promoción FEFO",
+    minDays: 31,
+    maxDays: 90,
+    discountPercent: 15,
+    action: "SUGGEST_DISCOUNT",
+  },
+  {
+    id: "CRITICAL",
+    label: "Vencimiento crítico",
+    minDays: 0,
+    maxDays: 30,
+    discountPercent: 20,
+    action: "REQUIRE_AUTHORIZATION",
+  },
+];
+
+function readFefoRules(): FefoRule[] {
+  try {
+    const saved = localStorage.getItem(FEFO_STORAGE_KEY);
+
+    if (!saved) {
+      return DEFAULT_FEFO_RULES;
+    }
+
+    const parsed = JSON.parse(saved);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_FEFO_RULES;
+    }
+
+    const validRules = parsed.filter(
+      (rule): rule is FefoRule =>
+        rule &&
+        typeof rule.id === "string" &&
+        typeof rule.label === "string" &&
+        typeof rule.minDays === "number" &&
+        (typeof rule.maxDays === "number" || rule.maxDays === null) &&
+        typeof rule.discountPercent === "number" &&
+        typeof rule.action === "string",
+    );
+
+    return validRules.length > 0 ? validRules : DEFAULT_FEFO_RULES;
+  } catch {
+    return DEFAULT_FEFO_RULES;
+  }
+}
 
 function getDaysUntilExpiration(value?: string | null) {
   if (!value) return null;
@@ -209,6 +293,20 @@ function getDaysUntilExpiration(value?: string | null) {
   );
 }
 
+function getFefoRuleForDays(days: number): FefoRule {
+  const rules = readFefoRules();
+
+  const matched = rules.find((rule) => {
+    const insideMinimum = days >= rule.minDays;
+    const insideMaximum =
+      rule.maxDays === null || days <= rule.maxDays;
+
+    return insideMinimum && insideMaximum;
+  });
+
+  return matched ?? DEFAULT_FEFO_RULES[0];
+}
+
 function getFefoVisualState(value?: string | null): FefoVisualState {
   const days = getDaysUntilExpiration(value);
 
@@ -218,9 +316,10 @@ function getFefoVisualState(value?: string | null): FefoVisualState {
       label: "Sin fecha registrada",
       detail: "Revisar información del lote",
       discountPercent: 0,
+      action: "UNKNOWN",
       containerClass:
-        "border-slate-400 bg-slate-100 text-slate-900 ring-2 ring-slate-200",
-      symbolClass: "rounded-md border-2 border-slate-700 bg-white",
+        "border-slate-500 bg-slate-100 text-slate-950 ring-2 ring-slate-300",
+      symbolClass: "rounded-md border-2 border-slate-800 bg-white",
       symbol: "?",
     };
   }
@@ -231,69 +330,62 @@ function getFefoVisualState(value?: string | null): FefoVisualState {
       label: "Lote vencido",
       detail: "Bloqueado: no debe venderse",
       discountPercent: 0,
+      action: "REQUIRE_AUTHORIZATION",
       containerClass:
-        "border-red-700 bg-red-100 text-red-950 ring-2 ring-red-300",
+        "border-red-800 bg-red-100 text-red-950 ring-2 ring-red-400",
       symbolClass:
-        "border-2 border-red-900 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
+        "border-2 border-red-950 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
       symbol: "!",
     };
   }
 
-  if (days <= 30) {
-    return {
-      key: "CRITICAL",
-      label: "Vencimiento crítico",
-      detail: `${days} día(s): requiere revisión y autorización`,
-      discountPercent: 0,
-      containerClass:
-        "border-red-700 bg-red-100 text-red-950 ring-2 ring-red-300",
-      symbolClass:
-        "border-2 border-red-900 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
-      symbol: "!",
-    };
-  }
+  const rule = getFefoRuleForDays(days);
 
-  if (days <= 90) {
-    return {
-      key: "PROMOTION",
-      label: "Promoción FEFO",
-      detail: `${days} día(s) para vencer`,
-      discountPercent: 15,
+  const visualByRule: Record<
+    FefoRule["id"],
+    Pick<FefoVisualState, "containerClass" | "symbolClass" | "symbol">
+  > = {
+    NORMAL: {
       containerClass:
-        "border-orange-700 bg-orange-100 text-orange-950 ring-2 ring-orange-300",
+        "border-emerald-800 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-400",
       symbolClass:
-        "rotate-45 border-2 border-orange-900 bg-orange-600 text-white",
-      symbol: "◆",
-    };
-  }
-
-  if (days <= 180) {
-    return {
-      key: "WATCH",
-      label: "Vigilar rotación",
-      detail: `${days} día(s) para vencer`,
-      discountPercent: 0,
+        "rounded-full border-2 border-emerald-950 bg-emerald-600 text-white",
+      symbol: "●",
+    },
+    WATCH: {
       containerClass:
-        "border-yellow-700 bg-yellow-100 text-yellow-950 ring-2 ring-yellow-300",
+        "border-yellow-800 bg-yellow-100 text-yellow-950 ring-2 ring-yellow-400",
       symbolClass:
-        "border-2 border-yellow-900 bg-yellow-400 text-yellow-950 [clip-path:polygon(50%_0%,100%_100%,0%_100%)]",
+        "border-2 border-yellow-950 bg-yellow-400 text-yellow-950 [clip-path:polygon(50%_0%,100%_100%,0%_100%)]",
       symbol: "▲",
-    };
-  }
+    },
+    PROMOTION: {
+      containerClass:
+        "border-orange-800 bg-orange-100 text-orange-950 ring-2 ring-orange-400",
+      symbolClass:
+        "rotate-45 border-2 border-orange-950 bg-orange-600 text-white",
+      symbol: "◆",
+    },
+    CRITICAL: {
+      containerClass:
+        "border-red-800 bg-red-100 text-red-950 ring-2 ring-red-400",
+      symbolClass:
+        "border-2 border-red-950 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
+      symbol: "!",
+    },
+  };
+
+  const visual = visualByRule[rule.id];
 
   return {
-    key: "NORMAL",
-    label: "Vencimiento normal",
+    key: rule.id,
+    label: rule.label,
     detail: `${days} día(s) para vencer`,
-    discountPercent: 0,
-    containerClass:
-      "border-emerald-700 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-300",
-    symbolClass:
-      "rounded-full border-2 border-emerald-900 bg-emerald-600 text-white",
-    symbol: "●",
+    discountPercent: rule.discountPercent,
+    action: rule.action,
+    ...visual,
   };
 }
-
 function FefoStatusBadge({
   expirationDate,
 }: {
@@ -329,11 +421,15 @@ function FefoStatusBadge({
       </div>
 
       {status.discountPercent > 0 && (
-        <div className="mt-2 rounded-lg border-2 border-orange-800 bg-white px-3 py-2 text-center">
-          <span className="text-xs font-black uppercase text-orange-900">
-            Descuento sugerido
+        <div className="mt-2 rounded-lg border-2 border-current bg-white px-3 py-2 text-center">
+          <span className="text-xs font-black uppercase">
+            {status.action === "REQUIRE_AUTHORIZATION"
+              ? "Descuento con autorización"
+              : status.action === "SUGGEST_DISCOUNT"
+                ? "Descuento sugerido"
+                : "Descuento configurado"}
           </span>
-          <strong className="ml-2 text-lg text-orange-800">
+          <strong className="ml-2 text-lg">
             {status.discountPercent} %
           </strong>
         </div>
@@ -711,6 +807,12 @@ export default function PharmacySales() {
                   className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
                 >
                   Catálogo
+                </Link>
+                <Link
+                  to="/pharmacy/settings/fefo"
+                  className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-lg border border-orange-300 bg-orange-50 px-4 py-2 text-center text-sm font-bold text-orange-900 hover:bg-orange-100 sm:col-span-1"
+                >
+                  Configurar FEFO
                 </Link>
                 <Link
                   to="/billing"

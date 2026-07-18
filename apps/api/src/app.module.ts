@@ -24,6 +24,7 @@ import { MedicationsModule } from './medications/medications.module';
 import { PatientsModule } from './patients/patients.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PharmacyFefoModule } from './pharmacy-fefo/pharmacy-fefo.module';
+import { PharmacyFefoAuthorizationModule } from './pharmacy-fefo-authorization/pharmacy-fefo-authorization.module';
 import { PharmacySalesModule } from './pharmacy-sales/pharmacy-sales.module';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -54,6 +55,7 @@ import { IdentityLookupModule } from './identity-lookup/identity-lookup.module';
     LaboratoryCatalogModule,
     MedicationCatalogModule,
     PharmacyFefoModule,
+    PharmacyFefoAuthorizationModule,
     PharmacySalesModule,
   ],
   controllers: [AppController],

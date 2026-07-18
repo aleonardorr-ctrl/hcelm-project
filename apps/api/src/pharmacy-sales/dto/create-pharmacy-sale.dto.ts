@@ -17,6 +17,20 @@ import {
 } from 'class-validator';
 import { PharmacyPaymentMethod } from '@prisma/client';
 
+export class PharmacyFefoSaleAuthorizationDto {
+  @IsUUID()
+  authorizationId!: string;
+
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { message: 'lotId debe tener formato UUID hexadecimal.' },
+  )
+  lotId!: string;
+
+  @IsString()
+  @Length(32, 200)
+  token!: string;
+}
 export class CreatePharmacySaleItemDto {
   @IsUUID()
   medicationId!: string;
@@ -26,6 +40,12 @@ export class CreatePharmacySaleItemDto {
   @IsPositive()
   @Max(999999999)
   quantity!: number;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => PharmacyFefoSaleAuthorizationDto)
+  fefoAuthorizations?: PharmacyFefoSaleAuthorizationDto[];
 }
 
 export class CreatePharmacySalePaymentDto {

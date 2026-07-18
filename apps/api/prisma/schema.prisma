@@ -1538,3 +1538,56 @@ model PharmacyFefoRule {
   @@index([tenantId, companyId, businessUnitId, active, displayOrder])
   @@index([updatedById])
 }
+
+enum PharmacyFefoAuthorizationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CONSUMED
+  CANCELLED
+}
+
+model PharmacyFefoAuthorization {
+  id                    String                            @id @default(uuid()) @db.Uuid
+  tenantId              String                            @db.Uuid
+  companyId             String                            @db.Uuid
+  businessUnitId        String                            @db.Uuid
+  warehouseId           String                            @db.Uuid
+  medicationId          String                            @db.Uuid
+  companyMedicationId   String                            @db.Uuid
+  lotId                 String                            @db.Uuid
+  requestedById         String                            @db.Uuid
+  requestedQuantity     Decimal                           @db.Decimal(14, 3)
+  requestReason         String                            @db.Text
+  status                PharmacyFefoAuthorizationStatus   @default(PENDING)
+  ruleKey               String                            @default("CRITICAL") @db.VarChar(30)
+  daysToExpireAtRequest Int
+  lotNumber             String                            @db.VarChar(100)
+  expirationDate        DateTime
+  stockAtRequest        Decimal                           @db.Decimal(14, 3)
+  approvedById          String?                           @db.Uuid
+  approvalReason        String?                           @db.Text
+  approvedAt            DateTime?
+  rejectedById          String?                           @db.Uuid
+  rejectionReason       String?                           @db.Text
+  rejectedAt            DateTime?
+  authorizationTokenHash String?                          @db.VarChar(128)
+  validUntil            DateTime
+  consumedAt            DateTime?
+  consumedBySaleId      String?                           @db.Uuid
+  cancelledAt           DateTime?
+  cancelledById         String?                           @db.Uuid
+  cancellationReason    String?                           @db.Text
+  metadata              Json?
+  createdAt             DateTime                          @default(now())
+  updatedAt             DateTime                          @updatedAt
+
+  @@index([tenantId, companyId, businessUnitId, status, createdAt])
+  @@index([tenantId, requestedById, status, createdAt])
+  @@index([tenantId, approvedById, approvedAt])
+  @@index([tenantId, medicationId, lotId, status])
+  @@index([tenantId, authorizationTokenHash])
+  @@index([validUntil, status])
+  @@index([consumedBySaleId])
+}

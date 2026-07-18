@@ -18,6 +18,7 @@ import {
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { MedicationInventoryService } from '../medication-catalog/medication-inventory.service';
+import { PharmacyFefoAuthorizationService } from '../pharmacy-fefo-authorization/pharmacy-fefo-authorization.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePharmacySaleDto } from './dto/create-pharmacy-sale.dto';
 import { VoidPharmacySaleDto } from './dto/void-pharmacy-sale.dto';
@@ -29,6 +30,7 @@ export class PharmacySalesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventoryService: MedicationInventoryService,
+    private readonly fefoAuthorizationService: PharmacyFefoAuthorizationService,
   ) {}
 
   async createOtcSale(params: {
@@ -99,6 +101,38 @@ export class PharmacySalesService {
         );
       }
 
+      const series = 'V001';
+
+      await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(
+          hashtext(${scope.companyId + ':PHARMACY_SALE:' + series})
+        )
+      `;
+
+      const [saleMaximum, sequenceMaximum] = await Promise.all([
+        tx.pharmacySale.aggregate({
+          where: {
+            companyId: scope.companyId,
+            series,
+          },
+          _max: { sequenceNumber: true },
+        }),
+        tx.pharmacyDocumentSequence.aggregate({
+          where: {
+            companyId: scope.companyId,
+            documentType: PharmacyDocumentType.INTERNAL_SALE,
+            series,
+          },
+          _max: { currentNumber: true },
+        }),
+      ]);
+
+      const nextSequenceNumber =
+        Math.max(
+          saleMaximum._max.sequenceNumber ?? 0,
+          sequenceMaximum._max.currentNumber ?? 0,
+        ) + 1;
+
       const sequence = await tx.pharmacyDocumentSequence.upsert({
         where: {
           companyId_businessUnitId_warehouseId_documentType_series: {
@@ -106,21 +140,25 @@ export class PharmacySalesService {
             businessUnitId: scope.businessUnitId,
             warehouseId: scope.warehouseId,
             documentType: PharmacyDocumentType.INTERNAL_SALE,
-            series: 'V001',
+            series,
           },
         },
-        update: { currentNumber: { increment: 1 }, active: true },
+        update: {
+          currentNumber: nextSequenceNumber,
+          active: true,
+        },
         create: {
           tenantId: params.tenantId,
           companyId: scope.companyId,
           businessUnitId: scope.businessUnitId,
           warehouseId: scope.warehouseId,
           documentType: PharmacyDocumentType.INTERNAL_SALE,
-          series: 'V001',
-          currentNumber: 1,
+          series,
+          currentNumber: nextSequenceNumber,
           active: true,
         },
       });
+
       const saleId = randomUUID();
       const saleNumber =
         sequence.series + '-' + String(sequence.currentNumber).padStart(8, '0');
@@ -212,16 +250,83 @@ export class PharmacySalesService {
               '.',
           );
         }
+        const criticalAllocations = pricingPreview.allocations.filter(
+          (allocation) => allocation.requiresAuthorization,
+        );
 
-        if (pricingPreview.blocked) {
+        const nonAuthorizationBlockedReasons = Array.from(
+          new Set(
+            pricingPreview.allocations
+              .filter(
+                (allocation) =>
+                  !allocation.requiresAuthorization &&
+                  Boolean(allocation.blockedReason),
+              )
+              .map((allocation) => String(allocation.blockedReason)),
+          ),
+        );
+
+        if (nonAuthorizationBlockedReasons.length > 0) {
           throw new ConflictException(
-            medication.genericName +
-              ': ' +
-              (pricingPreview.blockedReasons.join(' ') ||
-                'La política FEFO bloqueó esta venta.'),
+            nonAuthorizationBlockedReasons.join(' '),
           );
         }
 
+        const suppliedAuthorizations = input.fefoAuthorizations || [];
+        const validatedCriticalAuthorizations: Array<{
+          authorizationId: string;
+          token: string;
+          lotId: string;
+          quantity: Prisma.Decimal;
+        }> = [];
+
+        for (const allocation of criticalAllocations) {
+          const supplied = suppliedAuthorizations.find(
+            (authorization) => authorization.lotId === allocation.lotId,
+          );
+
+          if (!supplied) {
+            throw new ConflictException(
+              'The critical lot ' +
+                allocation.lotNumber +
+                ' requires an approved FEFO authorization.',
+            );
+          }
+
+          const authorizedQuantity = new Prisma.Decimal(
+            allocation.allocatedQuantity,
+          );
+
+          await this.fefoAuthorizationService.validateApprovedAuthorization(
+            tx,
+            {
+              tenantId: params.tenantId,
+              authorizationId: supplied.authorizationId,
+              token: supplied.token,
+              medicationId: medication.id,
+              lotId: allocation.lotId,
+              quantity: authorizedQuantity,
+            },
+          );
+
+          validatedCriticalAuthorizations.push({
+            authorizationId: supplied.authorizationId,
+            token: supplied.token,
+            lotId: allocation.lotId,
+            quantity: authorizedQuantity,
+          });
+        }
+
+        if (
+          pricingPreview.blocked &&
+          criticalAllocations.length === 0 &&
+          nonAuthorizationBlockedReasons.length === 0
+        ) {
+          throw new ConflictException(
+            pricingPreview.blockedReasons.join(' ') ||
+              'The FEFO validation blocked this sale.',
+          );
+        }
         const previewByLotId = new Map(
           pricingPreview.allocations.map((allocation) => [
             allocation.lotId,
@@ -361,6 +466,42 @@ export class PharmacySalesService {
               .mul(100)
               .toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 
+        const actualMovementQuantityByLot = new Map<string, Prisma.Decimal>();
+
+        for (const movement of inventoryResult.movements) {
+          const current =
+            actualMovementQuantityByLot.get(movement.lotId) ||
+            new Prisma.Decimal(0);
+
+          actualMovementQuantityByLot.set(
+            movement.lotId,
+            current.plus(movement.quantity),
+          );
+        }
+
+        for (const authorization of validatedCriticalAuthorizations) {
+          const actualQuantity =
+            actualMovementQuantityByLot.get(authorization.lotId);
+
+          if (!actualQuantity || !actualQuantity.eq(authorization.quantity)) {
+            throw new ConflictException(
+              'The final critical-lot allocation does not match the FEFO authorization.',
+            );
+          }
+
+          await this.fefoAuthorizationService.consumeApprovedAuthorization(
+            tx,
+            {
+              tenantId: params.tenantId,
+              authorizationId: authorization.authorizationId,
+              token: authorization.token,
+              medicationId: medication.id,
+              lotId: authorization.lotId,
+              quantity: authorization.quantity,
+              saleId,
+            },
+          );
+        }
         await tx.pharmacySaleItem.create({
           data: {
             id: saleItemId,

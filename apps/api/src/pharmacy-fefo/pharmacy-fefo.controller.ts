@@ -6,10 +6,13 @@ import {
   Put,
   Request,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UpdatePharmacyFefoRulesDto } from './dto/update-pharmacy-fefo-rules.dto';
 import { PharmacyFefoService } from './pharmacy-fefo.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('pharmacy-fefo')
 export class PharmacyFefoController {
   constructor(

@@ -313,7 +313,7 @@ async function loadFefoRulesFromServer(): Promise<FefoRule[]> {
     return readFefoRules();
   }
 
-  const response = await fetch("/api/pharmacy-fefo/rules", {
+  const response = await fetch(`${API_BASE}/pharmacy-fefo/rules`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -433,30 +433,30 @@ function getFefoVisualState(
   > = {
     NORMAL: {
       containerClass:
-        "border-emerald-800 bg-emerald-100 text-emerald-950 ring-2 ring-emerald-400",
+        "fefo-card-normal",
       symbolClass:
-        "rounded-full border-2 border-emerald-950 bg-emerald-600 text-white",
+        "fefo-shape fefo-shape-normal",
       symbol: "●",
     },
     WATCH: {
       containerClass:
-        "border-yellow-800 bg-yellow-100 text-yellow-950 ring-2 ring-yellow-400",
+        "fefo-card-watch",
       symbolClass:
-        "border-2 border-yellow-950 bg-yellow-400 text-yellow-950 [clip-path:polygon(50%_0%,100%_100%,0%_100%)]",
+        "fefo-shape fefo-shape-watch",
       symbol: "▲",
     },
     PROMOTION: {
       containerClass:
-        "border-orange-800 bg-orange-100 text-orange-950 ring-2 ring-orange-400",
+        "fefo-card-promotion",
       symbolClass:
-        "rotate-45 border-2 border-orange-950 bg-orange-600 text-white",
+        "fefo-shape fefo-shape-promotion",
       symbol: "◆",
     },
     CRITICAL: {
       containerClass:
-        "border-red-800 bg-red-100 text-red-950 ring-2 ring-red-400",
+        "fefo-card-critical",
       symbolClass:
-        "border-2 border-red-950 bg-red-700 text-white [clip-path:polygon(30%_0%,70%_0%,100%_30%,100%_70%,70%_100%,30%_100%,0%_70%,0%_30%)]",
+        "fefo-shape fefo-shape-critical",
       symbol: "!",
     },
   };

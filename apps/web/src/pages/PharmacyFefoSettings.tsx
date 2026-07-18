@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
+const API_BASE =
+  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 type FefoRuleAction =
   | "NORMAL"
@@ -74,9 +77,46 @@ const RULE_STYLES: Record<FefoRule["id"], string> = {
 
 const RULE_SYMBOLS: Record<FefoRule["id"], string> = {
   NORMAL: "●",
-  WATCH: "▲",
-  PROMOTION: "◆",
-  CRITICAL: "⛔",
+  WATCH: "!",
+  PROMOTION: "%",
+  CRITICAL: "!",
+};
+
+const RULE_SYMBOL_STYLES: Record<FefoRule["id"], CSSProperties> = {
+  NORMAL: {
+    backgroundColor: "#16a34a",
+    borderColor: "#14532d",
+    color: "#ffffff",
+    borderRadius: "9999px",
+  },
+  WATCH: {
+    backgroundColor: "#facc15",
+    borderColor: "#713f12",
+    color: "#422006",
+    clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)",
+    paddingTop: "0.55rem",
+  },
+  PROMOTION: {
+    backgroundColor: "#f97316",
+    borderColor: "#7c2d12",
+    color: "#ffffff",
+    transform: "rotate(45deg)",
+    borderRadius: "0.25rem",
+  },
+  CRITICAL: {
+    backgroundColor: "#dc2626",
+    borderColor: "#450a0a",
+    color: "#ffffff",
+    clipPath:
+      "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
+  },
+};
+
+const RULE_SYMBOL_TEXT_STYLES: Record<FefoRule["id"], CSSProperties> = {
+  NORMAL: {},
+  WATCH: {},
+  PROMOTION: { transform: "rotate(-45deg)" },
+  CRITICAL: {},
 };
 
 function getToken() {
@@ -198,7 +238,7 @@ export default function PharmacyFefoSettings() {
       setMessage("");
 
       try {
-        const response = await fetch("/api/pharmacy-fefo/rules", {
+        const response = await fetch(`${API_BASE}/pharmacy-fefo/rules`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -288,7 +328,7 @@ export default function PharmacyFefoSettings() {
     setMessage("");
 
     try {
-      const response = await fetch("/api/pharmacy-fefo/rules", {
+      const response = await fetch(`${API_BASE}/pharmacy-fefo/rules`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -354,7 +394,7 @@ export default function PharmacyFefoSettings() {
 
     try {
       const response = await fetch(
-        "/api/pharmacy-fefo/rules/restore-defaults",
+        `${API_BASE}/pharmacy-fefo/rules/restore-defaults`,
         {
           method: "POST",
           headers: {
@@ -506,8 +546,14 @@ export default function PharmacyFefoSettings() {
               className={`rounded-2xl border-2 p-4 shadow-sm ${RULE_STYLES[rule.id]}`}
             >
               <div className="flex items-start gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-current bg-white text-2xl font-black">
-                  {RULE_SYMBOLS[rule.id]}
+                <div
+                  className="flex h-12 w-12 shrink-0 items-center justify-center border-2 text-2xl font-black shadow-sm"
+                  style={RULE_SYMBOL_STYLES[rule.id]}
+                  aria-hidden="true"
+                >
+                  <span style={RULE_SYMBOL_TEXT_STYLES[rule.id]}>
+                    {RULE_SYMBOLS[rule.id]}
+                  </span>
                 </div>
 
                 <div className="min-w-0">

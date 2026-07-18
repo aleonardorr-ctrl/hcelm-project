@@ -121,3 +121,80 @@
 .animate-alert-slow {
   animation: hcelm-alert-slow 1.05s infinite;
 }
+/* HCELM - Colores y formas FEFO explícitos */
+.fefo-shape {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  flex: 0 0 auto !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+.fefo-shape-normal {
+  background-color: #16a34a !important;
+  border: 2px solid #14532d !important;
+  color: #ffffff !important;
+  border-radius: 9999px !important;
+}
+
+.fefo-shape-watch {
+  background-color: #facc15 !important;
+  border: 2px solid #713f12 !important;
+  color: #422006 !important;
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%) !important;
+  padding-top: 0.45rem !important;
+}
+
+.fefo-shape-promotion {
+  background-color: #f97316 !important;
+  border: 2px solid #7c2d12 !important;
+  color: #ffffff !important;
+  transform: rotate(45deg) !important;
+}
+
+.fefo-shape-promotion > span {
+  transform: rotate(-45deg) !important;
+}
+
+.fefo-shape-critical {
+  background-color: #dc2626 !important;
+  border: 2px solid #450a0a !important;
+  color: #ffffff !important;
+  clip-path: polygon(
+    30% 0%,
+    70% 0%,
+    100% 30%,
+    100% 70%,
+    70% 100%,
+    30% 100%,
+    0% 70%,
+    0% 30%
+  ) !important;
+}
+
+.fefo-card-normal {
+  background-color: #dcfce7 !important;
+  border-color: #166534 !important;
+  color: #052e16 !important;
+}
+
+.fefo-card-watch {
+  background-color: #fef9c3 !important;
+  border-color: #854d0e !important;
+  color: #422006 !important;
+}
+
+.fefo-card-promotion {
+  background-color: #ffedd5 !important;
+  border-color: #9a3412 !important;
+  color: #431407 !important;
+}
+
+.fefo-card-critical {
+  background-color: #fee2e2 !important;
+  border-color: #991b1b !important;
+  color: #450a0a !important;
+}

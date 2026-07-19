@@ -145,7 +145,7 @@ export default function Home() {
 
             <div className="mt-3 text-sm text-cyan-50 space-y-1">
               <p>
-                <span className="font-semibold">Tenant:</span> {tenantName}
+                <span className="font-semibold">Grupo:</span> {tenantName}
               </p>
               <p>
                 <span className="font-semibold">Empresa:</span> {companyName}

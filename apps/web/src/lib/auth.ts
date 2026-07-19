@@ -1,19 +1,20 @@
-export const TOKEN_KEY = 'ame_token';
+export const TOKEN_KEY = "ame_token";
+export const PLATFORM_TOKEN_KEY = "hcelm_platform_token";
 
 const PROFESSIONAL_KEYS = [
-  'hcelm_professional_verified',
-  'hcelm_professional_name',
-  'hcelm_professional_dni',
-  'hcelm_professional_type',
-  'hcelm_professional_cmp',
-  'hcelm_professional_rne',
-  'hcelm_professional_license',
-  'hcelm_professional_role',
-  'hcelm_require_professional_verification',
-  'hcelm_tenant_name',
-  'hcelm_company_name',
-  'hcelm_user_name',
-  'hcelm_user_role',
+  "hcelm_professional_verified",
+  "hcelm_professional_name",
+  "hcelm_professional_dni",
+  "hcelm_professional_type",
+  "hcelm_professional_cmp",
+  "hcelm_professional_rne",
+  "hcelm_professional_license",
+  "hcelm_professional_role",
+  "hcelm_require_professional_verification",
+  "hcelm_tenant_name",
+  "hcelm_company_name",
+  "hcelm_user_name",
+  "hcelm_user_role",
 ];
 
 export function clearAuthSession() {
@@ -25,10 +26,10 @@ export function clearAuthSession() {
     sessionStorage.removeItem(key);
   });
 
-  localStorage.removeItem('selectedPatient');
-  localStorage.removeItem('selectedEncounter');
-  sessionStorage.removeItem('selectedPatient');
-  sessionStorage.removeItem('selectedEncounter');
+  localStorage.removeItem("selectedPatient");
+  localStorage.removeItem("selectedEncounter");
+  sessionStorage.removeItem("selectedPatient");
+  sessionStorage.removeItem("selectedEncounter");
 }
 
 export function getAuthToken() {
@@ -63,9 +64,41 @@ export function removeSessionItem(key: string) {
 
 export function hasProfessionalVerification() {
   const requireVerification =
-    sessionStorage.getItem('hcelm_require_professional_verification') === 'true';
+    sessionStorage.getItem("hcelm_require_professional_verification") ===
+    "true";
 
   if (requireVerification) return false;
 
-  return getSessionItem('hcelm_professional_verified') === 'true';
+  return getSessionItem("hcelm_professional_verified") === "true";
+}
+export function preservePlatformToken() {
+  const token = getAuthToken();
+
+  if (!token) {
+    return false;
+  }
+
+  localStorage.removeItem(PLATFORM_TOKEN_KEY);
+  sessionStorage.setItem(PLATFORM_TOKEN_KEY, token);
+
+  return true;
+}
+
+export function restorePlatformToken() {
+  const platformToken = sessionStorage.getItem(PLATFORM_TOKEN_KEY);
+
+  if (!platformToken) {
+    return false;
+  }
+
+  setAuthToken(platformToken);
+  sessionStorage.removeItem(PLATFORM_TOKEN_KEY);
+  localStorage.removeItem(PLATFORM_TOKEN_KEY);
+
+  return true;
+}
+
+export function hasPreservedPlatformToken() {
+  localStorage.removeItem(PLATFORM_TOKEN_KEY);
+  return Boolean(sessionStorage.getItem(PLATFORM_TOKEN_KEY));
 }

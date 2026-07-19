@@ -28,6 +28,9 @@ const DataQuality = lazy(() => import("./pages/DataQuality"));
 const Home = lazy(() => import("./pages/Home"));
 const InstitutionSettings = lazy(() => import("./pages/InstitutionSettings"));
 const Login = lazy(() => import("./pages/Login"));
+const PlatformDashboard = lazy(
+  () => import("./pages/platform/PlatformDashboard"),
+);
 const NewEncounter = lazy(() => import("./pages/NewEncounter"));
 const OrganizationAdministration = lazy(
   () => import("./pages/OrganizationAdministration"),
@@ -39,16 +42,20 @@ const ProfessionalVerification = lazy(
 import {
   clearAuthSession,
   getAuthToken,
+  hasPreservedPlatformToken,
   hasProfessionalVerification,
   hasValidToken,
+  removeSessionItem,
+  restorePlatformToken,
 } from "./lib/auth";
 const Pharmacy = lazy(() => import("./pages/Pharmacy"));
 const PharmacyCatalogs = lazy(() => import("./pages/PharmacyCatalogs"));
 const PharmacyInventory = lazy(() => import("./pages/PharmacyInventory"));
 const PharmacySales = lazy(() => import("./pages/PharmacySales"));
-const PharmacyFefoSettings = lazy(
-  () => import("./pages/PharmacyFefoSettings"),
+const PharmacyFefoAuthorizations = lazy(
+  () => import("./pages/PharmacyFefoAuthorizations"),
 );
+const PharmacyFefoSettings = lazy(() => import("./pages/PharmacyFefoSettings"));
 const Billing = lazy(() => import("./pages/Billing"));
 import ClinicalNavigation from "./components/clinical/ClinicalNavigation";
 
@@ -179,6 +186,49 @@ function TokenProtected({ children }: { children: ReactElement }) {
   return children;
 }
 
+function readJwtPayload() {
+  const token = getAuthToken();
+
+  if (!token) return null;
+
+  try {
+    const payload = token.split(".")[1];
+
+    if (!payload) return null;
+
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = decodeURIComponent(
+      atob(normalized)
+        .split("")
+        .map(
+          (character) =>
+            `%${character.charCodeAt(0).toString(16).padStart(2, "0")}`,
+        )
+        .join(""),
+    );
+
+    return JSON.parse(decoded) as {
+      platformRole?: string | null;
+    };
+  } catch {
+    return null;
+  }
+}
+
+function PlatformProtected({ children }: { children: ReactElement }) {
+  if (!hasValidToken()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const payload = readJwtPayload();
+  const platformRole = String(payload?.platformRole || "").toUpperCase();
+
+  if (platformRole !== "PLATFORM_SUPERADMIN") {
+    return <Navigate to="/home" replace />;
+  }
+
+  return children;
+}
 function ProfessionalProtected({ children }: { children: ReactElement }) {
   if (!hasValidToken()) {
     return <Navigate to="/login" replace />;
@@ -268,7 +318,8 @@ function Navbar() {
 
   const isAuthPage =
     location.pathname === "/login" ||
-    location.pathname === "/professional-verification";
+    location.pathname === "/professional-verification" ||
+    location.pathname.startsWith("/platform");
 
   if (isAuthPage) {
     return null;
@@ -280,7 +331,7 @@ function Navbar() {
     "Usuario HCELM";
 
   const tenantName =
-    sessionStorage.getItem("hcelm_tenant_name") || "Tenant activo";
+    sessionStorage.getItem("hcelm_tenant_name") || "Grupo empresarial";
 
   const companyName =
     sessionStorage.getItem("hcelm_company_name") || "Empresa activa";
@@ -289,6 +340,36 @@ function Navbar() {
     sessionStorage.getItem("hcelm_professional_role") ||
     sessionStorage.getItem("hcelm_user_role") ||
     "Rol operativo";
+
+  const temporaryPlatformAccess =
+    sessionStorage.getItem("hcelm_context_source") === "PLATFORM_SUPERADMIN" &&
+    sessionStorage.getItem("hcelm_access_mode") === "COMPANY_OPERATION" &&
+    hasPreservedPlatformToken();
+
+  const handleReturnToPlatform = () => {
+    if (!restorePlatformToken()) {
+      window.alert(
+        "No se encontró la sesión global conservada. Inicie sesión nuevamente.",
+      );
+      return;
+    }
+
+    [
+      "hcelm_professional_verified",
+      "hcelm_professional_name",
+      "hcelm_professional_dni",
+      "hcelm_professional_type",
+      "hcelm_professional_cmp",
+      "hcelm_professional_rne",
+      "hcelm_professional_license",
+      "hcelm_professional_role",
+      "hcelm_require_professional_verification",
+      "hcelm_access_mode",
+      "hcelm_context_source",
+    ].forEach(removeSessionItem);
+
+    window.location.href = "/platform";
+  };
 
   const handleLogout = () => {
     clearAuthSession();
@@ -315,7 +396,7 @@ function Navbar() {
 
         <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 text-xs md:text-sm">
           <div className="bg-slate-900 rounded-lg px-3 py-2 border border-slate-800">
-            <span className="text-slate-400">Tenant:</span>{" "}
+            <span className="text-slate-400">Grupo:</span>{" "}
             <span className="font-semibold">{tenantName}</span>
           </div>
 
@@ -329,6 +410,16 @@ function Navbar() {
             <span className="font-semibold">{userName}</span>
             <span className="text-slate-500"> / {roleName}</span>
           </div>
+
+          {temporaryPlatformAccess ? (
+            <button
+              type="button"
+              onClick={handleReturnToPlatform}
+              className="rounded-lg border border-cyan-300 bg-cyan-500 px-4 py-2 font-black text-slate-950 transition hover:bg-cyan-400"
+            >
+              Volver al panel global
+            </button>
+          ) : null}
 
           <button
             type="button"
@@ -387,175 +478,191 @@ function AppRoutes() {
     <div style={{ padding: "20px", maxWidth: "1800px", margin: "0 auto" }}>
       <Suspense fallback={<LoadingPage />}>
         <Routes>
-        <Route path="/" element={<RootRedirect />} />
-        <Route path="/login" element={<Login />} />
+          <Route path="/" element={<RootRedirect />} />
+          <Route path="/login" element={<Login />} />
+          <Route
+            path="/platform"
+            element={
+              <PlatformProtected>
+                <PlatformDashboard />
+              </PlatformProtected>
+            }
+          />
 
-        <Route
-          path="/professional-verification"
-          element={
-            <TokenProtected>
-              <ProfessionalVerification />
-            </TokenProtected>
-          }
-        />
+          <Route
+            path="/professional-verification"
+            element={
+              <TokenProtected>
+                <ProfessionalVerification />
+              </TokenProtected>
+            }
+          />
 
-        <Route
-          path="/home"
-          element={
-            <ProfessionalProtected>
-              <Home />
-            </ProfessionalProtected>
-          }
-        />
+          <Route
+            path="/home"
+            element={
+              <ProfessionalProtected>
+                <Home />
+              </ProfessionalProtected>
+            }
+          />
 
-        <Route
-          path="/patients"
-          element={
-            <ModuleProtected moduleKey="CLINICAL">
-              <Patients />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/new-encounter"
-          element={
-            <ModuleProtected moduleKey="CLINICAL">
-              <NewEncounter />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/anamnesis"
-          element={
-            <ModuleProtected moduleKey="CLINICAL">
-              <Anamnesis />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/certificates"
-          element={
-            <ModuleProtected moduleKey="CLINICAL">
-              <Certificates />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/certificates/issue"
-          element={<Navigate to="/certificates" replace />}
-        />
+          <Route
+            path="/patients"
+            element={
+              <ModuleProtected moduleKey="CLINICAL">
+                <Patients />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/new-encounter"
+            element={
+              <ModuleProtected moduleKey="CLINICAL">
+                <NewEncounter />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/anamnesis"
+            element={
+              <ModuleProtected moduleKey="CLINICAL">
+                <Anamnesis />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/certificates"
+            element={
+              <ModuleProtected moduleKey="CLINICAL">
+                <Certificates />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/certificates/issue"
+            element={<Navigate to="/certificates" replace />}
+          />
 
-        <Route
-          path="/pharmacy"
-          element={
-            <ModuleProtected moduleKey="PHARMACY">
-              <Pharmacy />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/pharmacy/catalogs"
-          element={
-            <ModuleProtected moduleKey="PHARMACY">
-              <PharmacyCatalogs />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/pharmacy/inventory"
-          element={
-            <ModuleProtected moduleKey="PHARMACY">
-              <PharmacyInventory />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/pharmacy/sales/new"
-          element={
-            <ModuleProtected moduleKey="PHARMACY">
-              <PharmacySales />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/drugstore"
-          element={
-            <ModuleProtected moduleKey="DRUGSTORE">
-              <ModulePlaceholder
-                title="Drogueria"
-                description="Modulo habilitado para su desarrollo independiente y posterior integracion con inventarios y ventas."
-              />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/pharmacy/settings/fefo"
-          element={
-            <ModuleProtected moduleKey="PHARMACY">
-              <PharmacyFefoSettings />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/billing"
-          element={
-            <ModuleProtected moduleKey="BILLING">
-              <Billing />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/management"
-          element={
-            <ModuleProtected moduleKey="MANAGEMENT">
-              <ModulePlaceholder
-                title="Gerencia"
-                description="Modulo habilitado para indicadores y reportes consolidados."
-              />
-            </ModuleProtected>
-          }
-        />
+          <Route
+            path="/pharmacy"
+            element={
+              <ModuleProtected moduleKey="PHARMACY">
+                <Pharmacy />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/pharmacy/catalogs"
+            element={
+              <ModuleProtected moduleKey="PHARMACY">
+                <PharmacyCatalogs />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/pharmacy/inventory"
+            element={
+              <ModuleProtected moduleKey="PHARMACY">
+                <PharmacyInventory />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/pharmacy/sales/new"
+            element={
+              <ModuleProtected moduleKey="PHARMACY">
+                <PharmacySales />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/drugstore"
+            element={
+              <ModuleProtected moduleKey="DRUGSTORE">
+                <ModulePlaceholder
+                  title="Drogueria"
+                  description="Modulo habilitado para su desarrollo independiente y posterior integracion con inventarios y ventas."
+                />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/pharmacy/authorizations/fefo"
+            element={
+              <ModuleProtected moduleKey="PHARMACY">
+                <PharmacyFefoAuthorizations />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/pharmacy/settings/fefo"
+            element={
+              <ModuleProtected moduleKey="PHARMACY">
+                <PharmacyFefoSettings />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/billing"
+            element={
+              <ModuleProtected moduleKey="BILLING">
+                <Billing />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/management"
+            element={
+              <ModuleProtected moduleKey="MANAGEMENT">
+                <ModulePlaceholder
+                  title="Gerencia"
+                  description="Modulo habilitado para indicadores y reportes consolidados."
+                />
+              </ModuleProtected>
+            }
+          />
 
-        <Route
-          path="/admin/organization"
-          element={
-            <ProfessionalProtected>
-              <OrganizationAdministration />
-            </ProfessionalProtected>
-          }
-        />
-        <Route
-          path="/institution"
-          element={
-            <ProfessionalProtected>
-              <InstitutionSettings />
-            </ProfessionalProtected>
-          }
-        />
-        <Route
-          path="/clinical/catalogs"
-          element={
-            <ModuleProtected moduleKey="CLINICAL">
-              <Catalogs />
-            </ModuleProtected>
-          }
-        />
-        <Route
-          path="/admin/catalogs"
-          element={
-            <SharedCatalogProtected>
-              <Navigate to="/clinical/catalogs" replace />
-            </SharedCatalogProtected>
-          }
-        />
-        <Route
-          path="/admin/data-quality"
-          element={
-            <ModuleProtected moduleKey="CLINICAL">
-              <DataQuality />
-            </ModuleProtected>
-          }
-        />
+          <Route
+            path="/admin/organization"
+            element={
+              <ProfessionalProtected>
+                <OrganizationAdministration />
+              </ProfessionalProtected>
+            }
+          />
+          <Route
+            path="/institution"
+            element={
+              <ProfessionalProtected>
+                <InstitutionSettings />
+              </ProfessionalProtected>
+            }
+          />
+          <Route
+            path="/clinical/catalogs"
+            element={
+              <ModuleProtected moduleKey="CLINICAL">
+                <Catalogs />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/admin/catalogs"
+            element={
+              <SharedCatalogProtected>
+                <Navigate to="/clinical/catalogs" replace />
+              </SharedCatalogProtected>
+            }
+          />
+          <Route
+            path="/admin/data-quality"
+            element={
+              <ModuleProtected moduleKey="CLINICAL">
+                <DataQuality />
+              </ModuleProtected>
+            }
+          />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

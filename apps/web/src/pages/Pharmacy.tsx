@@ -109,6 +109,14 @@ export default function Pharmacy() {
           />
 
           <PharmacyCard
+            emoji="✅"
+            title="Autorizaciones FEFO"
+            description="Revisar solicitudes pendientes, aprobar o rechazar ventas de lotes críticos y entregar el token de un solo uso."
+            to="/pharmacy/authorizations/fefo"
+            status="activo"
+          />
+
+          <PharmacyCard
             emoji="K"
             title="Inventario, Kardex y FEFO"
             description="Consultar movimientos auditados y simular la salida por vencimiento más próximo."

@@ -1,11 +1,68 @@
-import { useEffect, useState } from "react";
-import { clearAuthSession } from "../lib/auth";
+import { useEffect, useMemo, useState } from "react";
+import { clearAuthSession, setAuthToken, setSessionItem } from "../lib/auth";
 
-const API_URL = "http://localhost:3000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+
+const COMPANIES = [
+  {
+    ruc: "20611138777",
+    legalName: "AME HEALTH SAC",
+    displayName: "AME HEALTH SAC",
+    description:
+      "Consultorio Médico y Tópico Las Mercedes · Droguería AME HEALTH SAC",
+  },
+  {
+    ruc: "20613895354",
+    legalName: "Suministros Criticos EIRL",
+    displayName: "Botica Premium",
+    description: "Botica Premium · Suministros Criticos EIRL",
+  },
+];
+
+type LoginResponse = {
+  access_token?: string;
+  accessToken?: string;
+  token?: string;
+  user?: {
+    fullName?: string | null;
+    role?: string | null;
+  };
+  tenant?: {
+    name?: string | null;
+  };
+  company?: {
+    id?: string;
+    code?: string | null;
+    legalName?: string | null;
+    tradeName?: string | null;
+    ruc?: string | null;
+  };
+  businessUnit?: {
+    id?: string;
+    code?: string | null;
+    name?: string | null;
+  } | null;
+};
+
+function getErrorMessage(payload: unknown) {
+  if (payload && typeof payload === "object" && "message" in payload) {
+    const message = (payload as { message?: unknown }).message;
+
+    if (Array.isArray(message)) {
+      return message.join(" ");
+    }
+
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return "Credenciales inválidas.";
+}
 
 export default function Login() {
-  const [ruc, setRuc] = useState("20611138777");
-  const [email, setEmail] = useState("admin@amehealth.pe");
+  const [ruc, setRuc] = useState(COMPANIES[0].ruc);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -14,44 +71,99 @@ export default function Login() {
     clearAuthSession();
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const selectedCompany = useMemo(
+    () => COMPANIES.find((company) => company.ruc === ruc) || COMPANIES[0],
+    [ruc],
+  );
+
+  async function handleLogin(event: React.FormEvent) {
+    event.preventDefault();
+
+    if (loading) return;
+
     setError("");
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ruc, email, password }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ruc,
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const payload = (await response
+        .json()
+        .catch(() => null)) as LoginResponse | null;
 
-      if (!res.ok) {
-        setError(data.message || "Credenciales inválidas.");
+      if (!response.ok || !payload) {
+        setError(getErrorMessage(payload));
         return;
       }
 
-      const token = data.access_token || data.accessToken || data.token;
+      const token =
+        payload.access_token || payload.accessToken || payload.token || "";
 
       if (!token) {
-        setError("Login correcto, pero el backend no envió token.");
+        setError("Login correcto, pero el servidor no envió el token.");
         return;
       }
 
       clearAuthSession();
+      setAuthToken(token);
 
-      sessionStorage.setItem("ame_token", token);
-      sessionStorage.setItem("hcelm_professional_verified", "false");
-      sessionStorage.setItem("hcelm_require_professional_verification", "true");
+      setSessionItem("hcelm_professional_verified", "false");
+      setSessionItem("hcelm_require_professional_verification", "true");
 
-      const savedToken = sessionStorage.getItem("ame_token");
+      setSessionItem(
+        "hcelm_tenant_name",
+        payload.tenant?.name?.trim() || "HCELM",
+      );
 
-      if (!savedToken) {
-        setError("No se pudo guardar la sesión en el navegador.");
-        return;
-      }
+      setSessionItem("hcelm_company_id", payload.company?.id?.trim() || "");
+
+      setSessionItem("hcelm_company_code", payload.company?.code?.trim() || "");
+
+      setSessionItem(
+        "hcelm_company_name",
+        payload.company?.tradeName?.trim() ||
+          payload.company?.legalName?.trim() ||
+          selectedCompany.displayName,
+      );
+
+      setSessionItem(
+        "hcelm_company_legal_name",
+        payload.company?.legalName?.trim() || selectedCompany.legalName,
+      );
+
+      setSessionItem("hcelm_company_ruc", payload.company?.ruc?.trim() || ruc);
+
+      setSessionItem(
+        "hcelm_business_unit_id",
+        payload.businessUnit?.id?.trim() || "",
+      );
+
+      setSessionItem(
+        "hcelm_business_unit_code",
+        payload.businessUnit?.code?.trim() || "",
+      );
+
+      setSessionItem(
+        "hcelm_business_unit_name",
+        payload.businessUnit?.name?.trim() || "",
+      );
+
+      setSessionItem(
+        "hcelm_user_name",
+        payload.user?.fullName?.trim() || email.trim(),
+      );
+
+      setSessionItem("hcelm_user_role", payload.user?.role?.trim() || "");
 
       window.location.href = "/professional-verification";
     } catch {
@@ -59,48 +171,46 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-emerald-700 to-cyan-700 flex items-center justify-center p-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="hidden lg:flex flex-col justify-between p-10 text-white bg-gradient-to-br from-emerald-800 to-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-900 via-emerald-700 to-cyan-700 p-6">
+      <div className="grid w-full max-w-6xl grid-cols-1 overflow-hidden rounded-2xl bg-white shadow-2xl lg:grid-cols-2">
+        <div className="hidden flex-col justify-between bg-gradient-to-br from-emerald-800 to-slate-900 p-10 text-white lg:flex">
           <div>
-            <div className="h-16 w-16 rounded-2xl bg-white/15 flex items-center justify-center text-3xl mb-6">
+            <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 text-3xl">
               🏥
             </div>
 
-            <h1 className="text-4xl font-bold leading-tight mb-4">HCELM</h1>
+            <h1 className="mb-4 text-4xl font-bold leading-tight">HCELM</h1>
 
-            <h2 className="text-xl font-semibold mb-6 text-emerald-100">
+            <h2 className="mb-6 text-xl font-semibold text-emerald-100">
               Plataforma Clínica, Farmacéutica y Gerencial
             </h2>
 
-            <p className="text-emerald-50 text-sm leading-6 max-w-md">
-              Sistema modular para historia clínica electrónica, farmacia,
-              droguería, inventario, caja, ventas, reportes gerenciales y
-              administración institucional.
+            <p className="max-w-md text-sm leading-6 text-emerald-50">
+              Acceso separado y seguro para cada empresa, establecimiento y
+              unidad de negocio.
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <Feature text="Historia clínica" />
-            <Feature text="Farmacia / Botica" />
+            <Feature text="Botica Premium" />
             <Feature text="Droguería" />
             <Feature text="Inventario FEFO" />
             <Feature text="Caja y ventas" />
             <Feature text="Reportes" />
           </div>
 
-          <div className="text-xs text-emerald-100 border-t border-white/20 pt-4">
-            Consultorio Médico y Tópico de Procedimientos Las Mercedes · AME
-            HEALTH SAC
+          <div className="border-t border-white/20 pt-4 text-xs text-emerald-100">
+            Plataforma multiempresa y multi-RUC
           </div>
         </div>
 
         <div className="p-8 md:p-12">
           <div className="mb-8">
-            <div className="lg:hidden h-14 w-14 rounded-xl bg-emerald-100 flex items-center justify-center text-2xl mb-4">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-emerald-100 text-2xl lg:hidden">
               🏥
             </div>
 
@@ -108,61 +218,89 @@ export default function Login() {
               Ingreso seguro
             </h1>
 
-            <p className="text-slate-500 mt-2">
-              Acceda con sus credenciales institucionales.
+            <p className="mt-2 text-slate-500">
+              Seleccione la empresa donde realizará sus actividades.
             </p>
           </div>
 
-          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 mb-6">
-            <p className="text-sm text-emerald-800 font-medium">
-              Flujo de seguridad HCELM
+          <div className="mb-6 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+            <p className="text-sm font-bold text-emerald-900">
+              {selectedCompany.displayName}
             </p>
-            <p className="text-xs text-emerald-700 mt-1">
-              Login institucional → validación profesional → acceso al sistema.
+            <p className="mt-1 text-xs text-emerald-700">
+              {selectedCompany.description}
+            </p>
+            <p className="mt-1 text-xs text-emerald-700">
+              RUC: {selectedCompany.ruc}
             </p>
           </div>
 
-          {error && (
-            <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">
+          {error ? (
+            <div className="mb-4 rounded-lg bg-red-100 p-3 text-sm font-semibold text-red-700">
               {error}
             </div>
-          )}
+          ) : null}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Empresa / RUC
+              <label
+                htmlFor="login-company"
+                className="block text-sm font-medium text-slate-700"
+              >
+                Empresa
               </label>
-              <input
+
+              <select
+                id="login-company"
                 value={ruc}
-                onChange={(e) => setRuc(e.target.value)}
-                className="w-full border border-slate-300 p-3 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                required
-              />
+                onChange={(event) => setRuc(event.target.value)}
+                disabled={loading}
+                className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+              >
+                {COMPANIES.map((company) => (
+                  <option key={company.ruc} value={company.ruc}>
+                    {company.displayName} — {company.legalName}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="login-email"
+                className="block text-sm font-medium text-slate-700"
+              >
                 Usuario
               </label>
+
               <input
+                id="login-email"
                 type="email"
+                autoComplete="username"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-slate-300 p-3 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                onChange={(event) => setEmail(event.target.value)}
+                disabled={loading}
+                className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="login-password"
+                className="block text-sm font-medium text-slate-700"
+              >
                 Contraseña
               </label>
+
               <input
+                id="login-password"
                 type="password"
+                autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-slate-300 p-3 rounded-lg mt-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                onChange={(event) => setPassword(event.target.value)}
+                disabled={loading}
+                className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
                 required
               />
             </div>
@@ -170,14 +308,14 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 transition font-semibold disabled:opacity-60"
+              className="w-full rounded-lg bg-emerald-600 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
             >
               {loading ? "Ingresando..." : "Ingresar a HCELM"}
             </button>
           </form>
 
           <div className="mt-8 text-xs text-slate-400">
-            Versión web modular · React + NestJS + PostgreSQL + Prisma
+            React + NestJS + PostgreSQL + Prisma
           </div>
         </div>
       </div>
@@ -186,5 +324,5 @@ export default function Login() {
 }
 
 function Feature({ text }: { text: string }) {
-  return <div className="bg-white/10 rounded-lg px-3 py-2">✓ {text}</div>;
+  return <div className="rounded-lg bg-white/10 px-3 py-2">✓ {text}</div>;
 }

@@ -101,6 +101,16 @@ type CartItem = {
   allocations: FefoAllocation[];
 };
 
+type FefoAuthorizationEntry = {
+  authorizationId: string;
+  token: string;
+  status?: string;
+  requesting?: boolean;
+  validating?: boolean;
+  valid?: boolean;
+  error?: string;
+};
+
 type CompletedSale = {
   id: string;
   saleNumber: string;
@@ -336,23 +346,20 @@ async function loadFefoRulesFromServer(): Promise<FefoRule[]> {
     return readFefoRules();
   }
 
-  const normalized = rules.filter(
-    (rule: unknown): rule is FefoRule => {
-      if (!rule || typeof rule !== "object") return false;
+  const normalized = rules.filter((rule: unknown): rule is FefoRule => {
+    if (!rule || typeof rule !== "object") return false;
 
-      const candidate = rule as Partial<FefoRule>;
+    const candidate = rule as Partial<FefoRule>;
 
-      return (
-        typeof candidate.id === "string" &&
-        typeof candidate.label === "string" &&
-        typeof candidate.minDays === "number" &&
-        (typeof candidate.maxDays === "number" ||
-          candidate.maxDays === null) &&
-        typeof candidate.discountPercent === "number" &&
-        typeof candidate.action === "string"
-      );
-    },
-  );
+    return (
+      typeof candidate.id === "string" &&
+      typeof candidate.label === "string" &&
+      typeof candidate.minDays === "number" &&
+      (typeof candidate.maxDays === "number" || candidate.maxDays === null) &&
+      typeof candidate.discountPercent === "number" &&
+      typeof candidate.action === "string"
+    );
+  });
 
   if (normalized.length !== 4) {
     return readFefoRules();
@@ -375,14 +382,10 @@ function getDaysUntilExpiration(value?: string | null) {
   );
 }
 
-function getFefoRuleForDays(
-  days: number,
-  rules: FefoRule[],
-): FefoRule {
+function getFefoRuleForDays(days: number, rules: FefoRule[]): FefoRule {
   const matched = rules.find((rule) => {
     const insideMinimum = days >= rule.minDays;
-    const insideMaximum =
-      rule.maxDays === null || days <= rule.maxDays;
+    const insideMaximum = rule.maxDays === null || days <= rule.maxDays;
 
     return insideMinimum && insideMaximum;
   });
@@ -432,31 +435,23 @@ function getFefoVisualState(
     Pick<FefoVisualState, "containerClass" | "symbolClass" | "symbol">
   > = {
     NORMAL: {
-      containerClass:
-        "fefo-card-normal",
-      symbolClass:
-        "fefo-shape fefo-shape-normal",
+      containerClass: "fefo-card-normal",
+      symbolClass: "fefo-shape fefo-shape-normal",
       symbol: "●",
     },
     WATCH: {
-      containerClass:
-        "fefo-card-watch",
-      symbolClass:
-        "fefo-shape fefo-shape-watch",
+      containerClass: "fefo-card-watch",
+      symbolClass: "fefo-shape fefo-shape-watch",
       symbol: "▲",
     },
     PROMOTION: {
-      containerClass:
-        "fefo-card-promotion",
-      symbolClass:
-        "fefo-shape fefo-shape-promotion",
+      containerClass: "fefo-card-promotion",
+      symbolClass: "fefo-shape fefo-shape-promotion",
       symbol: "◆",
     },
     CRITICAL: {
-      containerClass:
-        "fefo-card-critical",
-      symbolClass:
-        "fefo-shape fefo-shape-critical",
+      containerClass: "fefo-card-critical",
+      symbolClass: "fefo-shape fefo-shape-critical",
       symbol: "!",
     },
   };
@@ -517,9 +512,7 @@ function FefoStatusBadge({
                 ? "Descuento sugerido"
                 : "Descuento configurado"}
           </span>
-          <strong className="ml-2 text-lg">
-            {status.discountPercent} %
-          </strong>
+          <strong className="ml-2 text-lg">{status.discountPercent} %</strong>
         </div>
       )}
     </div>
@@ -537,8 +530,7 @@ function redirectToBillingAfterSale(sale: CompletedSale) {
 }
 
 export default function PharmacySales() {
-  const [fefoRules, setFefoRules] =
-    useState<FefoRule[]>(readFefoRules);
+  const [fefoRules, setFefoRules] = useState<FefoRule[]>(readFefoRules);
 
   useEffect(() => {
     let cancelled = false;
@@ -593,6 +585,12 @@ export default function PharmacySales() {
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<CompletedSale | null>(null);
+  const [authorizationReason, setAuthorizationReason] = useState(
+    "Venta de lote crítico solicitada por necesidad operativa.",
+  );
+  const [fefoAuthorizations, setFefoAuthorizations] = useState<
+    Record<string, FefoAuthorizationEntry>
+  >({});
 
   const cartTotal = useMemo(
     () => cart.reduce((sum, item) => sum + item.subtotal, 0),
@@ -602,6 +600,28 @@ export default function PharmacySales() {
     if (paymentMethod !== "CASH" || !receivedAmount) return 0;
     return Math.max(0, Number(receivedAmount) - cartTotal);
   }, [cartTotal, paymentMethod, receivedAmount]);
+
+  const criticalAllocations = useMemo(
+    () =>
+      cart.flatMap((item) =>
+        item.allocations
+          .filter((allocation) => allocation.requiresAuthorization === true)
+          .map((allocation) => ({
+            item,
+            allocation,
+            key: authorizationKey(item.product.id, allocation.lotId),
+          })),
+      ),
+    [cart],
+  );
+
+  const allCriticalAuthorizationsValid = useMemo(
+    () =>
+      criticalAllocations.every(
+        ({ key }) => fefoAuthorizations[key]?.valid === true,
+      ),
+    [criticalAllocations, fefoAuthorizations],
+  );
 
   async function loadProducts(searchValue = query) {
     const requestId = searchRequestRef.current + 1;
@@ -647,6 +667,7 @@ export default function PharmacySales() {
     setReviewOpen(false);
     setIdempotencyKey("");
     setSuccess(null);
+    setFefoAuthorizations({});
   }
 
   function addProduct(product: SaleProduct) {
@@ -682,6 +703,7 @@ export default function PharmacySales() {
         },
       ];
     });
+    setReceivedAmount("");
     resetReview();
     setQuery("");
     window.setTimeout(() => searchInputRef.current?.focus(), 0);
@@ -707,6 +729,7 @@ export default function PharmacySales() {
         };
       }),
     );
+    setReceivedAmount("");
     resetReview();
   }
 
@@ -714,7 +737,154 @@ export default function PharmacySales() {
     setCart((current) =>
       current.filter((item) => item.product.id !== productId),
     );
+    setReceivedAmount("");
     resetReview();
+  }
+
+  function authorizationKey(medicationId: string, lotId: string) {
+    return medicationId + ":" + lotId;
+  }
+
+  function updateFefoAuthorization(
+    key: string,
+    patch: Partial<FefoAuthorizationEntry>,
+  ) {
+    setFefoAuthorizations((current) => ({
+      ...current,
+      [key]: {
+        ...(current[key] || {
+          authorizationId: "",
+          token: "",
+        }),
+        ...patch,
+      },
+    }));
+  }
+
+  async function requestFefoAuthorization(
+    item: CartItem,
+    allocation: FefoAllocation,
+  ) {
+    const key = authorizationKey(item.product.id, allocation.lotId);
+    const reason = authorizationReason.trim();
+
+    if (reason.length < 10) {
+      updateFefoAuthorization(key, {
+        error: "El motivo debe contener al menos 10 caracteres.",
+      });
+      return;
+    }
+
+    updateFefoAuthorization(key, {
+      requesting: true,
+      valid: false,
+      error: "",
+    });
+
+    try {
+      const response = await fetch(`${API_BASE}/pharmacy-fefo/authorizations`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          medicationId: item.product.id,
+          lotId: allocation.lotId,
+          quantity: Number(allocation.allocatedQuantity),
+          reason,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await readError(
+            response,
+            "No se pudo solicitar la autorización FEFO.",
+          ),
+        );
+      }
+
+      const result = await response.json();
+      const authorization = result.authorization;
+
+      updateFefoAuthorization(key, {
+        authorizationId: authorization?.id || "",
+        status: authorization?.status || "PENDING",
+        requesting: false,
+        valid: false,
+        error: "",
+      });
+    } catch (reason: any) {
+      updateFefoAuthorization(key, {
+        requesting: false,
+        valid: false,
+        error: reason?.message || "No se pudo solicitar la autorización FEFO.",
+      });
+    }
+  }
+
+  async function validateFefoAuthorization(
+    item: CartItem,
+    allocation: FefoAllocation,
+  ) {
+    const key = authorizationKey(item.product.id, allocation.lotId);
+    const entry = fefoAuthorizations[key];
+
+    if (!entry?.authorizationId.trim() || !entry?.token.trim()) {
+      updateFefoAuthorization(key, {
+        valid: false,
+        error: "Ingrese el identificador y el token de autorización.",
+      });
+      return;
+    }
+
+    updateFefoAuthorization(key, {
+      validating: true,
+      valid: false,
+      error: "",
+    });
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/pharmacy-fefo/authorizations/validate/token`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            authorizationId: entry.authorizationId.trim(),
+            token: entry.token.trim(),
+            medicationId: item.product.id,
+            lotId: allocation.lotId,
+            quantity: Number(allocation.allocatedQuantity),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await readError(response, "La autorización FEFO no es válida."),
+        );
+      }
+
+      const result = await response.json();
+
+      updateFefoAuthorization(key, {
+        validating: false,
+        valid: result?.valid === true,
+        status: result?.authorization?.status || "APPROVED",
+        error: "",
+      });
+    } catch (reason: any) {
+      updateFefoAuthorization(key, {
+        validating: false,
+        valid: false,
+        error: reason?.message || "La autorización FEFO no es válida.",
+      });
+    }
   }
 
   async function prepareReview() {
@@ -755,7 +925,7 @@ export default function PharmacySales() {
           );
         }
 
-        if (preview.blocked) {
+        if (preview.blocked && !preview.requiresAuthorization) {
           const reason =
             preview.blockedReasons?.filter(Boolean).join(" ") ||
             "La revisión FEFO bloqueó este producto.";
@@ -782,6 +952,29 @@ export default function PharmacySales() {
         });
       }
       setCart(reviewed);
+
+      const nextAuthorizations: Record<string, FefoAuthorizationEntry> = {};
+
+      reviewed.forEach((reviewedItem) => {
+        reviewedItem.allocations
+          .filter((allocation) => allocation.requiresAuthorization === true)
+          .forEach((allocation) => {
+            const key = authorizationKey(
+              reviewedItem.product.id,
+              allocation.lotId,
+            );
+
+            nextAuthorizations[key] = {
+              authorizationId: "",
+              token: "",
+              status: "NOT_REQUESTED",
+              valid: false,
+            };
+          });
+      });
+
+      setFefoAuthorizations(nextAuthorizations);
+
       const reviewedTotal = reviewed.reduce(
         (sum, item) => sum + item.subtotal,
         0,
@@ -807,6 +1000,14 @@ export default function PharmacySales() {
 
   async function confirmSale() {
     if (!idempotencyKey || submitting) return;
+
+    if (!allCriticalAuthorizationsValid) {
+      setError(
+        "Debe validar todas las autorizaciones FEFO críticas antes de cobrar.",
+      );
+      return;
+    }
+
     setSubmitting(true);
     setError("");
     try {
@@ -831,10 +1032,28 @@ export default function PharmacySales() {
             : undefined,
           customerDocumentNumber: customerDocumentNumber.trim() || undefined,
           notes: "Venta OTC registrada desde el POS de HCELM.",
-          items: cart.map((item) => ({
-            medicationId: item.product.id,
-            quantity: item.quantity,
-          })),
+          items: cart.map((item) => {
+            const itemAuthorizations = item.allocations
+              .filter((allocation) => allocation.requiresAuthorization === true)
+              .map((allocation) => {
+                const key = authorizationKey(item.product.id, allocation.lotId);
+                const authorization = fefoAuthorizations[key];
+
+                return {
+                  authorizationId: authorization.authorizationId.trim(),
+                  lotId: allocation.lotId,
+                  token: authorization.token.trim(),
+                };
+              });
+
+            return {
+              medicationId: item.product.id,
+              quantity: item.quantity,
+              ...(itemAuthorizations.length
+                ? { fefoAuthorizations: itemAuthorizations }
+                : {}),
+            };
+          }),
           payment,
         }),
       });
@@ -943,6 +1162,12 @@ export default function PharmacySales() {
                   className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-center text-sm font-bold text-slate-700 hover:bg-slate-50"
                 >
                   Catálogo
+                </Link>
+                <Link
+                  to="/pharmacy/authorizations/fefo"
+                  className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-center text-sm font-bold text-emerald-900 hover:bg-emerald-100 sm:col-span-1"
+                >
+                  Autorizaciones FEFO
                 </Link>
                 <Link
                   to="/pharmacy/settings/fefo"
@@ -1180,7 +1405,8 @@ export default function PharmacySales() {
                                 Lote {product.fefoLot.lotNumber}
                               </div>
                               <div className="mt-0.5 text-xs text-slate-500">
-                                Vence: {formatDate(product.fefoLot.expirationDate)}
+                                Vence:{" "}
+                                {formatDate(product.fefoLot.expirationDate)}
                               </div>
                               <FefoStatusBadge
                                 expirationDate={product.fefoLot.expirationDate}
@@ -1280,6 +1506,7 @@ export default function PharmacySales() {
                     type="button"
                     onClick={() => {
                       setCart([]);
+                      setReceivedAmount("");
                       resetReview();
                     }}
                     className="text-sm font-bold text-red-700 hover:text-red-800"
@@ -1340,10 +1567,13 @@ export default function PharmacySales() {
                       {Number(item.discountAmount || 0) > 0 ? (
                         <>
                           <div className="text-xs text-slate-500 line-through">
-                            {formatMoney(item.originalSubtotal || item.subtotal)}
+                            {formatMoney(
+                              item.originalSubtotal || item.subtotal,
+                            )}
                           </div>
                           <div className="text-xs font-bold text-emerald-700">
-                            Descuento FEFO: -{formatMoney(item.discountAmount || 0)}
+                            Descuento FEFO: -
+                            {formatMoney(item.discountAmount || 0)}
                           </div>
                         </>
                       ) : null}
@@ -1426,7 +1656,8 @@ export default function PharmacySales() {
                       {formatMoney(
                         cart.reduce(
                           (sum, item) =>
-                            sum + Number(item.originalSubtotal || item.subtotal),
+                            sum +
+                            Number(item.originalSubtotal || item.subtotal),
                           0,
                         ),
                       )}
@@ -1496,6 +1727,32 @@ export default function PharmacySales() {
               <p className="mt-1 text-sm text-slate-600">
                 Los lotes y precios mostrados fueron validados en este momento.
               </p>
+
+              {criticalAllocations.length > 0 && (
+                <div className="mt-4 rounded-xl border-2 border-red-300 bg-red-50 p-4">
+                  <p className="font-black text-red-950">
+                    Esta venta contiene lotes críticos
+                  </p>
+                  <p className="mt-1 text-sm text-red-900">
+                    Cada lote crítico necesita autorización de un segundo
+                    usuario antes de cobrar.
+                  </p>
+
+                  <label className="mt-3 block text-sm font-bold text-red-950">
+                    Motivo de la solicitud
+                  </label>
+                  <textarea
+                    value={authorizationReason}
+                    onChange={(event) =>
+                      setAuthorizationReason(event.target.value)
+                    }
+                    rows={3}
+                    maxLength={1000}
+                    className="mt-1 w-full rounded-lg border border-red-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    placeholder="Explique por qué se solicita vender el lote crítico."
+                  />
+                </div>
+              )}
             </div>
             <div className="divide-y">
               {cart.map((item) => (
@@ -1515,15 +1772,138 @@ export default function PharmacySales() {
                           .map((lot) => lot.lotNumber)
                           .join(", ")}
                       </p>
+
+                      {item.allocations
+                        .filter(
+                          (allocation) =>
+                            allocation.requiresAuthorization === true,
+                        )
+                        .map((allocation) => {
+                          const key = authorizationKey(
+                            item.product.id,
+                            allocation.lotId,
+                          );
+                          const authorization = fefoAuthorizations[key] || {
+                            authorizationId: "",
+                            token: "",
+                          };
+
+                          return (
+                            <div
+                              key={allocation.lotId}
+                              className="mt-3 rounded-xl border-2 border-red-300 bg-red-50 p-3"
+                            >
+                              <p className="font-black text-red-950">
+                                Autorización obligatoria — lote{" "}
+                                {allocation.lotNumber}
+                              </p>
+                              <p className="mt-1 text-xs text-red-900">
+                                Cantidad asignada:{" "}
+                                {Number(allocation.allocatedQuantity)}
+                              </p>
+
+                              <button
+                                type="button"
+                                disabled={authorization.requesting}
+                                onClick={() =>
+                                  void requestFefoAuthorization(
+                                    item,
+                                    allocation,
+                                  )
+                                }
+                                className="mt-3 rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800 disabled:opacity-60"
+                              >
+                                {authorization.requesting
+                                  ? "Solicitando..."
+                                  : authorization.authorizationId
+                                    ? "Volver a solicitar"
+                                    : "Solicitar autorización"}
+                              </button>
+
+                              {authorization.authorizationId && (
+                                <div className="mt-3 space-y-2">
+                                  <div className="rounded-lg bg-white p-2 text-xs text-slate-700">
+                                    <span className="font-bold">
+                                      Identificador:
+                                    </span>{" "}
+                                    {authorization.authorizationId}
+                                  </div>
+
+                                  <label className="block text-xs font-bold text-slate-700">
+                                    Identificador de autorización
+                                  </label>
+                                  <input
+                                    value={authorization.authorizationId}
+                                    onChange={(event) =>
+                                      updateFefoAuthorization(key, {
+                                        authorizationId: event.target.value,
+                                        valid: false,
+                                      })
+                                    }
+                                    className="w-full rounded-lg border px-3 py-2 text-xs"
+                                  />
+
+                                  <label className="block text-xs font-bold text-slate-700">
+                                    Token entregado por el autorizador
+                                  </label>
+                                  <input
+                                    type="password"
+                                    value={authorization.token}
+                                    onChange={(event) =>
+                                      updateFefoAuthorization(key, {
+                                        token: event.target.value,
+                                        valid: false,
+                                      })
+                                    }
+                                    autoComplete="off"
+                                    className="w-full rounded-lg border px-3 py-2 text-xs"
+                                    placeholder="Pegue aquí el token de un solo uso"
+                                  />
+
+                                  <button
+                                    type="button"
+                                    disabled={authorization.validating}
+                                    onClick={() =>
+                                      void validateFefoAuthorization(
+                                        item,
+                                        allocation,
+                                      )
+                                    }
+                                    className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-60"
+                                  >
+                                    {authorization.validating
+                                      ? "Validando..."
+                                      : "Validar autorización"}
+                                  </button>
+                                </div>
+                              )}
+
+                              {authorization.valid && (
+                                <p className="mt-2 rounded-lg bg-emerald-100 p-2 text-xs font-black text-emerald-900">
+                                  Autorización válida y lista para usar
+                                </p>
+                              )}
+
+                              {authorization.error && (
+                                <p className="mt-2 rounded-lg bg-white p-2 text-xs font-bold text-red-800">
+                                  {authorization.error}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                     <div className="text-right">
                       {Number(item.discountAmount || 0) > 0 ? (
                         <>
                           <div className="text-xs text-slate-500 line-through">
-                            {formatMoney(item.originalSubtotal || item.subtotal)}
+                            {formatMoney(
+                              item.originalSubtotal || item.subtotal,
+                            )}
                           </div>
                           <div className="text-xs font-bold text-emerald-700">
-                            Descuento FEFO: -{formatMoney(item.discountAmount || 0)}
+                            Descuento FEFO: -
+                            {formatMoney(item.discountAmount || 0)}
                           </div>
                         </>
                       ) : null}
@@ -1554,10 +1934,14 @@ export default function PharmacySales() {
                 <button
                   type="button"
                   onClick={confirmSale}
-                  disabled={submitting}
-                  className="rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white hover:bg-emerald-800 disabled:opacity-60"
+                  disabled={submitting || !allCriticalAuthorizationsValid}
+                  className="rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitting ? "Procesando..." : "Confirmar y descontar stock"}
+                  {submitting
+                    ? "Procesando..."
+                    : !allCriticalAuthorizationsValid
+                      ? "Faltan autorizaciones FEFO"
+                      : "Confirmar y descontar stock"}
                 </button>
               </div>
             </div>

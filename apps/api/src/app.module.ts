@@ -22,6 +22,7 @@ import { LaboratoryCatalogModule } from './laboratory-catalog/laboratory-catalog
 import { MedicationCatalogModule } from './medication-catalog/medication-catalog.module';
 import { MedicationsModule } from './medications/medications.module';
 import { PatientsModule } from './patients/patients.module';
+import { PlatformModule } from './platform/platform.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PharmacyFefoModule } from './pharmacy-fefo/pharmacy-fefo.module';
 import { PharmacyFefoAuthorizationModule } from './pharmacy-fefo-authorization/pharmacy-fefo-authorization.module';
@@ -39,6 +40,7 @@ import { IdentityLookupModule } from './identity-lookup/identity-lookup.module';
     PrismaModule,
     AuthModule,
     PatientsModule,
+    PlatformModule,
     OrganizationModule,
     EncountersModule,
     ElectronicBillingModule,

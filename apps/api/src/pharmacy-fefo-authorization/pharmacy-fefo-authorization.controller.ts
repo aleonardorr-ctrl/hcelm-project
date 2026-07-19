@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Request,
   UnauthorizedException,
   UseGuards,
@@ -17,9 +18,7 @@ import { PharmacyFefoAuthorizationService } from './pharmacy-fefo-authorization.
 @UseGuards(JwtAuthGuard)
 @Controller('pharmacy-fefo/authorizations')
 export class PharmacyFefoAuthorizationController {
-  constructor(
-    private readonly service: PharmacyFefoAuthorizationService,
-  ) {}
+  constructor(private readonly service: PharmacyFefoAuthorizationService) {}
 
   @Post()
   requestAuthorization(
@@ -33,11 +32,18 @@ export class PharmacyFefoAuthorizationController {
     });
   }
 
+  @Get()
+  list(@Request() req: any, @Query('status') status?: string) {
+    return this.service.list({
+      tenantId: this.tenantId(req),
+      userId: this.userId(req),
+      role: this.role(req),
+      status,
+    });
+  }
+
   @Get(':id')
-  findOne(
-    @Request() req: any,
-    @Param('id') id: string,
-  ) {
+  findOne(@Request() req: any, @Param('id') id: string) {
     return this.service.findOne({
       tenantId: this.tenantId(req),
       userId: this.userId(req),
@@ -76,10 +82,7 @@ export class PharmacyFefoAuthorizationController {
   }
 
   @Post('validate/token')
-  validate(
-    @Request() req: any,
-    @Body() body: ValidateFefoAuthorizationDto,
-  ) {
+  validate(@Request() req: any, @Body() body: ValidateFefoAuthorizationDto) {
     return this.service.validate({
       tenantId: this.tenantId(req),
       userId: this.userId(req),
@@ -89,14 +92,10 @@ export class PharmacyFefoAuthorizationController {
 
   private tenantId(req: any): string {
     const value =
-      req?.user?.tenantId ||
-      req?.user?.payload?.tenantId ||
-      req?.tenantId;
+      req?.user?.tenantId || req?.user?.payload?.tenantId || req?.tenantId;
 
     if (!value) {
-      throw new UnauthorizedException(
-        'No se encontró el tenant del usuario.',
-      );
+      throw new UnauthorizedException('No se encontró el tenant del usuario.');
     }
 
     return String(value);
@@ -110,19 +109,13 @@ export class PharmacyFefoAuthorizationController {
       req?.user?.payload?.sub;
 
     if (!value) {
-      throw new UnauthorizedException(
-        'No se encontró el usuario autenticado.',
-      );
+      throw new UnauthorizedException('No se encontró el usuario autenticado.');
     }
 
     return String(value);
   }
 
   private role(req: any): string {
-    return String(
-      req?.user?.role ||
-      req?.user?.payload?.role ||
-      '',
-    );
+    return String(req?.user?.role || req?.user?.payload?.role || '');
   }
 }

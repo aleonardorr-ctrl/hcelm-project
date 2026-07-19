@@ -6,10 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import {
-  PharmacyFefoAuthorizationStatus,
-  Prisma,
-} from '@prisma/client';
+import { PharmacyFefoAuthorizationStatus, Prisma } from '@prisma/client';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFefoAuthorizationRequestDto } from './dto/create-fefo-authorization-request.dto';
@@ -35,6 +32,176 @@ const AUTHORIZER_ROLES = new Set([
 export class PharmacyFefoAuthorizationService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async list(params: {
+    tenantId: string;
+    userId: string;
+    role: string;
+    status?: string;
+  }) {
+    await this.expirePendingAuthorizations(this.prisma, params.tenantId);
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: params.userId,
+        tenantId: params.tenantId,
+        active: true,
+      },
+      select: {
+        id: true,
+        role: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException(
+        'El usuario autenticado no está activo en este tenant.',
+      );
+    }
+
+    const memberships = await this.prisma.userCompanyMembership.findMany({
+      where: {
+        tenantId: params.tenantId,
+        userId: params.userId,
+        active: true,
+        company: {
+          active: true,
+        },
+      },
+      select: {
+        companyId: true,
+        role: true,
+      },
+    });
+
+    if (!memberships.length) {
+      throw new ForbiddenException(
+        'El usuario no tiene empresas activas asignadas.',
+      );
+    }
+
+    const normalizedUserRole = String(params.role || user.role || '')
+      .trim()
+      .toUpperCase();
+
+    const canAuthorize =
+      AUTHORIZER_ROLES.has(normalizedUserRole) ||
+      memberships.some((membership) =>
+        AUTHORIZER_ROLES.has(
+          String(membership.role || '')
+            .trim()
+            .toUpperCase(),
+        ),
+      );
+
+    const requestedStatus = String(params.status || '')
+      .trim()
+      .toUpperCase();
+
+    let status: PharmacyFefoAuthorizationStatus | undefined;
+
+    if (requestedStatus) {
+      const allowedStatuses = Object.values(
+        PharmacyFefoAuthorizationStatus,
+      ) as string[];
+
+      if (!allowedStatuses.includes(requestedStatus)) {
+        throw new BadRequestException(
+          'El estado de autorización FEFO no es válido.',
+        );
+      }
+
+      status = requestedStatus as PharmacyFefoAuthorizationStatus;
+    }
+
+    const companyIds = memberships.map((membership) => membership.companyId);
+
+    const where: Prisma.PharmacyFefoAuthorizationWhereInput = {
+      tenantId: params.tenantId,
+      companyId: {
+        in: companyIds,
+      },
+      ...(status ? { status } : {}),
+      ...(!canAuthorize
+        ? {
+            requestedById: params.userId,
+          }
+        : {}),
+    };
+
+    const authorizations = await this.prisma.pharmacyFefoAuthorization.findMany(
+      {
+        where,
+        orderBy: [
+          {
+            createdAt: 'desc',
+          },
+          {
+            id: 'desc',
+          },
+        ],
+        take: 100,
+      },
+    );
+
+    const userIds = Array.from(
+      new Set(
+        authorizations.flatMap((authorization) =>
+          [
+            authorization.requestedById,
+            authorization.approvedById,
+            authorization.rejectedById,
+            authorization.cancelledById,
+          ].filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    );
+
+    const users = userIds.length
+      ? await this.prisma.user.findMany({
+          where: {
+            tenantId: params.tenantId,
+            id: {
+              in: userIds,
+            },
+          },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            role: true,
+            active: true,
+          },
+        })
+      : [];
+
+    const usersById = new Map(users.map((item) => [item.id, item]));
+
+    return {
+      items: authorizations.map((authorization) => ({
+        ...this.safeAuthorization(authorization),
+        requester: usersById.get(authorization.requestedById) || null,
+        approver: authorization.approvedById
+          ? usersById.get(authorization.approvedById) || null
+          : null,
+        rejecter: authorization.rejectedById
+          ? usersById.get(authorization.rejectedById) || null
+          : null,
+        canceller: authorization.cancelledById
+          ? usersById.get(authorization.cancelledById) || null
+          : null,
+        canCurrentUserDecide:
+          canAuthorize &&
+          authorization.requestedById !== params.userId &&
+          authorization.status === PharmacyFefoAuthorizationStatus.PENDING &&
+          authorization.validUntil > new Date(),
+      })),
+      total: authorizations.length,
+      canAuthorize,
+      appliedStatus: status || null,
+      limit: 100,
+    };
+  }
+
   async requestAuthorization(params: {
     tenantId: string;
     userId: string;
@@ -54,7 +221,10 @@ export class PharmacyFefoAuthorizationService {
           params.data.medicationId,
         );
 
-        this.assertCriticalLot(context.lot.expirationDate, context.criticalRule);
+        this.assertCriticalLot(
+          context.lot.expirationDate,
+          context.criticalRule,
+        );
 
         if (new Prisma.Decimal(context.lot.stock).lt(quantity)) {
           throw new ConflictException(
@@ -139,13 +309,12 @@ export class PharmacyFefoAuthorizationService {
       async (tx) => {
         await this.expirePendingAuthorizations(tx, params.tenantId);
 
-        const authorization =
-          await tx.pharmacyFefoAuthorization.findFirst({
-            where: {
-              id: params.authorizationId,
-              tenantId: params.tenantId,
-            },
-          });
+        const authorization = await tx.pharmacyFefoAuthorization.findFirst({
+          where: {
+            id: params.authorizationId,
+            tenantId: params.tenantId,
+          },
+        });
 
         if (!authorization) {
           throw new NotFoundException(
@@ -274,13 +443,12 @@ export class PharmacyFefoAuthorizationService {
       async (tx) => {
         await this.expirePendingAuthorizations(tx, params.tenantId);
 
-        const authorization =
-          await tx.pharmacyFefoAuthorization.findFirst({
-            where: {
-              id: params.authorizationId,
-              tenantId: params.tenantId,
-            },
-          });
+        const authorization = await tx.pharmacyFefoAuthorization.findFirst({
+          where: {
+            id: params.authorizationId,
+            tenantId: params.tenantId,
+          },
+        });
 
         if (!authorization) {
           throw new NotFoundException(
@@ -339,18 +507,16 @@ export class PharmacyFefoAuthorizationService {
     userId: string;
     authorizationId: string;
   }) {
-    await this.expirePendingAuthorizations(
-      this.prisma,
-      params.tenantId,
-    );
+    await this.expirePendingAuthorizations(this.prisma, params.tenantId);
 
-    const authorization =
-      await this.prisma.pharmacyFefoAuthorization.findFirst({
+    const authorization = await this.prisma.pharmacyFefoAuthorization.findFirst(
+      {
         where: {
           id: params.authorizationId,
           tenantId: params.tenantId,
         },
-      });
+      },
+    );
 
     if (!authorization) {
       throw new NotFoundException(
@@ -384,17 +550,14 @@ export class PharmacyFefoAuthorizationService {
     userId: string;
     data: ValidateFefoAuthorizationDto;
   }) {
-    const result = await this.validateApprovedAuthorization(
-      this.prisma,
-      {
-        tenantId: params.tenantId,
-        authorizationId: params.data.authorizationId,
-        token: params.data.token,
-        medicationId: params.data.medicationId,
-        lotId: params.data.lotId,
-        quantity: new Prisma.Decimal(params.data.quantity),
-      },
-    );
+    const result = await this.validateApprovedAuthorization(this.prisma, {
+      tenantId: params.tenantId,
+      authorizationId: params.data.authorizationId,
+      token: params.data.token,
+      medicationId: params.data.medicationId,
+      lotId: params.data.lotId,
+      quantity: new Prisma.Decimal(params.data.quantity),
+    });
 
     return {
       valid: true,
@@ -413,18 +576,15 @@ export class PharmacyFefoAuthorizationService {
       quantity: Prisma.Decimal;
     },
   ) {
-    const authorization =
-      await tx.pharmacyFefoAuthorization.findFirst({
-        where: {
-          id: params.authorizationId,
-          tenantId: params.tenantId,
-        },
-      });
+    const authorization = await tx.pharmacyFefoAuthorization.findFirst({
+      where: {
+        id: params.authorizationId,
+        tenantId: params.tenantId,
+      },
+    });
 
     if (!authorization) {
-      throw new NotFoundException(
-        'La autorización FEFO no existe.',
-      );
+      throw new NotFoundException('La autorización FEFO no existe.');
     }
 
     if (authorization.status !== PharmacyFefoAuthorizationStatus.APPROVED) {
@@ -454,13 +614,9 @@ export class PharmacyFefoAuthorizationService {
     }
 
     if (
-      new Prisma.Decimal(authorization.requestedQuantity).lt(
-        params.quantity,
-      )
+      new Prisma.Decimal(authorization.requestedQuantity).lt(params.quantity)
     ) {
-      throw new ConflictException(
-        'La cantidad supera la cantidad autorizada.',
-      );
+      throw new ConflictException('La cantidad supera la cantidad autorizada.');
     }
 
     if (
@@ -487,10 +643,7 @@ export class PharmacyFefoAuthorizationService {
       saleId: string;
     },
   ) {
-    const authorization = await this.validateApprovedAuthorization(
-      tx,
-      params,
-    );
+    const authorization = await this.validateApprovedAuthorization(tx, params);
 
     return tx.pharmacyFefoAuthorization.update({
       where: { id: authorization.id },
@@ -668,10 +821,7 @@ export class PharmacyFefoAuthorizationService {
     };
   }
 
-  private assertAuthorizer(
-    userRole: string,
-    membershipRole: string,
-  ) {
+  private assertAuthorizer(userRole: string, membershipRole: string) {
     if (
       !AUTHORIZER_ROLES.has(userRole) &&
       !AUTHORIZER_ROLES.has(membershipRole)
@@ -715,10 +865,7 @@ export class PharmacyFefoAuthorizationService {
     }
   }
 
-  private daysToExpiration(
-    expirationDate: Date,
-    now: Date,
-  ) {
+  private daysToExpiration(expirationDate: Date, now: Date) {
     const currentUtc = Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
@@ -730,9 +877,7 @@ export class PharmacyFefoAuthorizationService {
       expirationDate.getUTCDate(),
     );
 
-    return Math.floor(
-      (expirationUtc - currentUtc) / 86_400_000,
-    );
+    return Math.floor((expirationUtc - currentUtc) / 86_400_000);
   }
 
   private hashToken(token: string) {
@@ -762,10 +907,7 @@ export class PharmacyFefoAuthorizationService {
   }
 
   private safeAuthorization(authorization: any) {
-    const {
-      authorizationTokenHash: _tokenHash,
-      ...safe
-    } = authorization;
+    const { authorizationTokenHash: _tokenHash, ...safe } = authorization;
 
     return {
       ...safe,

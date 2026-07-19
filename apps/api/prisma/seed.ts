@@ -31,7 +31,7 @@ async function main() {
     tenant = await prisma.tenant.create({
       data: {
         id: tenantId,
-        name: 'AME HEALTH SAC',
+        name: 'Grupo Rodríguez',
         ruc: '20611138777',
         active: true,
       },
@@ -40,7 +40,7 @@ async function main() {
     console.log('✅ Tenant creado');
   }
 
-  // HCELM_MULTIEMPRESA_SEED: organizacion predeterminada de AME HEALTH SAC.
+  // HCELM_MULTIEMPRESA_SEED: grupo empresarial predeterminado Grupo Rodríguez.
   const company = await prisma.company.upsert({
     where: {
       tenantId_ruc: {

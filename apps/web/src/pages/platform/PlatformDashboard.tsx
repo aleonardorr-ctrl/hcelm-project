@@ -105,6 +105,13 @@ type CompanyContextResponse = {
     role?: string;
     platformRole?: string | null;
   };
+
+  audit?: {
+    id?: string;
+    reason?: string;
+    status?: string;
+    enteredAt?: string;
+  };
 };
 
 type PlatformTenantOverview = {
@@ -268,6 +275,7 @@ export default function PlatformDashboard() {
     useState<PlatformCompanyOverview | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
+  const [contextReason, setContextReason] = useState("");
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -487,6 +495,20 @@ export default function PlatformDashboard() {
       return;
     }
 
+    const normalizedReason = contextReason.trim();
+
+    if (normalizedReason.length < 5) {
+      setContextError("Registre un motivo de acceso de al menos 5 caracteres.");
+      return;
+    }
+
+    if (normalizedReason.length > 500) {
+      setContextError(
+        "El motivo de acceso no puede superar los 500 caracteres.",
+      );
+      return;
+    }
+
     setContextLoading(true);
     setContextError(null);
 
@@ -509,6 +531,7 @@ export default function PlatformDashboard() {
           },
           body: JSON.stringify({
             companyId: selectedCompany.id,
+            reason: normalizedReason,
           }),
         },
       );
@@ -599,6 +622,21 @@ export default function PlatformDashboard() {
       setSessionItem(
         "hcelm_access_mode",
         body.accessMode || "COMPANY_OPERATION",
+      );
+
+      setSessionItem(
+        "hcelm_platform_access_audit_id",
+        body.audit?.id?.trim() || "",
+      );
+
+      setSessionItem(
+        "hcelm_platform_access_reason",
+        body.audit?.reason?.trim() || normalizedReason,
+      );
+
+      setSessionItem(
+        "hcelm_platform_access_entered_at",
+        body.audit?.enteredAt?.trim() || "",
       );
 
       setSessionItem(
@@ -774,6 +812,7 @@ export default function PlatformDashboard() {
                     if (!contextLoading) {
                       setSelectedCompany(null);
                       setContextError(null);
+                      setContextReason("");
                     }
                   }}
                   className="rounded-xl p-2 text-slate-500 hover:bg-slate-200"
@@ -833,6 +872,66 @@ export default function PlatformDashboard() {
                 </div>
               </div>
 
+              <div>
+                <label
+                  htmlFor="platform-access-reason"
+                  className="block text-sm font-black text-slate-800"
+                >
+                  Motivo del ingreso
+                  <span className="ml-1 text-red-600">*</span>
+                </label>
+
+                <select
+                  value=""
+                  disabled={contextLoading}
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      setContextReason(event.target.value);
+                      setContextError(null);
+                    }
+                  }}
+                  className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:opacity-60"
+                  aria-label="Seleccionar motivo sugerido"
+                >
+                  <option value="">Seleccionar un motivo sugerido...</option>
+                  <option value="Soporte técnico">Soporte técnico</option>
+                  <option value="Verificación de configuración">
+                    Verificación de configuración
+                  </option>
+                  <option value="Supervisión administrativa">
+                    Supervisión administrativa
+                  </option>
+                  <option value="Auditoría operativa">
+                    Auditoría operativa
+                  </option>
+                  <option value="Resolución de incidencia">
+                    Resolución de incidencia
+                  </option>
+                </select>
+
+                <textarea
+                  id="platform-access-reason"
+                  value={contextReason}
+                  disabled={contextLoading}
+                  onChange={(event) => {
+                    setContextReason(event.target.value);
+                    setContextError(null);
+                  }}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="Explique brevemente por qué necesita ingresar a esta empresa."
+                  className="mt-3 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:opacity-60"
+                />
+
+                <div className="mt-1 flex items-center justify-between gap-3 text-xs">
+                  <p className="text-slate-500">
+                    El motivo quedará registrado en la auditoría permanente.
+                  </p>
+
+                  <p className="text-slate-500">{contextReason.length}/500</p>
+                </div>
+              </div>
+
               {contextError ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
                   {contextError}
@@ -847,6 +946,7 @@ export default function PlatformDashboard() {
                 onClick={() => {
                   setSelectedCompany(null);
                   setContextError(null);
+                  setContextReason("");
                 }}
                 className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60"
               >
@@ -855,7 +955,7 @@ export default function PlatformDashboard() {
 
               <button
                 type="button"
-                disabled={contextLoading}
+                disabled={contextLoading || contextReason.trim().length < 5}
                 onClick={() => void enterCompanyContext()}
                 className="rounded-xl bg-slate-950 px-5 py-3 font-black text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -1443,6 +1543,7 @@ export default function PlatformDashboard() {
                                         type="button"
                                         onClick={() => {
                                           setContextError(null);
+                                          setContextReason("");
                                           setSelectedCompany(company);
                                         }}
                                         className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 transition hover:border-cyan-300 hover:bg-cyan-100"

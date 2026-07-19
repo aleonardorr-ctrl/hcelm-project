@@ -21,11 +21,32 @@ export class PlatformController {
   @HttpCode(HttpStatus.OK)
   async createCompanyContext(
     @Request() req: any,
-    @Body() body: { companyId?: string },
+    @Body() body: { companyId?: string; reason?: string },
   ) {
+    const forwardedFor = req.headers?.['x-forwarded-for'];
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : String(forwardedFor || req.ip || req.socket?.remoteAddress || '')
+          .split(',')[0]
+          .trim();
+
     return this.platformService.createCompanyContext(
       req.user?.userId || req.user?.sub || '',
       body?.companyId || '',
+      body?.reason || '',
+      {
+        ipAddress,
+        userAgent: String(req.headers?.['user-agent'] || '').trim(),
+      },
+    );
+  }
+
+  @Post('context/company/exit')
+  @HttpCode(HttpStatus.OK)
+  async closeCompanyContext(@Request() req: any) {
+    return this.platformService.closeCompanyContext(
+      req.user?.userId || req.user?.sub || '',
+      req.user?.platformAccessAuditId || '',
     );
   }
 

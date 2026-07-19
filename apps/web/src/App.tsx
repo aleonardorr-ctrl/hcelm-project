@@ -345,8 +345,47 @@ function Navbar() {
     sessionStorage.getItem("hcelm_context_source") === "PLATFORM_SUPERADMIN" &&
     sessionStorage.getItem("hcelm_access_mode") === "COMPANY_OPERATION" &&
     hasPreservedPlatformToken();
+  const handleReturnToPlatform = async () => {
+    const operationalToken = getAuthToken();
 
-  const handleReturnToPlatform = () => {
+    if (!operationalToken) {
+      window.alert("No se encontró la sesión operativa activa.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/platform/context/company/exit`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${operationalToken}`,
+        },
+      });
+
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          body && typeof body.message === "string"
+            ? body.message
+            : "No se pudo cerrar el registro de auditoría.";
+
+        throw new Error(message);
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo cerrar el acceso temporal.";
+
+      const continueReturn = window.confirm(
+        `${message}\n\nEl acceso podría quedar pendiente para revisión. ¿Desea volver al panel global de todas maneras?`,
+      );
+
+      if (!continueReturn) {
+        return;
+      }
+    }
+
     if (!restorePlatformToken()) {
       window.alert(
         "No se encontró la sesión global conservada. Inicie sesión nuevamente.",
@@ -366,6 +405,9 @@ function Navbar() {
       "hcelm_require_professional_verification",
       "hcelm_access_mode",
       "hcelm_context_source",
+      "hcelm_platform_access_audit_id",
+      "hcelm_platform_access_reason",
+      "hcelm_platform_access_entered_at",
     ].forEach(removeSessionItem);
 
     window.location.href = "/platform";
@@ -414,7 +456,7 @@ function Navbar() {
           {temporaryPlatformAccess ? (
             <button
               type="button"
-              onClick={handleReturnToPlatform}
+              onClick={() => void handleReturnToPlatform()}
               className="rounded-lg border border-cyan-300 bg-cyan-500 px-4 py-2 font-black text-slate-950 transition hover:bg-cyan-400"
             >
               Volver al panel global

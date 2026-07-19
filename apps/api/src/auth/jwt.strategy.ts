@@ -45,6 +45,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       accessMode: payload.accessMode,
       contextSource: payload.contextSource,
       contextIssuedAt: payload.contextIssuedAt,
+      platformAccessAuditId: payload.platformAccessAuditId,
+      platformAccessReason: payload.platformAccessReason,
     };
   }
 }

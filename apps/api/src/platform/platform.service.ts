@@ -14,9 +14,18 @@ export class PlatformService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async createCompanyContext(userId: string, companyId: string) {
+  async createCompanyContext(
+    userId: string,
+    companyId: string,
+    reason: string,
+    requestMetadata: {
+      ipAddress?: string;
+      userAgent?: string;
+    },
+  ) {
     const normalizedUserId = String(userId || '').trim();
     const normalizedCompanyId = String(companyId || '').trim();
+    const normalizedReason = String(reason || '').trim();
 
     if (!normalizedUserId) {
       throw new UnauthorizedException(
@@ -27,6 +36,18 @@ export class PlatformService {
     if (!normalizedCompanyId) {
       throw new BadRequestException(
         'Debe seleccionar una empresa para ingresar.',
+      );
+    }
+
+    if (normalizedReason.length < 5) {
+      throw new BadRequestException(
+        'Debe registrar un motivo de acceso de al menos 5 caracteres.',
+      );
+    }
+
+    if (normalizedReason.length > 500) {
+      throw new BadRequestException(
+        'El motivo de acceso no puede superar los 500 caracteres.',
       );
     }
 
@@ -148,6 +169,39 @@ export class PlatformService {
     const preferredWarehouse = preferredBusinessUnit.warehouses[0] || null;
     const membership = company.userMemberships[0] || null;
 
+    await this.prisma.platformCompanyAccessAudit.updateMany({
+      where: {
+        platformUserId: user.id,
+        status: 'ACTIVE',
+        exitedAt: null,
+      },
+      data: {
+        status: 'ABANDONED',
+        exitedAt: new Date(),
+      },
+    });
+
+    const accessAudit = await this.prisma.platformCompanyAccessAudit.create({
+      data: {
+        platformUserId: user.id,
+        tenantId: company.tenant.id,
+        companyId: company.id,
+        businessUnitId: preferredBusinessUnit.id,
+        warehouseId: preferredWarehouse?.id || null,
+        reason: normalizedReason,
+        accessMode: 'COMPANY_OPERATION',
+        status: 'ACTIVE',
+        ipAddress: requestMetadata.ipAddress || null,
+        userAgent: requestMetadata.userAgent || null,
+      },
+      select: {
+        id: true,
+        reason: true,
+        status: true,
+        enteredAt: true,
+      },
+    });
+
     const payload = {
       sub: user.id,
       email: user.email,
@@ -172,6 +226,8 @@ export class PlatformService {
       accessMode: 'COMPANY_OPERATION',
       contextSource: 'PLATFORM_SUPERADMIN',
       contextIssuedAt: new Date().toISOString(),
+      platformAccessAuditId: accessAudit.id,
+      platformAccessReason: accessAudit.reason,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
@@ -181,6 +237,12 @@ export class PlatformService {
       token: accessToken,
       accessMode: 'COMPANY_OPERATION',
       contextSource: 'PLATFORM_SUPERADMIN',
+      audit: {
+        id: accessAudit.id,
+        reason: accessAudit.reason,
+        status: accessAudit.status,
+        enteredAt: accessAudit.enteredAt.toISOString(),
+      },
       user: {
         id: user.id,
         email: user.email,
@@ -210,6 +272,68 @@ export class PlatformService {
             isDefault: membership.isDefault,
           }
         : null,
+    };
+  }
+
+  async closeCompanyContext(userId: string, auditId: string) {
+    const normalizedUserId = String(userId || '').trim();
+    const normalizedAuditId = String(auditId || '').trim();
+
+    if (!normalizedUserId || !normalizedAuditId) {
+      throw new BadRequestException(
+        'No se encontró una sesión temporal activa para cerrar.',
+      );
+    }
+
+    const audit = await this.prisma.platformCompanyAccessAudit.findFirst({
+      where: {
+        id: normalizedAuditId,
+        platformUserId: normalizedUserId,
+      },
+      select: {
+        id: true,
+        status: true,
+        exitedAt: true,
+      },
+    });
+
+    if (!audit) {
+      throw new NotFoundException(
+        'El registro de auditoría del acceso no existe.',
+      );
+    }
+
+    if (audit.status !== 'ACTIVE' || audit.exitedAt) {
+      return {
+        id: audit.id,
+        status: audit.status,
+        alreadyClosed: true,
+        exitedAt: audit.exitedAt?.toISOString() || null,
+      };
+    }
+
+    const closed = await this.prisma.platformCompanyAccessAudit.update({
+      where: {
+        id: audit.id,
+      },
+      data: {
+        status: 'CLOSED',
+        exitedAt: new Date(),
+      },
+      select: {
+        id: true,
+        status: true,
+        enteredAt: true,
+        exitedAt: true,
+      },
+    });
+
+    return {
+      id: closed.id,
+      status: closed.status,
+      alreadyClosed: false,
+      enteredAt: closed.enteredAt.toISOString(),
+      exitedAt: closed.exitedAt?.toISOString() || null,
     };
   }
 

@@ -14,6 +14,7 @@ import {
   CreditCard,
   DatabaseBackup,
   Download,
+  Eye,
   Fingerprint,
   Info,
   Gauge,
@@ -353,6 +354,10 @@ function formatAccessDuration(totalSeconds: number) {
   return `${seconds} s`;
 }
 
+function isProlongedActiveAccess(audit: PlatformAccessAuditItem) {
+  return audit.status === "ACTIVE" && audit.durationSeconds >= 30 * 60;
+}
+
 function csvCell(value: unknown) {
   const normalized = String(value ?? "").replace(/"/g, '""');
   return `"${normalized}"`;
@@ -424,6 +429,8 @@ export default function PlatformDashboard() {
   const [accessAuditSearch, setAccessAuditSearch] = useState("");
   const [accessAuditPage, setAccessAuditPage] = useState(1);
   const [accessAuditExporting, setAccessAuditExporting] = useState(false);
+  const [selectedAccessAudit, setSelectedAccessAudit] =
+    useState<PlatformAccessAuditItem | null>(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<Set<string>>(
     new Set(),
   );
@@ -1159,6 +1166,169 @@ export default function PlatformDashboard() {
           </button>
         </div>
       </aside>
+
+      {selectedAccessAudit ? (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="access-audit-detail-title"
+            className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white p-5 sm:p-6">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wide text-cyan-700">
+                  Registro permanente de auditoría
+                </p>
+
+                <h2
+                  id="access-audit-detail-title"
+                  className="mt-1 text-2xl font-black text-slate-950"
+                >
+                  Detalle del acceso temporal
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedAccessAudit(null)}
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Cerrar detalle del acceso"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </header>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              {isProlongedActiveAccess(selectedAccessAudit) ? (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+
+                    <div>
+                      <p className="font-black text-amber-950">
+                        Acceso temporal prolongado
+                      </p>
+
+                      <p className="mt-1 text-sm leading-6 text-amber-900">
+                        Esta sesión lleva activa 30 minutos o más. Verifique que
+                        el acceso administrativo continúe siendo necesario.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  className={[
+                    "inline-flex rounded-full border px-3 py-1.5 text-sm font-black",
+                    accessStatusClass(selectedAccessAudit.status),
+                  ].join(" ")}
+                >
+                  {accessStatusLabel(selectedAccessAudit.status)}
+                </span>
+
+                <span className="break-all text-sm font-semibold text-slate-600">
+                  ID: {selectedAccessAudit.id}
+                </span>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <AuditDetailBlock
+                  title="Usuario"
+                  lines={[
+                    selectedAccessAudit.user.fullName,
+                    selectedAccessAudit.user.email || "Correo no disponible",
+                    selectedAccessAudit.user.platformRole ||
+                      "Rol de plataforma no disponible",
+                  ]}
+                />
+
+                <AuditDetailBlock
+                  title="Grupo y empresa"
+                  lines={[
+                    selectedAccessAudit.tenant.name,
+                    selectedAccessAudit.company.tradeName ||
+                      selectedAccessAudit.company.legalName,
+                    selectedAccessAudit.company.legalName,
+                    `RUC ${selectedAccessAudit.company.ruc || "No disponible"}`,
+                  ]}
+                />
+
+                <AuditDetailBlock
+                  title="Contexto operativo"
+                  lines={[
+                    selectedAccessAudit.businessUnit.name,
+                    selectedAccessAudit.warehouse?.name ||
+                      "Sin almacén asignado",
+                    `Modo de acceso: ${selectedAccessAudit.accessMode}`,
+                  ]}
+                />
+
+                <AuditDetailBlock
+                  title="Origen técnico"
+                  lines={[
+                    selectedAccessAudit.ipAddress || "IP no registrada",
+                    selectedAccessAudit.browser,
+                    selectedAccessAudit.userAgent ||
+                      "Agente de usuario no registrado",
+                  ]}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  Motivo registrado
+                </p>
+
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                  {selectedAccessAudit.reason}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <AuditDetailBlock
+                  title="Entrada"
+                  lines={[
+                    new Date(selectedAccessAudit.enteredAt).toLocaleString(
+                      "es-PE",
+                    ),
+                  ]}
+                />
+
+                <AuditDetailBlock
+                  title="Salida"
+                  lines={[
+                    selectedAccessAudit.exitedAt
+                      ? new Date(selectedAccessAudit.exitedAt).toLocaleString(
+                          "es-PE",
+                        )
+                      : "Sesión aún activa",
+                  ]}
+                />
+
+                <AuditDetailBlock
+                  title="Duración"
+                  lines={[
+                    formatAccessDuration(selectedAccessAudit.durationSeconds),
+                  ]}
+                />
+              </div>
+            </div>
+
+            <footer className="sticky bottom-0 flex justify-end border-t border-slate-200 bg-slate-50 p-4 sm:p-5">
+              <button
+                type="button"
+                onClick={() => setSelectedAccessAudit(null)}
+                className="rounded-xl bg-slate-950 px-5 py-2.5 font-black text-white hover:bg-slate-800"
+              >
+                Cerrar
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
 
       {selectedCompany ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
@@ -2154,6 +2324,26 @@ export default function PlatformDashboard() {
               </div>
             ) : null}
 
+            {accessAuditData?.items.some(isProlongedActiveAccess) ? (
+              <div className="m-5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+
+                  <div>
+                    <p className="font-black text-amber-950">
+                      Acceso temporal prolongado
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-amber-900">
+                      Existe al menos una sesión activa durante 30 minutos o
+                      más. Revise que el acceso administrativo siga siendo
+                      necesario.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             {accessAuditError ? (
               <div className="m-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                 <p className="font-black">No se pudo cargar el historial</p>
@@ -2197,6 +2387,7 @@ export default function PlatformDashboard() {
                       <th className="px-4 py-3">Salida</th>
                       <th className="px-4 py-3">Duración</th>
                       <th className="px-4 py-3">Origen</th>
+                      <th className="px-4 py-3">Acciones</th>
                     </tr>
                   </thead>
 
@@ -2204,7 +2395,12 @@ export default function PlatformDashboard() {
                     {accessAuditData.items.map((audit) => (
                       <tr
                         key={audit.id}
-                        className="align-top hover:bg-slate-50"
+                        className={[
+                          "align-top hover:bg-slate-50",
+                          isProlongedActiveAccess(audit)
+                            ? "bg-amber-50/70"
+                            : "",
+                        ].join(" ")}
                       >
                         <td className="px-4 py-4">
                           <span
@@ -2277,6 +2473,17 @@ export default function PlatformDashboard() {
                           <p className="mt-1 text-xs text-slate-500">
                             {audit.browser}
                           </p>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAccessAudit(audit)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 hover:bg-cyan-100"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Ver detalle
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -2463,6 +2670,33 @@ export default function PlatformDashboard() {
             </div>
           </section>
         </main>
+      </div>
+    </div>
+  );
+}
+
+function AuditDetailBlock({
+  title,
+  lines,
+}: {
+  title: string;
+  lines: string[];
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+        {title}
+      </p>
+
+      <div className="mt-2 space-y-1">
+        {lines.map((line, index) => (
+          <p
+            key={`${title}-${index}`}
+            className="break-words text-sm leading-5 text-slate-800"
+          >
+            {line}
+          </p>
+        ))}
       </div>
     </div>
   );

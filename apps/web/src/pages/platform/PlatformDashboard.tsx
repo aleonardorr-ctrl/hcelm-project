@@ -13,6 +13,7 @@ import {
   ClipboardList,
   CreditCard,
   DatabaseBackup,
+  Download,
   Fingerprint,
   Info,
   Gauge,
@@ -352,6 +353,21 @@ function formatAccessDuration(totalSeconds: number) {
   return `${seconds} s`;
 }
 
+function csvCell(value: unknown) {
+  const normalized = String(value ?? "").replace(/"/g, '""');
+  return `"${normalized}"`;
+}
+
+function formatCsvDate(value: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("es-PE");
+}
+
 function accessStatusLabel(status: string) {
   if (status === "ACTIVE") {
     return "Activo";
@@ -407,6 +423,7 @@ export default function PlatformDashboard() {
   const [accessAuditDateTo, setAccessAuditDateTo] = useState("");
   const [accessAuditSearch, setAccessAuditSearch] = useState("");
   const [accessAuditPage, setAccessAuditPage] = useState(1);
+  const [accessAuditExporting, setAccessAuditExporting] = useState(false);
   const [expandedTenantIds, setExpandedTenantIds] = useState<Set<string>>(
     new Set(),
   );
@@ -648,6 +665,147 @@ export default function PlatformDashboard() {
       );
     } finally {
       setAccessAuditLoading(false);
+    }
+  }
+
+  async function exportAccessAuditsCsv() {
+    setAccessAuditExporting(true);
+    setAccessAuditError(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error("No se encontró una sesión autenticada.");
+      }
+
+      const allItems: PlatformAccessAuditItem[] = [];
+      let currentPage = 1;
+      let totalPages = 1;
+
+      do {
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          pageSize: "100",
+        });
+
+        if (accessAuditStatus) {
+          params.set("status", accessAuditStatus);
+        }
+
+        if (accessAuditCompanyId) {
+          params.set("companyId", accessAuditCompanyId);
+        }
+
+        if (accessAuditDateFrom) {
+          params.set("dateFrom", accessAuditDateFrom);
+        }
+
+        if (accessAuditDateTo) {
+          params.set("dateTo", accessAuditDateTo);
+        }
+
+        if (accessAuditSearch.trim()) {
+          params.set("search", accessAuditSearch.trim());
+        }
+
+        const response = await fetch(
+          `http://localhost:3000/api/platform/access-audits?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        const body = await response.json().catch(() => null);
+
+        if (!response.ok || !body) {
+          const message =
+            body?.message || "No se pudo preparar la exportación.";
+
+          throw new Error(
+            Array.isArray(message) ? message.join(". ") : String(message),
+          );
+        }
+
+        const pageData = body as PlatformAccessAuditResponse;
+
+        allItems.push(...pageData.items);
+        totalPages = pageData.pagination.totalPages;
+        currentPage += 1;
+      } while (currentPage <= totalPages);
+
+      const headers = [
+        "ID auditoría",
+        "Estado",
+        "Usuario",
+        "Correo",
+        "Grupo",
+        "Empresa",
+        "Razón social",
+        "RUC",
+        "Unidad de negocio",
+        "Almacén",
+        "Motivo",
+        "Entrada",
+        "Salida",
+        "Duración",
+        "IP",
+        "Navegador",
+      ];
+
+      const rows = allItems.map((audit) => [
+        audit.id,
+        accessStatusLabel(audit.status),
+        audit.user.fullName,
+        audit.user.email || "",
+        audit.tenant.name,
+        audit.company.tradeName || audit.company.legalName,
+        audit.company.legalName,
+        audit.company.ruc || "",
+        audit.businessUnit.name,
+        audit.warehouse?.name || "",
+        audit.reason,
+        formatCsvDate(audit.enteredAt),
+        formatCsvDate(audit.exitedAt),
+        formatAccessDuration(audit.durationSeconds),
+        audit.ipAddress || "",
+        audit.browser,
+      ]);
+
+      const csv = [
+        headers.map(csvCell).join(";"),
+        ...rows.map((row) => row.map(csvCell).join(";")),
+      ].join("\r\n");
+
+      const blob = new Blob(["\uFEFF", csv], {
+        type: "text/csv;charset=utf-8",
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `historial_accesos_hcelm_${new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")}.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setAccessAuditError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo exportar el historial.",
+      );
+    } finally {
+      setAccessAuditExporting(false);
     }
   }
 
@@ -1801,16 +1959,35 @@ export default function PlatformDashboard() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  disabled={accessAuditLoading}
-                  onClick={() => void loadAccessAudits(accessAuditPage)}
-                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-sm font-black text-cyan-800 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {accessAuditLoading
-                    ? "Actualizando..."
-                    : "Actualizar historial"}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      accessAuditLoading ||
+                      accessAuditExporting ||
+                      !accessAuditData?.pagination.totalItems
+                    }
+                    onClick={() => void exportAccessAuditsCsv()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Download className="h-4 w-4" />
+
+                    {accessAuditExporting
+                      ? "Preparando CSV..."
+                      : "Exportar CSV"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={accessAuditLoading}
+                    onClick={() => void loadAccessAudits(accessAuditPage)}
+                    className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-sm font-black text-cyan-800 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {accessAuditLoading
+                      ? "Actualizando..."
+                      : "Actualizar historial"}
+                  </button>
+                </div>
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

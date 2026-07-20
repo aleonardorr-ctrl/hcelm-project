@@ -193,6 +193,14 @@ type PlatformAccessAuditItem = {
   } | null;
 };
 
+type PlatformAccessAuditFilters = {
+  status?: string;
+  companyId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+};
+
 type PlatformAccessAuditResponse = {
   items: PlatformAccessAuditItem[];
   pagination: {
@@ -604,7 +612,60 @@ export default function PlatformDashboard() {
       cancelled = true;
     };
   }, []);
-  async function loadAccessAudits(page = accessAuditPage) {
+  function buildAccessAuditParams(
+    page: number,
+    pageSize: number,
+    overrides?: PlatformAccessAuditFilters,
+  ) {
+    const filters = {
+      status:
+        overrides?.status !== undefined ? overrides.status : accessAuditStatus,
+      companyId:
+        overrides?.companyId !== undefined
+          ? overrides.companyId
+          : accessAuditCompanyId,
+      dateFrom:
+        overrides?.dateFrom !== undefined
+          ? overrides.dateFrom
+          : accessAuditDateFrom,
+      dateTo:
+        overrides?.dateTo !== undefined ? overrides.dateTo : accessAuditDateTo,
+      search:
+        overrides?.search !== undefined ? overrides.search : accessAuditSearch,
+    };
+
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+
+    if (filters.status) {
+      params.set("status", filters.status);
+    }
+
+    if (filters.companyId) {
+      params.set("companyId", filters.companyId);
+    }
+
+    if (filters.dateFrom) {
+      params.set("dateFrom", filters.dateFrom);
+    }
+
+    if (filters.dateTo) {
+      params.set("dateTo", filters.dateTo);
+    }
+
+    if (filters.search.trim()) {
+      params.set("search", filters.search.trim());
+    }
+
+    return params;
+  }
+
+  async function loadAccessAudits(
+    page = accessAuditPage,
+    overrides?: PlatformAccessAuditFilters,
+  ) {
     setAccessAuditLoading(true);
     setAccessAuditError(null);
 
@@ -617,30 +678,7 @@ export default function PlatformDashboard() {
         throw new Error("No se encontró una sesión autenticada.");
       }
 
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: "10",
-      });
-
-      if (accessAuditStatus) {
-        params.set("status", accessAuditStatus);
-      }
-
-      if (accessAuditCompanyId) {
-        params.set("companyId", accessAuditCompanyId);
-      }
-
-      if (accessAuditDateFrom) {
-        params.set("dateFrom", accessAuditDateFrom);
-      }
-
-      if (accessAuditDateTo) {
-        params.set("dateTo", accessAuditDateTo);
-      }
-
-      if (accessAuditSearch.trim()) {
-        params.set("search", accessAuditSearch.trim());
-      }
+      const params = buildAccessAuditParams(page, 10, overrides);
 
       const response = await fetch(
         `http://localhost:3000/api/platform/access-audits?${params.toString()}`,
@@ -693,30 +731,7 @@ export default function PlatformDashboard() {
       let totalPages = 1;
 
       do {
-        const params = new URLSearchParams({
-          page: String(currentPage),
-          pageSize: "100",
-        });
-
-        if (accessAuditStatus) {
-          params.set("status", accessAuditStatus);
-        }
-
-        if (accessAuditCompanyId) {
-          params.set("companyId", accessAuditCompanyId);
-        }
-
-        if (accessAuditDateFrom) {
-          params.set("dateFrom", accessAuditDateFrom);
-        }
-
-        if (accessAuditDateTo) {
-          params.set("dateTo", accessAuditDateTo);
-        }
-
-        if (accessAuditSearch.trim()) {
-          params.set("search", accessAuditSearch.trim());
-        }
+        const params = buildAccessAuditParams(currentPage, 100);
 
         const response = await fetch(
           `http://localhost:3000/api/platform/access-audits?${params.toString()}`,
@@ -2266,6 +2281,14 @@ export default function PlatformDashboard() {
                   type="button"
                   disabled={accessAuditLoading}
                   onClick={() => {
+                    const emptyFilters: PlatformAccessAuditFilters = {
+                      search: "",
+                      status: "",
+                      companyId: "",
+                      dateFrom: "",
+                      dateTo: "",
+                    };
+
                     setAccessAuditSearch("");
                     setAccessAuditStatus("");
                     setAccessAuditCompanyId("");
@@ -2273,9 +2296,7 @@ export default function PlatformDashboard() {
                     setAccessAuditDateTo("");
                     setAccessAuditPage(1);
 
-                    window.setTimeout(() => {
-                      window.location.reload();
-                    }, 0);
+                    void loadAccessAudits(1, emptyFilters);
                   }}
                   className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60"
                 >

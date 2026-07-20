@@ -1594,23 +1594,27 @@ model PharmacyFefoAuthorization {
 }
 
 model PlatformCompanyAccessAudit {
-  id             String    @id @default(uuid()) @db.Uuid
-  platformUserId String    @db.Uuid
-  tenantId       String    @db.Uuid
-  companyId      String    @db.Uuid
-  businessUnitId String    @db.Uuid
-  warehouseId    String?   @db.Uuid
-  reason         String    @db.VarChar(500)
-  accessMode     String    @default("COMPANY_OPERATION") @db.VarChar(40)
-  status         String    @default("ACTIVE") @db.VarChar(30)
-  enteredAt      DateTime  @default(now())
-  exitedAt       DateTime?
-  ipAddress      String?   @db.VarChar(80)
-  userAgent      String?   @db.Text
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                     String    @id @default(uuid()) @db.Uuid
+  platformUserId         String    @db.Uuid
+  tenantId               String    @db.Uuid
+  companyId              String    @db.Uuid
+  businessUnitId         String    @db.Uuid
+  warehouseId            String?   @db.Uuid
+  reason                 String    @db.VarChar(500)
+  accessMode             String    @default("COMPANY_OPERATION") @db.VarChar(40)
+  status                 String    @default("ACTIVE") @db.VarChar(30)
+  enteredAt              DateTime  @default(now())
+  exitedAt               DateTime?
+  ipAddress              String?   @db.VarChar(80)
+  userAgent              String?   @db.Text
+  closedByPlatformUserId String?   @db.Uuid
+  closureReason          String?   @db.VarChar(500)
+  closureSource          String?   @db.VarChar(40)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@index([platformUserId, enteredAt])
   @@index([tenantId, companyId, enteredAt])
   @@index([status, enteredAt])
+  @@index([closedByPlatformUserId, exitedAt])
 }

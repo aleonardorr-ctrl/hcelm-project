@@ -162,6 +162,13 @@ type PlatformAccessAuditItem = {
   ipAddress: string | null;
   userAgent: string | null;
   browser: string;
+  closureReason: string | null;
+  closureSource: string | null;
+  closedBy: {
+    id: string;
+    fullName: string;
+    email: string | null;
+  } | null;
   user: {
     id: string;
     fullName: string;
@@ -439,6 +446,14 @@ export default function PlatformDashboard() {
   const [accessAuditExporting, setAccessAuditExporting] = useState(false);
   const [selectedAccessAudit, setSelectedAccessAudit] =
     useState<PlatformAccessAuditItem | null>(null);
+  const [accessAuditToClose, setAccessAuditToClose] =
+    useState<PlatformAccessAuditItem | null>(null);
+  const [accessAuditClosureReason, setAccessAuditClosureReason] = useState("");
+  const [accessAuditClosureLoading, setAccessAuditClosureLoading] =
+    useState(false);
+  const [accessAuditClosureError, setAccessAuditClosureError] = useState<
+    string | null
+  >(null);
   const [expandedTenantIds, setExpandedTenantIds] = useState<Set<string>>(
     new Set(),
   );
@@ -710,6 +725,75 @@ export default function PlatformDashboard() {
       );
     } finally {
       setAccessAuditLoading(false);
+    }
+  }
+
+  async function closeAccessAuditManually() {
+    if (!accessAuditToClose) {
+      return;
+    }
+
+    const normalizedReason = accessAuditClosureReason.trim();
+
+    if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+      setAccessAuditClosureError(
+        "El motivo debe tener entre 5 y 500 caracteres.",
+      );
+      return;
+    }
+
+    setAccessAuditClosureLoading(true);
+    setAccessAuditClosureError(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error("No se encontró una sesión autenticada.");
+      }
+
+      const response = await fetch(
+        "http://localhost:3000/api/platform/access-audits/close",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            auditId: accessAuditToClose.id,
+            reason: normalizedReason,
+          }),
+        },
+      );
+
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok || !body) {
+        const message =
+          body?.message || "No se pudo cerrar el acceso temporal.";
+
+        throw new Error(
+          Array.isArray(message) ? message.join(". ") : String(message),
+        );
+      }
+
+      setAccessAuditToClose(null);
+      setAccessAuditClosureReason("");
+      setAccessAuditClosureError(null);
+      setSelectedAccessAudit(null);
+
+      await loadAccessAudits(accessAuditPage);
+    } catch (error) {
+      setAccessAuditClosureError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cerrar el acceso temporal.",
+      );
+    } finally {
+      setAccessAuditClosureLoading(false);
     }
   }
 
@@ -1182,6 +1266,145 @@ export default function PlatformDashboard() {
         </div>
       </aside>
 
+      {accessAuditToClose ? (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manual-access-close-title"
+            className="w-full max-w-xl overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl"
+          >
+            <header className="border-b border-red-200 bg-red-50 p-5 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-red-700">
+                    Acción administrativa auditada
+                  </p>
+
+                  <h2
+                    id="manual-access-close-title"
+                    className="mt-1 text-2xl font-black text-red-950"
+                  >
+                    Cerrar acceso temporal
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={accessAuditClosureLoading}
+                  onClick={() => {
+                    setAccessAuditToClose(null);
+                    setAccessAuditClosureReason("");
+                    setAccessAuditClosureError(null);
+                  }}
+                  className="rounded-xl p-2 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  aria-label="Cancelar cierre administrativo"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </header>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+
+                  <div>
+                    <p className="font-black text-amber-950">
+                      Esta acción cerrará la sesión registrada
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-amber-900">
+                      El cierre quedará asociado al superusuario de plataforma y
+                      no podrá deshacerse.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="font-black text-slate-950">
+                  {accessAuditToClose.user.fullName}
+                </p>
+
+                <p className="mt-1 text-sm text-slate-600">
+                  {accessAuditToClose.company.tradeName ||
+                    accessAuditToClose.company.legalName}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Ingreso:{" "}
+                  {new Date(accessAuditToClose.enteredAt).toLocaleString(
+                    "es-PE",
+                  )}
+                </p>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-black text-slate-900">
+                  Motivo obligatorio del cierre
+                </span>
+
+                <textarea
+                  value={accessAuditClosureReason}
+                  onChange={(event) => {
+                    setAccessAuditClosureReason(event.target.value);
+                    setAccessAuditClosureError(null);
+                  }}
+                  disabled={accessAuditClosureLoading}
+                  minLength={5}
+                  maxLength={500}
+                  rows={5}
+                  placeholder="Ejemplo: El acceso ya no es necesario y permanece activo por cierre incorrecto de la sesión."
+                  className="mt-2 w-full resize-y rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-100 disabled:bg-slate-100"
+                />
+
+                <span className="mt-1 block text-right text-xs font-semibold text-slate-500">
+                  {accessAuditClosureReason.trim().length}/500
+                </span>
+              </label>
+
+              {accessAuditClosureError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                  <p className="font-black">No se pudo cerrar el acceso</p>
+                  <p className="mt-1">{accessAuditClosureError}</p>
+                </div>
+              ) : null}
+            </div>
+
+            <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row sm:justify-end sm:p-5">
+              <button
+                type="button"
+                disabled={accessAuditClosureLoading}
+                onClick={() => {
+                  setAccessAuditToClose(null);
+                  setAccessAuditClosureReason("");
+                  setAccessAuditClosureError(null);
+                }}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 font-black text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  accessAuditClosureLoading ||
+                  accessAuditClosureReason.trim().length < 5
+                }
+                onClick={() => void closeAccessAuditManually()}
+                className="rounded-xl bg-red-700 px-5 py-2.5 font-black text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {accessAuditClosureLoading
+                  ? "Cerrando acceso..."
+                  : "Confirmar cierre"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
       {selectedAccessAudit ? (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
           <section
@@ -1302,6 +1525,54 @@ export default function PlatformDashboard() {
                 </p>
               </div>
 
+              {selectedAccessAudit.closureSource ||
+              selectedAccessAudit.closureReason ||
+              selectedAccessAudit.closedBy ? (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+                  <p className="text-xs font-black uppercase tracking-wide text-violet-700">
+                    Información del cierre
+                  </p>
+
+                  <div className="mt-3 grid gap-4 md:grid-cols-2">
+                    <AuditDetailBlock
+                      title="Tipo de cierre"
+                      lines={[
+                        selectedAccessAudit.closureSource === "PLATFORM_ADMIN"
+                          ? "Cierre administrativo"
+                          : selectedAccessAudit.closureSource === "USER_EXIT"
+                            ? "Cierre voluntario"
+                            : selectedAccessAudit.closureSource ===
+                                "AUTO_ABANDONED"
+                              ? "Cierre automático por abandono"
+                              : selectedAccessAudit.closureSource ||
+                                "No especificado",
+                      ]}
+                    />
+
+                    <AuditDetailBlock
+                      title="Cerrado por"
+                      lines={[
+                        selectedAccessAudit.closedBy?.fullName ||
+                          "Sistema HCELM",
+                        selectedAccessAudit.closedBy?.email ||
+                          "Sin correo registrado",
+                      ]}
+                    />
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-violet-200 bg-white p-4">
+                    <p className="text-xs font-black uppercase tracking-wide text-violet-700">
+                      Motivo del cierre
+                    </p>
+
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                      {selectedAccessAudit.closureReason ||
+                        "No se registró un motivo de cierre."}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid gap-4 sm:grid-cols-3">
                 <AuditDetailBlock
                   title="Entrada"
@@ -1332,14 +1603,28 @@ export default function PlatformDashboard() {
               </div>
             </div>
 
-            <footer className="sticky bottom-0 flex justify-end border-t border-slate-200 bg-slate-50 p-4 sm:p-5">
+            <footer className="sticky bottom-0 flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row sm:justify-end sm:p-5">
               <button
                 type="button"
                 onClick={() => setSelectedAccessAudit(null)}
-                className="rounded-xl bg-slate-950 px-5 py-2.5 font-black text-white hover:bg-slate-800"
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 font-black text-slate-700 hover:bg-slate-100"
               >
-                Cerrar
+                Cerrar detalle
               </button>
+
+              {selectedAccessAudit.status === "ACTIVE" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccessAuditToClose(selectedAccessAudit);
+                    setAccessAuditClosureReason("");
+                    setAccessAuditClosureError(null);
+                  }}
+                  className="rounded-xl bg-red-700 px-5 py-2.5 font-black text-white hover:bg-red-800"
+                >
+                  Cerrar acceso
+                </button>
+              ) : null}
             </footer>
           </section>
         </div>
@@ -2497,14 +2782,30 @@ export default function PlatformDashboard() {
                         </td>
 
                         <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedAccessAudit(audit)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 hover:bg-cyan-100"
-                          >
-                            <Eye className="h-4 w-4" />
-                            Ver detalle
-                          </button>
+                          <div className="flex flex-col gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAccessAudit(audit)}
+                              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 hover:bg-cyan-100"
+                            >
+                              <Eye className="h-4 w-4" />
+                              Ver detalle
+                            </button>
+
+                            {audit.status === "ACTIVE" ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAccessAuditToClose(audit);
+                                  setAccessAuditClosureReason("");
+                                  setAccessAuditClosureError(null);
+                                }}
+                                className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black text-red-800 hover:bg-red-100"
+                              >
+                                Cerrar acceso
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))}

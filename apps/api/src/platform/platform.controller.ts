@@ -51,6 +51,23 @@ export class PlatformController {
     );
   }
 
+  @Post('access-audits/close')
+  @HttpCode(HttpStatus.OK)
+  async closeAccessAuditManually(
+    @Request() req: any,
+    @Body()
+    body: {
+      auditId?: string;
+      reason?: string;
+    },
+  ) {
+    return this.platformService.closeAccessAuditManually(
+      req.user?.userId || req.user?.sub || '',
+      body?.auditId || '',
+      body?.reason || '',
+    );
+  }
+
   @Get('access-audits')
   async getAccessAudits(
     @Query()

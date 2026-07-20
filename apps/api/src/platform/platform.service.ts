@@ -178,6 +178,9 @@ export class PlatformService {
       data: {
         status: 'ABANDONED',
         exitedAt: new Date(),
+        closureSource: 'AUTO_ABANDONED',
+        closureReason:
+          'El acceso activo anterior fue reemplazado por un nuevo contexto empresarial.',
       },
     });
 
@@ -319,6 +322,10 @@ export class PlatformService {
       data: {
         status: 'CLOSED',
         exitedAt: new Date(),
+        closedByPlatformUserId: normalizedUserId,
+        closureSource: 'USER_EXIT',
+        closureReason:
+          'El superusuario regresó voluntariamente al panel global.',
       },
       select: {
         id: true,
@@ -334,6 +341,111 @@ export class PlatformService {
       alreadyClosed: false,
       enteredAt: closed.enteredAt.toISOString(),
       exitedAt: closed.exitedAt?.toISOString() || null,
+    };
+  }
+
+  async closeAccessAuditManually(
+    administratorUserId: string,
+    auditId: string,
+    reason: string,
+  ) {
+    const normalizedAdministratorUserId = String(
+      administratorUserId || '',
+    ).trim();
+
+    const normalizedAuditId = String(auditId || '').trim();
+    const normalizedReason = String(reason || '').trim();
+
+    if (!normalizedAdministratorUserId) {
+      throw new BadRequestException(
+        'No se pudo identificar al superusuario que realiza el cierre.',
+      );
+    }
+
+    if (!normalizedAuditId) {
+      throw new BadRequestException('Debe indicar el acceso que desea cerrar.');
+    }
+
+    if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+      throw new BadRequestException(
+        'El motivo del cierre debe tener entre 5 y 500 caracteres.',
+      );
+    }
+
+    const administrator = await this.prisma.user.findFirst({
+      where: {
+        id: normalizedAdministratorUserId,
+        active: true,
+        platformRole: 'PLATFORM_SUPERADMIN',
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+      },
+    });
+
+    if (!administrator) {
+      throw new NotFoundException(
+        'El superusuario que realiza el cierre no existe o está inactivo.',
+      );
+    }
+
+    const audit = await this.prisma.platformCompanyAccessAudit.findUnique({
+      where: {
+        id: normalizedAuditId,
+      },
+      select: {
+        id: true,
+        status: true,
+        enteredAt: true,
+        exitedAt: true,
+      },
+    });
+
+    if (!audit) {
+      throw new NotFoundException(
+        'El registro de acceso solicitado no existe.',
+      );
+    }
+
+    if (audit.status !== 'ACTIVE' || audit.exitedAt) {
+      throw new BadRequestException(
+        'Este acceso ya fue cerrado y no puede cerrarse nuevamente.',
+      );
+    }
+
+    const closed = await this.prisma.platformCompanyAccessAudit.update({
+      where: {
+        id: audit.id,
+      },
+      data: {
+        status: 'CLOSED',
+        exitedAt: new Date(),
+        closedByPlatformUserId: administrator.id,
+        closureReason: normalizedReason,
+        closureSource: 'PLATFORM_ADMIN',
+      },
+      select: {
+        id: true,
+        status: true,
+        enteredAt: true,
+        exitedAt: true,
+        closedByPlatformUserId: true,
+        closureReason: true,
+        closureSource: true,
+      },
+    });
+
+    return {
+      ...closed,
+      enteredAt: closed.enteredAt.toISOString(),
+      exitedAt: closed.exitedAt?.toISOString() || null,
+      closedBy: {
+        id: administrator.id,
+        fullName: administrator.fullName,
+        email: administrator.email,
+      },
     };
   }
 
@@ -458,6 +570,9 @@ export class PlatformService {
         exitedAt: true,
         ipAddress: true,
         userAgent: true,
+        closedByPlatformUserId: true,
+        closureReason: true,
+        closureSource: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -473,7 +588,10 @@ export class PlatformService {
         ),
       );
 
-    const userIds = unique(audits.map((audit) => audit.platformUserId));
+    const userIds = unique([
+      ...audits.map((audit) => audit.platformUserId),
+      ...audits.map((audit) => audit.closedByPlatformUserId),
+    ]);
 
     const tenantIds = unique(audits.map((audit) => audit.tenantId));
     const companyIds = unique(audits.map((audit) => audit.companyId));
@@ -616,6 +734,20 @@ export class PlatformService {
         ipAddress: audit.ipAddress,
         userAgent: audit.userAgent,
         browser: detectBrowser(audit.userAgent),
+        closureReason: audit.closureReason,
+        closureSource: audit.closureSource,
+        closedBy: audit.closedByPlatformUserId
+          ? (() => {
+              const closingUser = userMap.get(audit.closedByPlatformUserId);
+
+              return {
+                id: audit.closedByPlatformUserId,
+                fullName:
+                  closingUser?.fullName || 'Usuario de cierre no disponible',
+                email: closingUser?.email || null,
+              };
+            })()
+          : null,
         createdAt: audit.createdAt.toISOString(),
         updatedAt: audit.updatedAt.toISOString(),
         user: {

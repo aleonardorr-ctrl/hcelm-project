@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -48,6 +49,22 @@ export class PlatformController {
       req.user?.userId || req.user?.sub || '',
       req.user?.platformAccessAuditId || '',
     );
+  }
+
+  @Get('access-audits')
+  async getAccessAudits(
+    @Query()
+    query: {
+      page?: string;
+      pageSize?: string;
+      status?: string;
+      companyId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      search?: string;
+    },
+  ) {
+    return this.platformService.getAccessAudits(query);
   }
 
   @Get('dashboard/summary')

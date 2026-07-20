@@ -337,6 +337,402 @@ export class PlatformService {
     };
   }
 
+  async getAccessAudits(query: {
+    page?: string;
+    pageSize?: string;
+    status?: string;
+    companyId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  }) {
+    const parsedPage = Number.parseInt(String(query.page || '1'), 10);
+    const parsedPageSize = Number.parseInt(String(query.pageSize || '20'), 10);
+
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+    const pageSize =
+      Number.isFinite(parsedPageSize) &&
+      parsedPageSize > 0 &&
+      parsedPageSize <= 100
+        ? parsedPageSize
+        : 20;
+
+    const normalizedStatus = String(query.status || '')
+      .trim()
+      .toUpperCase();
+
+    const allowedStatuses = new Set(['', 'ACTIVE', 'CLOSED', 'ABANDONED']);
+
+    if (!allowedStatuses.has(normalizedStatus)) {
+      throw new BadRequestException(
+        'El estado de auditoría solicitado no es válido.',
+      );
+    }
+
+    const normalizedCompanyId = String(query.companyId || '').trim();
+    const normalizedSearch = String(query.search || '')
+      .trim()
+      .toLocaleLowerCase('es-PE');
+
+    const parseDate = (
+      value: string | undefined,
+      endOfDay: boolean,
+    ): Date | null => {
+      const normalized = String(value || '').trim();
+
+      if (!normalized) {
+        return null;
+      }
+
+      const date = new Date(
+        endOfDay ? `${normalized}T23:59:59.999` : `${normalized}T00:00:00.000`,
+      );
+
+      if (Number.isNaN(date.getTime())) {
+        throw new BadRequestException(
+          'El rango de fechas de auditoría no es válido.',
+        );
+      }
+
+      return date;
+    };
+
+    const dateFrom = parseDate(query.dateFrom, false);
+    const dateTo = parseDate(query.dateTo, true);
+
+    if (dateFrom && dateTo && dateFrom.getTime() > dateTo.getTime()) {
+      throw new BadRequestException(
+        'La fecha inicial no puede ser posterior a la fecha final.',
+      );
+    }
+
+    const audits = await this.prisma.platformCompanyAccessAudit.findMany({
+      where: {
+        ...(normalizedStatus
+          ? {
+              status: normalizedStatus,
+            }
+          : {}),
+        ...(normalizedCompanyId
+          ? {
+              companyId: normalizedCompanyId,
+            }
+          : {}),
+        ...(dateFrom || dateTo
+          ? {
+              enteredAt: {
+                ...(dateFrom
+                  ? {
+                      gte: dateFrom,
+                    }
+                  : {}),
+                ...(dateTo
+                  ? {
+                      lte: dateTo,
+                    }
+                  : {}),
+              },
+            }
+          : {}),
+      },
+      orderBy: [
+        {
+          enteredAt: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
+      select: {
+        id: true,
+        platformUserId: true,
+        tenantId: true,
+        companyId: true,
+        businessUnitId: true,
+        warehouseId: true,
+        reason: true,
+        accessMode: true,
+        status: true,
+        enteredAt: true,
+        exitedAt: true,
+        ipAddress: true,
+        userAgent: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const unique = (values: Array<string | null>) =>
+      Array.from(
+        new Set(
+          values.filter(
+            (value): value is string =>
+              typeof value === 'string' && value.length > 0,
+          ),
+        ),
+      );
+
+    const userIds = unique(audits.map((audit) => audit.platformUserId));
+
+    const tenantIds = unique(audits.map((audit) => audit.tenantId));
+    const companyIds = unique(audits.map((audit) => audit.companyId));
+
+    const businessUnitIds = unique(audits.map((audit) => audit.businessUnitId));
+
+    const warehouseIds = unique(audits.map((audit) => audit.warehouseId));
+
+    const [users, tenants, companies, businessUnits, warehouses] =
+      await this.prisma.$transaction([
+        this.prisma.user.findMany({
+          where: {
+            id: {
+              in: userIds,
+            },
+          },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            platformRole: true,
+          },
+        }),
+        this.prisma.tenant.findMany({
+          where: {
+            id: {
+              in: tenantIds,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            ruc: true,
+          },
+        }),
+        this.prisma.company.findMany({
+          where: {
+            id: {
+              in: companyIds,
+            },
+          },
+          select: {
+            id: true,
+            code: true,
+            legalName: true,
+            tradeName: true,
+            ruc: true,
+          },
+        }),
+        this.prisma.businessUnit.findMany({
+          where: {
+            id: {
+              in: businessUnitIds,
+            },
+          },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+          },
+        }),
+        this.prisma.warehouse.findMany({
+          where: {
+            id: {
+              in: warehouseIds,
+            },
+          },
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        }),
+      ]);
+
+    const userMap = new Map(users.map((item) => [item.id, item]));
+    const tenantMap = new Map(tenants.map((item) => [item.id, item]));
+
+    const companyMap = new Map(companies.map((item) => [item.id, item]));
+
+    const businessUnitMap = new Map(
+      businessUnits.map((item) => [item.id, item]),
+    );
+
+    const warehouseMap = new Map(warehouses.map((item) => [item.id, item]));
+
+    const detectBrowser = (userAgent: string | null) => {
+      const value = String(userAgent || '');
+
+      if (!value) {
+        return 'No registrado';
+      }
+
+      if (/Edg\//i.test(value)) {
+        return 'Microsoft Edge';
+      }
+
+      if (/Chrome\//i.test(value)) {
+        return 'Google Chrome';
+      }
+
+      if (/Firefox\//i.test(value)) {
+        return 'Mozilla Firefox';
+      }
+
+      if (/Safari\//i.test(value) && !/Chrome\//i.test(value)) {
+        return 'Safari';
+      }
+
+      return 'Otro navegador';
+    };
+
+    const enriched = audits.map((audit) => {
+      const user = userMap.get(audit.platformUserId) || null;
+      const tenant = tenantMap.get(audit.tenantId) || null;
+      const company = companyMap.get(audit.companyId) || null;
+
+      const businessUnit = businessUnitMap.get(audit.businessUnitId) || null;
+
+      const warehouse = audit.warehouseId
+        ? warehouseMap.get(audit.warehouseId) || null
+        : null;
+
+      const durationEnd = audit.exitedAt?.getTime() || new Date().getTime();
+
+      const durationSeconds = Math.max(
+        0,
+        Math.floor((durationEnd - audit.enteredAt.getTime()) / 1000),
+      );
+
+      return {
+        id: audit.id,
+        reason: audit.reason,
+        accessMode: audit.accessMode,
+        status: audit.status,
+        enteredAt: audit.enteredAt.toISOString(),
+        exitedAt: audit.exitedAt?.toISOString() || null,
+        durationSeconds,
+        ipAddress: audit.ipAddress,
+        userAgent: audit.userAgent,
+        browser: detectBrowser(audit.userAgent),
+        createdAt: audit.createdAt.toISOString(),
+        updatedAt: audit.updatedAt.toISOString(),
+        user: {
+          id: audit.platformUserId,
+          fullName: user?.fullName || 'Usuario no disponible',
+          email: user?.email || null,
+          platformRole: user?.platformRole || null,
+        },
+        tenant: {
+          id: audit.tenantId,
+          name: tenant?.name || 'Grupo no disponible',
+          ruc: tenant?.ruc || null,
+        },
+        company: {
+          id: audit.companyId,
+          code: company?.code || null,
+          legalName: company?.legalName || 'Empresa no disponible',
+          tradeName: company?.tradeName || null,
+          ruc: company?.ruc || null,
+        },
+        businessUnit: {
+          id: audit.businessUnitId,
+          code: businessUnit?.code || null,
+          name: businessUnit?.name || 'Unidad de negocio no disponible',
+          type: businessUnit?.type || null,
+        },
+        warehouse: warehouse
+          ? {
+              id: warehouse.id,
+              code: warehouse.code,
+              name: warehouse.name,
+            }
+          : null,
+      };
+    });
+
+    const filtered = normalizedSearch
+      ? enriched.filter((item) => {
+          const searchableValues = [
+            item.reason,
+            item.status,
+            item.ipAddress,
+            item.browser,
+            item.user.fullName,
+            item.user.email,
+            item.tenant.name,
+            item.tenant.ruc,
+            item.company.code,
+            item.company.legalName,
+            item.company.tradeName,
+            item.company.ruc,
+            item.businessUnit.code,
+            item.businessUnit.name,
+            item.warehouse?.code,
+            item.warehouse?.name,
+          ];
+
+          return searchableValues.some((value) =>
+            String(value || '')
+              .toLocaleLowerCase('es-PE')
+              .includes(normalizedSearch),
+          );
+        })
+      : enriched;
+
+    const totalItems = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const safePage = Math.min(page, totalPages);
+    const offset = (safePage - 1) * pageSize;
+
+    const items = filtered.slice(offset, offset + pageSize);
+
+    const statusSummary = enriched.reduce(
+      (accumulator, item) => {
+        if (item.status === 'ACTIVE') {
+          accumulator.active += 1;
+        } else if (item.status === 'CLOSED') {
+          accumulator.closed += 1;
+        } else if (item.status === 'ABANDONED') {
+          accumulator.abandoned += 1;
+        }
+
+        return accumulator;
+      },
+      {
+        active: 0,
+        closed: 0,
+        abandoned: 0,
+      },
+    );
+
+    return {
+      items,
+      pagination: {
+        page: safePage,
+        pageSize,
+        totalItems,
+        totalPages,
+        hasPreviousPage: safePage > 1,
+        hasNextPage: safePage < totalPages,
+      },
+      summary: {
+        total: enriched.length,
+        ...statusSummary,
+      },
+      appliedFilters: {
+        status: normalizedStatus || null,
+        companyId: normalizedCompanyId || null,
+        dateFrom: dateFrom?.toISOString() || null,
+        dateTo: dateTo?.toISOString() || null,
+        search: normalizedSearch || null,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   async getDashboardSummary() {
     const [
       registeredTenants,

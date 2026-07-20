@@ -25,8 +25,9 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  Settings,
   ShieldCheck,
+  Timer,
+  Settings,
   Users,
   X,
 } from "lucide-react";
@@ -148,6 +149,74 @@ type PlatformSummary = {
   };
 };
 
+type PlatformAccessAuditItem = {
+  id: string;
+  reason: string;
+  accessMode: string;
+  status: "ACTIVE" | "CLOSED" | "ABANDONED" | string;
+  enteredAt: string;
+  exitedAt: string | null;
+  durationSeconds: number;
+  ipAddress: string | null;
+  userAgent: string | null;
+  browser: string;
+  user: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    platformRole: string | null;
+  };
+  tenant: {
+    id: string;
+    name: string;
+    ruc: string | null;
+  };
+  company: {
+    id: string;
+    code: string | null;
+    legalName: string;
+    tradeName: string | null;
+    ruc: string | null;
+  };
+  businessUnit: {
+    id: string;
+    code: string | null;
+    name: string;
+    type: string | null;
+  };
+  warehouse: {
+    id: string;
+    code: string | null;
+    name: string;
+  } | null;
+};
+
+type PlatformAccessAuditResponse = {
+  items: PlatformAccessAuditItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  summary: {
+    total: number;
+    active: number;
+    closed: number;
+    abandoned: number;
+  };
+  appliedFilters: {
+    status: string | null;
+    companyId: string | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    search: string | null;
+  };
+  generatedAt: string;
+};
+
 type NavigationItem = {
   label: string;
   description: string;
@@ -266,6 +335,55 @@ function initials(value: string) {
     .join("");
 }
 
+function formatAccessDuration(totalSeconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds || 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours} h ${minutes} min`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} min ${seconds} s`;
+  }
+
+  return `${seconds} s`;
+}
+
+function accessStatusLabel(status: string) {
+  if (status === "ACTIVE") {
+    return "Activo";
+  }
+
+  if (status === "CLOSED") {
+    return "Cerrado";
+  }
+
+  if (status === "ABANDONED") {
+    return "Abandonado";
+  }
+
+  return status || "No definido";
+}
+
+function accessStatusClass(status: string) {
+  if (status === "ACTIVE") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+
+  if (status === "CLOSED") {
+    return "border-cyan-200 bg-cyan-50 text-cyan-800";
+  }
+
+  if (status === "ABANDONED") {
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  }
+
+  return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
 export default function PlatformDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -279,6 +397,16 @@ export default function PlatformDashboard() {
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [accessAuditData, setAccessAuditData] =
+    useState<PlatformAccessAuditResponse | null>(null);
+  const [accessAuditLoading, setAccessAuditLoading] = useState(true);
+  const [accessAuditError, setAccessAuditError] = useState<string | null>(null);
+  const [accessAuditStatus, setAccessAuditStatus] = useState("");
+  const [accessAuditCompanyId, setAccessAuditCompanyId] = useState("");
+  const [accessAuditDateFrom, setAccessAuditDateFrom] = useState("");
+  const [accessAuditDateTo, setAccessAuditDateTo] = useState("");
+  const [accessAuditSearch, setAccessAuditSearch] = useState("");
+  const [accessAuditPage, setAccessAuditPage] = useState(1);
   const [expandedTenantIds, setExpandedTenantIds] = useState<Set<string>>(
     new Set(),
   );
@@ -300,6 +428,21 @@ export default function PlatformDashboard() {
   ).length;
 
   const normalizedSearchTerm = normalizeSearchValue(searchTerm);
+
+  const accessAuditCompanies = useMemo(
+    () =>
+      (summary?.overview.tenants ?? []).flatMap((tenant) =>
+        tenant.companies.map((company) => ({
+          id: company.id,
+          label:
+            company.tradeName && company.tradeName !== company.legalName
+              ? `${company.tradeName} — ${company.legalName}`
+              : company.legalName,
+          ruc: company.ruc,
+        })),
+      ),
+    [summary],
+  );
 
   const filteredTenants = useMemo(() => {
     const tenants = summary?.overview.tenants ?? [];
@@ -436,6 +579,82 @@ export default function PlatformDashboard() {
     return () => {
       cancelled = true;
     };
+  }, []);
+  async function loadAccessAudits(page = accessAuditPage) {
+    setAccessAuditLoading(true);
+    setAccessAuditError(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error("No se encontró una sesión autenticada.");
+      }
+
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: "10",
+      });
+
+      if (accessAuditStatus) {
+        params.set("status", accessAuditStatus);
+      }
+
+      if (accessAuditCompanyId) {
+        params.set("companyId", accessAuditCompanyId);
+      }
+
+      if (accessAuditDateFrom) {
+        params.set("dateFrom", accessAuditDateFrom);
+      }
+
+      if (accessAuditDateTo) {
+        params.set("dateTo", accessAuditDateTo);
+      }
+
+      if (accessAuditSearch.trim()) {
+        params.set("search", accessAuditSearch.trim());
+      }
+
+      const response = await fetch(
+        `http://localhost:3000/api/platform/access-audits?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok || !body) {
+        const message =
+          body?.message || "No se pudo cargar el historial de accesos.";
+
+        throw new Error(
+          Array.isArray(message) ? message.join(". ") : String(message),
+        );
+      }
+
+      setAccessAuditData(body as PlatformAccessAuditResponse);
+      setAccessAuditPage((body as PlatformAccessAuditResponse).pagination.page);
+    } catch (error) {
+      setAccessAuditError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el historial de accesos.",
+      );
+    } finally {
+      setAccessAuditLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadAccessAudits(1);
+    // La carga inicial se realiza una sola vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const summaryCards = useMemo(
@@ -1561,6 +1780,377 @@ export default function PlatformDashboard() {
                     </article>
                   );
                 })}
+              </div>
+            ) : null}
+          </section>
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5 sm:p-6">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-cyan-700">
+                    Seguridad y trazabilidad
+                  </p>
+
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    Historial de accesos a empresas
+                  </h2>
+
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Registro permanente de los ingresos temporales realizados
+                    por superadministradores de plataforma.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={accessAuditLoading}
+                  onClick={() => void loadAccessAudits(accessAuditPage)}
+                  className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2.5 text-sm font-black text-cyan-800 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {accessAuditLoading
+                    ? "Actualizando..."
+                    : "Actualizar historial"}
+                </button>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Buscar
+                  </label>
+
+                  <input
+                    type="search"
+                    value={accessAuditSearch}
+                    onChange={(event) =>
+                      setAccessAuditSearch(event.target.value)
+                    }
+                    placeholder="Usuario, empresa, motivo..."
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Estado
+                  </label>
+
+                  <select
+                    value={accessAuditStatus}
+                    onChange={(event) =>
+                      setAccessAuditStatus(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  >
+                    <option value="">Todos</option>
+                    <option value="ACTIVE">Activos</option>
+                    <option value="CLOSED">Cerrados</option>
+                    <option value="ABANDONED">Abandonados</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Empresa
+                  </label>
+
+                  <select
+                    value={accessAuditCompanyId}
+                    onChange={(event) =>
+                      setAccessAuditCompanyId(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  >
+                    <option value="">Todas las empresas</option>
+
+                    {accessAuditCompanies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.label} — RUC {company.ruc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Desde
+                  </label>
+
+                  <input
+                    type="date"
+                    value={accessAuditDateFrom}
+                    onChange={(event) =>
+                      setAccessAuditDateFrom(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Hasta
+                  </label>
+
+                  <input
+                    type="date"
+                    value={accessAuditDateTo}
+                    onChange={(event) =>
+                      setAccessAuditDateTo(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={accessAuditLoading}
+                  onClick={() => {
+                    setAccessAuditPage(1);
+                    void loadAccessAudits(1);
+                  }}
+                  className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-60"
+                >
+                  Aplicar filtros
+                </button>
+
+                <button
+                  type="button"
+                  disabled={accessAuditLoading}
+                  onClick={() => {
+                    setAccessAuditSearch("");
+                    setAccessAuditStatus("");
+                    setAccessAuditCompanyId("");
+                    setAccessAuditDateFrom("");
+                    setAccessAuditDateTo("");
+                    setAccessAuditPage(1);
+
+                    window.setTimeout(() => {
+                      window.location.reload();
+                    }, 0);
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            </div>
+
+            {accessAuditData ? (
+              <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-bold uppercase text-slate-500">
+                    Total
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-slate-950">
+                    {accessAuditData.summary.total}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-bold uppercase text-emerald-700">
+                    Activos
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-emerald-950">
+                    {accessAuditData.summary.active}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+                  <p className="text-xs font-bold uppercase text-cyan-700">
+                    Cerrados
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-cyan-950">
+                    {accessAuditData.summary.closed}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-bold uppercase text-amber-700">
+                    Abandonados
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-amber-950">
+                    {accessAuditData.summary.abandoned}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {accessAuditError ? (
+              <div className="m-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <p className="font-black">No se pudo cargar el historial</p>
+                <p className="mt-1">{accessAuditError}</p>
+              </div>
+            ) : null}
+
+            {accessAuditLoading ? (
+              <div className="space-y-3 p-5">
+                <div className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+                <div className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+              </div>
+            ) : null}
+
+            {!accessAuditLoading &&
+            !accessAuditError &&
+            accessAuditData?.items.length === 0 ? (
+              <div className="p-10 text-center">
+                <ShieldCheck className="mx-auto h-12 w-12 text-slate-300" />
+                <p className="mt-3 font-black text-slate-900">
+                  No existen accesos con estos filtros
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Cambie los criterios de búsqueda o el rango de fechas.
+                </p>
+              </div>
+            ) : null}
+
+            {!accessAuditLoading &&
+            accessAuditData &&
+            accessAuditData.items.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-[1250px] w-full text-left">
+                  <thead className="bg-slate-950 text-xs uppercase tracking-wide text-white">
+                    <tr>
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3">Usuario</th>
+                      <th className="px-4 py-3">Empresa</th>
+                      <th className="px-4 py-3">Motivo</th>
+                      <th className="px-4 py-3">Entrada</th>
+                      <th className="px-4 py-3">Salida</th>
+                      <th className="px-4 py-3">Duración</th>
+                      <th className="px-4 py-3">Origen</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200">
+                    {accessAuditData.items.map((audit) => (
+                      <tr
+                        key={audit.id}
+                        className="align-top hover:bg-slate-50"
+                      >
+                        <td className="px-4 py-4">
+                          <span
+                            className={[
+                              "inline-flex rounded-full border px-2.5 py-1 text-xs font-black",
+                              accessStatusClass(audit.status),
+                            ].join(" ")}
+                          >
+                            {accessStatusLabel(audit.status)}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <p className="font-black text-slate-950">
+                            {audit.user.fullName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {audit.user.email || "Correo no disponible"}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <p className="font-black text-slate-950">
+                            {audit.company.tradeName || audit.company.legalName}
+                          </p>
+
+                          {audit.company.tradeName ? (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {audit.company.legalName}
+                            </p>
+                          ) : null}
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            RUC {audit.company.ruc || "No disponible"}
+                          </p>
+
+                          <p className="mt-2 text-xs font-semibold text-cyan-800">
+                            {audit.businessUnit.name}
+                            {audit.warehouse
+                              ? ` · ${audit.warehouse.name}`
+                              : ""}
+                          </p>
+                        </td>
+
+                        <td className="max-w-sm px-4 py-4">
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {audit.reason}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4 text-sm text-slate-700">
+                          {new Date(audit.enteredAt).toLocaleString("es-PE")}
+                        </td>
+
+                        <td className="px-4 py-4 text-sm text-slate-700">
+                          {audit.exitedAt
+                            ? new Date(audit.exitedAt).toLocaleString("es-PE")
+                            : "Sesión aún activa"}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                            <Timer className="h-4 w-4 text-cyan-700" />
+                            {formatAccessDuration(audit.durationSeconds)}
+                          </div>
+                        </td>
+
+                        <td className="px-4 py-4 text-sm text-slate-700">
+                          <p>{audit.ipAddress || "IP no registrada"}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {audit.browser}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {accessAuditData && accessAuditData.pagination.totalItems > 0 ? (
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <p className="text-sm text-slate-600">
+                  Página {accessAuditData.pagination.page} de{" "}
+                  {accessAuditData.pagination.totalPages} ·{" "}
+                  {accessAuditData.pagination.totalItems} registro(s)
+                </p>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      accessAuditLoading ||
+                      !accessAuditData.pagination.hasPreviousPage
+                    }
+                    onClick={() => {
+                      const previousPage = accessAuditData.pagination.page - 1;
+
+                      setAccessAuditPage(previousPage);
+                      void loadAccessAudits(previousPage);
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      accessAuditLoading ||
+                      !accessAuditData.pagination.hasNextPage
+                    }
+                    onClick={() => {
+                      const nextPage = accessAuditData.pagination.page + 1;
+
+                      setAccessAuditPage(nextPage);
+                      void loadAccessAudits(nextPage);
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
               </div>
             ) : null}
           </section>

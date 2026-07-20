@@ -3,6 +3,8 @@ import { clearAuthSession, setAuthToken, setSessionItem } from "../lib/auth";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
+type LoginMode = "platform" | "operational";
+
 const COMPANIES = [
   {
     ruc: "20611138777",
@@ -26,7 +28,10 @@ type LoginResponse = {
   user?: {
     fullName?: string | null;
     role?: string | null;
+    platformRole?: string | null;
   };
+  accessMode?: string | null;
+  contextSource?: string | null;
   tenant?: {
     name?: string | null;
   };
@@ -61,6 +66,7 @@ function getErrorMessage(payload: unknown) {
 }
 
 export default function Login() {
+  const [loginMode, setLoginMode] = useState<LoginMode>("operational");
   const [ruc, setRuc] = useState(COMPANIES[0].ruc);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -85,16 +91,28 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const isPlatformLogin = loginMode === "platform";
+      const endpoint = isPlatformLogin
+        ? `${API_URL}/auth/platform-login`
+        : `${API_URL}/auth/login`;
+
+      const requestBody = isPlatformLogin
+        ? {
+            email: email.trim().toLowerCase(),
+            password,
+          }
+        : {
+            ruc,
+            email: email.trim().toLowerCase(),
+            password,
+          };
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ruc,
-          email: email.trim().toLowerCase(),
-          password,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const payload = (await response
@@ -116,6 +134,45 @@ export default function Login() {
 
       clearAuthSession();
       setAuthToken(token);
+
+      const platformRole = String(
+        payload.user?.platformRole || "",
+      ).toUpperCase();
+
+      if (loginMode === "platform") {
+        if (platformRole !== "PLATFORM_SUPERADMIN") {
+          clearAuthSession();
+          setError(
+            "La cuenta autenticada no tiene autorización de superadministrador de plataforma.",
+          );
+          return;
+        }
+
+        setSessionItem(
+          "hcelm_tenant_name",
+          payload.tenant?.name?.trim() || "HCELM",
+        );
+        setSessionItem(
+          "hcelm_user_name",
+          payload.user?.fullName?.trim() || email.trim(),
+        );
+        setSessionItem(
+          "hcelm_user_role",
+          payload.user?.role?.trim() || "PLATFORM_SUPERADMIN",
+        );
+        setSessionItem("hcelm_platform_role", platformRole);
+        setSessionItem(
+          "hcelm_access_mode",
+          payload.accessMode?.trim() || "PLATFORM_ADMIN",
+        );
+        setSessionItem(
+          "hcelm_context_source",
+          payload.contextSource?.trim() || "PLATFORM_LOGIN",
+        );
+
+        window.location.href = "/platform";
+        return;
+      }
 
       setSessionItem("hcelm_professional_verified", "false");
       setSessionItem("hcelm_require_professional_verification", "true");
@@ -223,17 +280,73 @@ export default function Login() {
             </p>
           </div>
 
-          <div className="mb-6 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
-            <p className="text-sm font-bold text-emerald-900">
-              {selectedCompany.displayName}
-            </p>
-            <p className="mt-1 text-xs text-emerald-700">
-              {selectedCompany.description}
-            </p>
-            <p className="mt-1 text-xs text-emerald-700">
-              RUC: {selectedCompany.ruc}
-            </p>
+          <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLoginMode("operational");
+                setError("");
+              }}
+              disabled={loading}
+              className={`rounded-xl border p-4 text-left transition ${
+                loginMode === "operational"
+                  ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200"
+                  : "border-slate-200 bg-white hover:border-emerald-300"
+              }`}
+            >
+              <span className="block font-bold text-slate-800">
+                Acceso operativo
+              </span>
+              <span className="mt-1 block text-xs text-slate-500">
+                Para trabajar en una empresa y sus módulos autorizados.
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setLoginMode("platform");
+                setError("");
+              }}
+              disabled={loading}
+              className={`rounded-xl border p-4 text-left transition ${
+                loginMode === "platform"
+                  ? "border-cyan-500 bg-cyan-50 ring-2 ring-cyan-200"
+                  : "border-slate-200 bg-white hover:border-cyan-300"
+              }`}
+            >
+              <span className="block font-bold text-slate-800">
+                Administración global
+              </span>
+              <span className="mt-1 block text-xs text-slate-500">
+                Exclusivo para superadministradores de HCELM.
+              </span>
+            </button>
           </div>
+
+          {loginMode === "operational" ? (
+            <div className="mb-6 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+              <p className="text-sm font-bold text-emerald-900">
+                {selectedCompany.displayName}
+              </p>
+              <p className="mt-1 text-xs text-emerald-700">
+                {selectedCompany.description}
+              </p>
+              <p className="mt-1 text-xs text-emerald-700">
+                RUC: {selectedCompany.ruc}
+              </p>
+            </div>
+          ) : (
+            <div className="mb-6 rounded-lg border border-cyan-200 bg-cyan-50 p-4">
+              <p className="text-sm font-bold text-cyan-950">
+                Centro de Administración Global HCELM
+              </p>
+              <p className="mt-1 text-xs text-cyan-800">
+                No requiere seleccionar empresa. Los ingresos temporales se
+                realizan desde el panel global y quedan auditados.
+              </p>
+            </div>
+          )}
 
           {error ? (
             <div className="mb-4 rounded-lg bg-red-100 p-3 text-sm font-semibold text-red-700">
@@ -242,28 +355,30 @@ export default function Login() {
           ) : null}
 
           <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label
-                htmlFor="login-company"
-                className="block text-sm font-medium text-slate-700"
-              >
-                Empresa
-              </label>
+            {loginMode === "operational" ? (
+              <div>
+                <label
+                  htmlFor="login-company"
+                  className="block text-sm font-medium text-slate-700"
+                >
+                  Empresa
+                </label>
 
-              <select
-                id="login-company"
-                value={ruc}
-                onChange={(event) => setRuc(event.target.value)}
-                disabled={loading}
-                className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
-              >
-                {COMPANIES.map((company) => (
-                  <option key={company.ruc} value={company.ruc}>
-                    {company.displayName} — {company.legalName}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <select
+                  id="login-company"
+                  value={ruc}
+                  onChange={(event) => setRuc(event.target.value)}
+                  disabled={loading}
+                  className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
+                >
+                  {COMPANIES.map((company) => (
+                    <option key={company.ruc} value={company.ruc}>
+                      {company.displayName} — {company.legalName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
             <div>
               <label
@@ -310,7 +425,11 @@ export default function Login() {
               disabled={loading}
               className="w-full rounded-lg bg-emerald-600 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
             >
-              {loading ? "Ingresando..." : "Ingresar a HCELM"}
+              {loading
+                ? "Ingresando..."
+                : loginMode === "platform"
+                  ? "Ingresar a administración global"
+                  : "Ingresar a HCELM"}
             </button>
           </form>
 

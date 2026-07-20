@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+﻿import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -9,6 +9,89 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
+
+  async platformLogin(email: string, password: string) {
+    const normalizedEmail = String(email || '')
+      .trim()
+      .toLowerCase();
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        email: normalizedEmail,
+        active: true,
+        platformRole: 'PLATFORM_SUPERADMIN',
+        tenant: {
+          active: true,
+        },
+      },
+      take: 2,
+      select: {
+        id: true,
+        tenantId: true,
+        email: true,
+        password: true,
+        fullName: true,
+        role: true,
+        platformRole: true,
+        active: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            ruc: true,
+            active: true,
+          },
+        },
+      },
+    });
+
+    if (users.length !== 1) {
+      throw new UnauthorizedException(
+        'Credenciales inválidas o acceso global no habilitado.',
+      );
+    }
+
+    const user = users[0];
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException(
+        'Credenciales inválidas o acceso global no habilitado.',
+      );
+    }
+
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      role: user.role,
+      platformRole: user.platformRole,
+      tenantId: user.tenantId,
+      tenantName: user.tenant.name,
+      accessMode: 'PLATFORM_ADMIN',
+      contextSource: 'PLATFORM_LOGIN',
+      contextIssuedAt: new Date().toISOString(),
+    };
+
+    const accessToken = await this.jwtService.signAsync(payload);
+
+    return {
+      user: {
+        id: user.id,
+        tenantId: user.tenantId,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        platformRole: user.platformRole,
+        active: user.active,
+      },
+      tenant: user.tenant,
+      accessMode: 'PLATFORM_ADMIN',
+      contextSource: 'PLATFORM_LOGIN',
+      access_token: accessToken,
+      token: accessToken,
+    };
+  }
 
   async login(ruc: string, email: string, password: string) {
     const normalizedRuc = String(ruc || '').trim();
@@ -82,13 +165,13 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Credenciales inválidas.');
+      throw new UnauthorizedException('Credenciales invÃ¡lidas.');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales inválidas.');
+      throw new UnauthorizedException('Credenciales invÃ¡lidas.');
     }
 
     const membership = await this.prisma.userCompanyMembership.findFirst({

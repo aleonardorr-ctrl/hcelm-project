@@ -111,6 +111,7 @@ export default function InstitutionSettings() {
   const [newUser, setNewUser] = useState({
     email: "",
     fullName: "",
+    dni: "",
     role: "medico",
     cmp: "",
     rne: "",
@@ -431,6 +432,9 @@ export default function InstitutionSettings() {
 
     if (!newUser.email.trim()) return alert("Ingrese correo electrónico.");
     if (!newUser.fullName.trim()) return alert("Ingrese nombre completo.");
+    if (!/^\d{8}$/.test(newUser.dni.trim())) {
+      return alert("El DNI debe contener exactamente 8 dígitos.");
+    }
 
     setSaving(true);
 
@@ -451,6 +455,7 @@ export default function InstitutionSettings() {
       setNewUser({
         email: "",
         fullName: "",
+        dni: "",
         role: "medico",
         cmp: "",
         rne: "",
@@ -462,6 +467,55 @@ export default function InstitutionSettings() {
       await loadData();
     } catch {
       alert("Error de conexión al crear profesional.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateUserIdentity = async (user: any) => {
+    const enteredDni = window.prompt(
+      `Ingrese el DNI de ${user.fullName || user.email}:`,
+      user.dni || "",
+    );
+
+    if (enteredDni === null) return;
+
+    const normalizedDni = enteredDni.trim();
+
+    if (!/^\d{8}$/.test(normalizedDni)) {
+      alert("El DNI debe contener exactamente 8 dígitos.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/institution/users/${user.id}/identity`,
+        {
+          method: "PATCH",
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            dni: normalizedDni,
+            cmp: user.cmp || "",
+            rne: user.rne || "",
+          }),
+        },
+      );
+
+      const result = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        alert(
+          result?.message || "No se pudo actualizar la identidad del usuario.",
+        );
+        return;
+      }
+
+      alert("DNI actualizado correctamente.");
+      await loadData();
+    } catch {
+      alert("Error de conexión al actualizar el DNI.");
     } finally {
       setSaving(false);
     }
@@ -740,6 +794,17 @@ export default function InstitutionSettings() {
                     }
                   />
                   <Input
+                    label="DNI"
+                    name="dni"
+                    value={newUser.dni}
+                    onChange={(e) =>
+                      setNewUser({
+                        ...newUser,
+                        dni: e.target.value.replace(/\D/g, "").slice(0, 8),
+                      })
+                    }
+                  />
+                  <Input
                     label="Contraseña temporal"
                     name="password"
                     value={newUser.password}
@@ -799,6 +864,7 @@ export default function InstitutionSettings() {
                   <tr>
                     <th className="px-4 py-3 text-left">Nombre</th>
                     <th className="px-4 py-3 text-left">Correo</th>
+                    <th className="px-4 py-3 text-left">DNI</th>
                     <th className="px-4 py-3 text-left">Rol</th>
                     <th className="px-4 py-3 text-left">CMP</th>
                     <th className="px-4 py-3 text-left">RNE</th>
@@ -812,6 +878,7 @@ export default function InstitutionSettings() {
                     <tr key={user.id} className="border-t">
                       <td className="px-4 py-3">{user.fullName || "-"}</td>
                       <td className="px-4 py-3">{user.email}</td>
+                      <td className="px-4 py-3">{user.dni || "-"}</td>
                       <td className="px-4 py-3">{user.role}</td>
                       <td className="px-4 py-3">{user.cmp || "-"}</td>
                       <td className="px-4 py-3">{user.rne || "-"}</td>
@@ -835,6 +902,15 @@ export default function InstitutionSettings() {
                         >
                           {user.active ? "Desactivar" : "Activar"}
                         </button>
+
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => updateUserIdentity(user)}
+                          className="ml-3 text-emerald-700 hover:underline"
+                        >
+                          {user.dni ? "Cambiar DNI" : "Registrar DNI"}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -842,7 +918,7 @@ export default function InstitutionSettings() {
                   {users.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={8}
                         className="px-4 py-6 text-center text-slate-500"
                       >
                         No hay usuarios registrados.

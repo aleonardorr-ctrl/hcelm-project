@@ -267,6 +267,7 @@ export class InstitutionService {
         id: true,
         email: true,
         fullName: true,
+        dni: true,
         role: true,
         cmp: true,
         rne: true,
@@ -277,6 +278,30 @@ export class InstitutionService {
   }
 
   async createUser(tenantId: string, data: any) {
+    const normalizedDni = String(data?.dni || '').trim();
+
+    if (!/^\d{8}$/.test(normalizedDni)) {
+      throw new BadRequestException(
+        'El DNI debe contener exactamente 8 dígitos.',
+      );
+    }
+
+    const existingDni = await this.prisma.user.findFirst({
+      where: {
+        tenantId,
+        dni: normalizedDni,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingDni) {
+      throw new BadRequestException(
+        'El DNI ya está registrado en otro usuario de la institución.',
+      );
+    }
+
     const temporaryPassword = String(data?.password || '');
     if (temporaryPassword.length < 12) {
       throw new BadRequestException(
@@ -290,6 +315,7 @@ export class InstitutionService {
         tenantId,
         email: data.email,
         fullName: data.fullName,
+        dni: normalizedDni,
         role: data.role || 'medico',
         cmp: data.cmp,
         rne: data.rne,
@@ -306,6 +332,137 @@ export class InstitutionService {
         active: true,
       },
     });
+  }
+
+  async updateUserIdentity(
+    tenantId: string,
+    userId: string,
+    data: {
+      dni?: string;
+      cmp?: string;
+      rne?: string;
+    },
+  ) {
+    const normalizedDni = String(data?.dni || '').trim();
+
+    if (!/^\d{8}$/.test(normalizedDni)) {
+      throw new BadRequestException(
+        'El DNI debe contener exactamente 8 dígitos.',
+      );
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        tenantId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existingUser) {
+      throw new BadRequestException('El usuario no existe en la institución.');
+    }
+
+    const duplicateDni = await this.prisma.user.findFirst({
+      where: {
+        tenantId,
+        dni: normalizedDni,
+        NOT: {
+          id: userId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (duplicateDni) {
+      throw new BadRequestException(
+        'El DNI ya está registrado en otro usuario de la institución.',
+      );
+    }
+
+    return this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        dni: normalizedDni,
+        cmp: String(data?.cmp || '').trim() || null,
+        rne: String(data?.rne || '').trim() || null,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        dni: true,
+        role: true,
+        cmp: true,
+        rne: true,
+        active: true,
+      },
+    });
+  }
+
+  async verifyProfessionalIdentity(params: {
+    tenantId: string;
+    userId: string;
+    companyId?: string | null;
+    dni: string;
+  }) {
+    const normalizedDni = String(params.dni || '').trim();
+
+    if (!/^\d{8}$/.test(normalizedDni)) {
+      throw new BadRequestException(
+        'El DNI debe contener exactamente 8 dígitos.',
+      );
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: params.userId,
+        tenantId: params.tenantId,
+        dni: normalizedDni,
+        active: true,
+        ...(params.companyId
+          ? {
+              companyMemberships: {
+                some: {
+                  companyId: params.companyId,
+                  tenantId: params.tenantId,
+                  active: true,
+                  company: {
+                    active: true,
+                  },
+                },
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        dni: true,
+        role: true,
+        cmp: true,
+        rne: true,
+        active: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException(
+        'El DNI no coincide con el usuario autenticado o el acceso ya no está habilitado.',
+      );
+    }
+
+    return {
+      verified: true,
+      professional: user,
+    };
   }
 
   async toggleUser(tenantId: string, userId: string, active: boolean) {

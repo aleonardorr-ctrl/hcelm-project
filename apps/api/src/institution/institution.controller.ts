@@ -14,6 +14,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { InstitutionService } from './institution.service';
+import { ProfessionalVerificationDto } from './dto/professional-verification.dto';
 
 @Controller('institution')
 @UseGuards(JwtAuthGuard)
@@ -48,9 +49,40 @@ export class InstitutionController {
     return this.institutionService.getUsers(user.tenantId);
   }
 
+  @Post('professional-verification')
+  verifyProfessional(
+    @CurrentUser() user: any,
+    @Body() body: ProfessionalVerificationDto,
+  ) {
+    return this.institutionService.verifyProfessionalIdentity({
+      tenantId: user.tenantId,
+      userId: user.userId,
+      companyId: user.companyId,
+      dni: body.dni,
+    });
+  }
+
   @Post('users')
   createUser(@CurrentUser() user: any, @Body() createUserDto: any) {
     return this.institutionService.createUser(user.tenantId, createUserDto);
+  }
+
+  @Patch('users/:userId/identity')
+  updateUserIdentity(
+    @CurrentUser() user: any,
+    @Param('userId') userId: string,
+    @Body()
+    body: {
+      dni?: string;
+      cmp?: string;
+      rne?: string;
+    },
+  ) {
+    return this.institutionService.updateUserIdentity(
+      user.tenantId,
+      userId,
+      body,
+    );
   }
 
   @Patch('users/:userId/toggle')

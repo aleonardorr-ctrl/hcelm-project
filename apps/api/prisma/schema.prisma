@@ -63,6 +63,7 @@ model User {
   tenantId                  String                        @db.Uuid
   email                     String
   password                  String
+  dni                       String?                       @db.VarChar(8)
   fullName                  String?
   role                      String                        @default("medico")
   platformRole              String?                       @db.VarChar(40)
@@ -93,6 +94,8 @@ model User {
   electronicDocumentEventsCreated ElectronicDocumentEvent[] @relation("ElectronicDocumentEventCreatedBy")
   prescriptionReferralsCreated    PrescriptionReferral[]    @relation("PrescriptionReferralCreatedBy")
   prescriptionReferralsUpdated    PrescriptionReferral[]    @relation("PrescriptionReferralUpdatedBy")
+
+  @@unique([tenantId, dni])
 }
 
 model Patient {

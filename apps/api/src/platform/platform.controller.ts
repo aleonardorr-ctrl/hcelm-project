@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Query,
   Request,
@@ -82,6 +83,105 @@ export class PlatformController {
     },
   ) {
     return this.platformService.getAccessAudits(query);
+  }
+
+  @Post('tenants/:id/suspend')
+  @HttpCode(HttpStatus.OK)
+  async suspendTenant(
+    @Request() req: any,
+    @Param('id') tenantId: string,
+    @Body()
+    body: {
+      category?: string;
+      reason?: string;
+      suspendedUntil?: string;
+    },
+  ) {
+    return this.platformService.suspendTenant(
+      req.user?.userId || req.user?.sub || '',
+      tenantId,
+      body,
+    );
+  }
+
+  @Post('tenants/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivateTenant(
+    @Request() req: any,
+    @Param('id') tenantId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.platformService.reactivateTenant(
+      req.user?.userId || req.user?.sub || '',
+      tenantId,
+      body?.reason || '',
+    );
+  }
+
+  @Post('companies/:id/suspend')
+  @HttpCode(HttpStatus.OK)
+  async suspendCompany(
+    @Request() req: any,
+    @Param('id') companyId: string,
+    @Body()
+    body: {
+      category?: string;
+      reason?: string;
+      suspendedUntil?: string;
+    },
+  ) {
+    return this.platformService.suspendCompany(
+      req.user?.userId || req.user?.sub || '',
+      companyId,
+      body,
+    );
+  }
+
+  @Post('companies/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivateCompany(
+    @Request() req: any,
+    @Param('id') companyId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.platformService.reactivateCompany(
+      req.user?.userId || req.user?.sub || '',
+      companyId,
+      body?.reason || '',
+    );
+  }
+
+  @Post('users/:id/suspend')
+  @HttpCode(HttpStatus.OK)
+  async suspendUser(
+    @Request() req: any,
+    @Param('id') userId: string,
+    @Body()
+    body: {
+      category?: string;
+      reason?: string;
+      suspendedUntil?: string;
+    },
+  ) {
+    return this.platformService.suspendUser(
+      req.user?.userId || req.user?.sub || '',
+      userId,
+      body,
+    );
+  }
+
+  @Post('users/:id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivateUser(
+    @Request() req: any,
+    @Param('id') userId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.platformService.reactivateUser(
+      req.user?.userId || req.user?.sub || '',
+      userId,
+      body?.reason || '',
+    );
   }
 
   @Get('dashboard/summary')

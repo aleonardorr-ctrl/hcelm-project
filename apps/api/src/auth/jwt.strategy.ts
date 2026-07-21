@@ -26,6 +26,66 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    const payloadUserId = String(payload?.sub || '').trim();
+    const payloadTenantId = String(payload?.tenantId || '').trim();
+    const payloadCompanyId = String(payload?.companyId || '').trim();
+
+    if (!payloadUserId || !payloadTenantId) {
+      throw new UnauthorizedException(
+        'El token no contiene una identidad v?lida.',
+      );
+    }
+
+    const currentUser = await this.prisma.user.findFirst({
+      where: {
+        id: payloadUserId,
+        tenantId: payloadTenantId,
+      },
+      select: {
+        active: true,
+        status: true,
+        tenant: {
+          select: {
+            active: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !currentUser ||
+      !currentUser.active ||
+      currentUser.status !== 'ACTIVE'
+    ) {
+      throw new UnauthorizedException(
+        'La cuenta autenticada est? suspendida o inactiva.',
+      );
+    }
+
+    if (!currentUser.tenant.active || currentUser.tenant.status !== 'ACTIVE') {
+      throw new UnauthorizedException('El tenant est? suspendido o inactivo.');
+    }
+
+    if (payloadCompanyId) {
+      const company = await this.prisma.company.findFirst({
+        where: {
+          id: payloadCompanyId,
+          tenantId: payloadTenantId,
+        },
+        select: {
+          active: true,
+          status: true,
+        },
+      });
+
+      if (!company || !company.active || company.status !== 'ACTIVE') {
+        throw new UnauthorizedException(
+          'La empresa est? suspendida o inactiva.',
+        );
+      }
+    }
+
     const platformAccessAuditId = String(
       payload?.platformAccessAuditId || '',
     ).trim();
@@ -60,9 +120,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         );
       }
 
-      const payloadUserId = String(payload?.sub || '').trim();
-      const payloadTenantId = String(payload?.tenantId || '').trim();
-      const payloadCompanyId = String(payload?.companyId || '').trim();
       const payloadBusinessUnitId = String(
         payload?.businessUnitId || '',
       ).trim();

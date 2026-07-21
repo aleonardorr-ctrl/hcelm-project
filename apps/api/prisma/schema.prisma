@@ -9,35 +9,50 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AdministrativeEntityStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
 model Tenant {
-  id                     String                        @id @default(uuid()) @db.Uuid
-  name                   String
-  ruc                    String                        @unique
-  active                 Boolean                       @default(true)
-  createdAt              DateTime                      @default(now())
-  updatedAt              DateTime                      @updatedAt
-  anamnesis              Anamnesis[]
-  certificates           Certificate[]
-  encounters             Encounter[]
-  establishments         Establishment?
-  hceConfigs             HceConfig?
-  institutions           Institution?
-  medications            Medication[]
-  medicationLots         MedicationInventoryLot[]
-  patients               Patient[]
-  prescriptions          Prescription[]
-  users                  User[]
-  diagnosisCatalogs      DiagnosisCatalog[]
-  catalogImports         CatalogImport[]
-  clinicalAlertRules     ClinicalAlertRule[]
-  laboratoryCatalogs     LaboratoryCatalog[]
-  systemModules          TenantSystemModule[]
-  companies              Company[]
-  businessUnits          BusinessUnit[]
-  warehouses             Warehouse[]
-  companyMedications     CompanyMedication[]
-  userCompanyMemberships UserCompanyMembership[]
-  inventoryMovements     MedicationInventoryMovement[]
+  id                          String                        @id @default(uuid()) @db.Uuid
+  name                        String
+  ruc                         String                        @unique
+  active                      Boolean                       @default(true)
+  status                      AdministrativeEntityStatus    @default(ACTIVE)
+  suspendedAt                 DateTime?
+  suspendedUntil              DateTime?
+  suspensionCategory          String?                       @db.VarChar(50)
+  suspensionReason            String?                       @db.VarChar(500)
+  suspendedByPlatformUserId   String?                       @db.Uuid
+  reactivatedAt               DateTime?
+  reactivatedByPlatformUserId String?                       @db.Uuid
+  reactivationReason          String?                       @db.VarChar(500)
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  anamnesis                   Anamnesis[]
+  certificates                Certificate[]
+  encounters                  Encounter[]
+  establishments              Establishment?
+  hceConfigs                  HceConfig?
+  institutions                Institution?
+  medications                 Medication[]
+  medicationLots              MedicationInventoryLot[]
+  patients                    Patient[]
+  prescriptions               Prescription[]
+  users                       User[]
+  diagnosisCatalogs           DiagnosisCatalog[]
+  catalogImports              CatalogImport[]
+  clinicalAlertRules          ClinicalAlertRule[]
+  laboratoryCatalogs          LaboratoryCatalog[]
+  systemModules               TenantSystemModule[]
+  companies                   Company[]
+  businessUnits               BusinessUnit[]
+  warehouses                  Warehouse[]
+  companyMedications          CompanyMedication[]
+  userCompanyMemberships      UserCompanyMembership[]
+  inventoryMovements          MedicationInventoryMovement[]
 
   pharmacySales             PharmacySale[]
   pharmacySaleItems         PharmacySaleItem[]
@@ -59,30 +74,39 @@ model Tenant {
 }
 
 model User {
-  id                        String                        @id @default(uuid()) @db.Uuid
-  tenantId                  String                        @db.Uuid
-  email                     String
-  password                  String
-  dni                       String?                       @db.VarChar(8)
-  fullName                  String?
-  role                      String                        @default("medico")
-  platformRole              String?                       @db.VarChar(40)
-  cmp                       String?
-  rne                       String?
-  active                    Boolean                       @default(true)
-  createdAt                 DateTime                      @default(now())
-  updatedAt                 DateTime                      @updatedAt
-  certificates              Certificate[]
-  prescriptions             Prescription[]
-  tenant                    Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  diagnosisCatalogsCreated  DiagnosisCatalog[]            @relation("DiagnosisCatalogCreatedBy")
-  catalogImports            CatalogImport[]               @relation("CatalogImportCreatedBy")
-  clinicalAlertRulesUpdated ClinicalAlertRule[]           @relation("ClinicalAlertRuleUpdatedBy")
-  laboratoryCatalogsCreated LaboratoryCatalog[]           @relation("LaboratoryCatalogCreatedBy")
-  medicationsCreated        Medication[]                  @relation("MedicationCreatedBy")
-  medicationLotsCreated     MedicationInventoryLot[]      @relation("MedicationLotCreatedBy")
-  companyMemberships        UserCompanyMembership[]
-  inventoryMovementsCreated MedicationInventoryMovement[] @relation("InventoryMovementCreatedBy")
+  id                          String                        @id @default(uuid()) @db.Uuid
+  tenantId                    String                        @db.Uuid
+  email                       String
+  password                    String
+  dni                         String?                       @db.VarChar(8)
+  fullName                    String?
+  role                        String                        @default("medico")
+  platformRole                String?                       @db.VarChar(40)
+  cmp                         String?
+  rne                         String?
+  active                      Boolean                       @default(true)
+  status                      AdministrativeEntityStatus    @default(ACTIVE)
+  suspendedAt                 DateTime?
+  suspendedUntil              DateTime?
+  suspensionCategory          String?                       @db.VarChar(50)
+  suspensionReason            String?                       @db.VarChar(500)
+  suspendedByPlatformUserId   String?                       @db.Uuid
+  reactivatedAt               DateTime?
+  reactivatedByPlatformUserId String?                       @db.Uuid
+  reactivationReason          String?                       @db.VarChar(500)
+  createdAt                   DateTime                      @default(now())
+  updatedAt                   DateTime                      @updatedAt
+  certificates                Certificate[]
+  prescriptions               Prescription[]
+  tenant                      Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  diagnosisCatalogsCreated    DiagnosisCatalog[]            @relation("DiagnosisCatalogCreatedBy")
+  catalogImports              CatalogImport[]               @relation("CatalogImportCreatedBy")
+  clinicalAlertRulesUpdated   ClinicalAlertRule[]           @relation("ClinicalAlertRuleUpdatedBy")
+  laboratoryCatalogsCreated   LaboratoryCatalog[]           @relation("LaboratoryCatalogCreatedBy")
+  medicationsCreated          Medication[]                  @relation("MedicationCreatedBy")
+  medicationLotsCreated       MedicationInventoryLot[]      @relation("MedicationLotCreatedBy")
+  companyMemberships          UserCompanyMembership[]
+  inventoryMovementsCreated   MedicationInventoryMovement[] @relation("InventoryMovementCreatedBy")
 
   pharmacySalesCreated     PharmacySale[]        @relation("PharmacySaleCreatedBy")
   pharmacySalesVoided      PharmacySale[]        @relation("PharmacySaleVoidedBy")
@@ -621,16 +645,25 @@ model ClinicalAlertCondition {
 }
 
 model Company {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @db.Uuid
-  code      String   @db.VarChar(30)
-  legalName String   @db.VarChar(180)
-  tradeName String?  @db.VarChar(180)
-  ruc       String   @db.VarChar(11)
-  active    Boolean  @default(true)
-  isDefault Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                          String                     @id @default(uuid()) @db.Uuid
+  tenantId                    String                     @db.Uuid
+  code                        String                     @db.VarChar(30)
+  legalName                   String                     @db.VarChar(180)
+  tradeName                   String?                    @db.VarChar(180)
+  ruc                         String                     @db.VarChar(11)
+  active                      Boolean                    @default(true)
+  status                      AdministrativeEntityStatus @default(ACTIVE)
+  suspendedAt                 DateTime?
+  suspendedUntil              DateTime?
+  suspensionCategory          String?                    @db.VarChar(50)
+  suspensionReason            String?                    @db.VarChar(500)
+  suspendedByPlatformUserId   String?                    @db.Uuid
+  reactivatedAt               DateTime?
+  reactivatedByPlatformUserId String?                    @db.Uuid
+  reactivationReason          String?                    @db.VarChar(500)
+  isDefault                   Boolean                    @default(false)
+  createdAt                   DateTime                   @default(now())
+  updatedAt                   DateTime                   @updatedAt
 
   tenant             Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   businessUnits      BusinessUnit[]

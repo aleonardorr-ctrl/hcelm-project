@@ -865,6 +865,485 @@ export class PlatformService {
     };
   }
 
+  private normalizeSuspensionInput(input: {
+    category?: string;
+    reason?: string;
+    suspendedUntil?: string;
+  }) {
+    const category = String(input?.category || '')
+      .trim()
+      .toUpperCase();
+    const reason = String(input?.reason || '').trim();
+
+    const allowedCategories = new Set([
+      'PAYMENT_DEFAULT',
+      'CONTRACT_BREACH',
+      'DOCUMENTATION_PENDING',
+      'CLIENT_REQUEST',
+      'SECURITY_INCIDENT',
+      'ADMINISTRATIVE_MAINTENANCE',
+      'OTHER',
+    ]);
+
+    if (!allowedCategories.has(category)) {
+      throw new BadRequestException(
+        'Debe seleccionar una categor?a de suspensi?n v?lida.',
+      );
+    }
+
+    if (reason.length < 10 || reason.length > 500) {
+      throw new BadRequestException(
+        'El motivo de suspensi?n debe tener entre 10 y 500 caracteres.',
+      );
+    }
+
+    const suspendedUntilText = String(input?.suspendedUntil || '').trim();
+    let suspendedUntil: Date | null = null;
+
+    if (suspendedUntilText) {
+      suspendedUntil = new Date(suspendedUntilText);
+
+      if (Number.isNaN(suspendedUntil.getTime())) {
+        throw new BadRequestException(
+          'La fecha final de suspensi?n no es v?lida.',
+        );
+      }
+
+      if (suspendedUntil.getTime() <= Date.now()) {
+        throw new BadRequestException(
+          'La fecha final debe ser posterior al momento actual.',
+        );
+      }
+    }
+
+    return { category, reason, suspendedUntil };
+  }
+
+  private normalizeReactivationReason(reason: string) {
+    const normalized = String(reason || '').trim();
+
+    if (normalized.length < 10 || normalized.length > 500) {
+      throw new BadRequestException(
+        'El motivo de reactivaci?n debe tener entre 10 y 500 caracteres.',
+      );
+    }
+
+    return normalized;
+  }
+
+  private async requireActivePlatformAdministrator(userId: string) {
+    const administrator = await this.prisma.user.findFirst({
+      where: {
+        id: String(userId || '').trim(),
+        active: true,
+        status: 'ACTIVE',
+        platformRole: 'PLATFORM_SUPERADMIN',
+        tenant: {
+          active: true,
+          status: 'ACTIVE',
+        },
+      },
+      select: {
+        id: true,
+        tenantId: true,
+        email: true,
+        fullName: true,
+        platformRole: true,
+      },
+    });
+
+    if (!administrator) {
+      throw new UnauthorizedException(
+        'La cuenta no tiene autorizaci?n global activa.',
+      );
+    }
+
+    return administrator;
+  }
+
+  async suspendTenant(
+    administratorUserId: string,
+    tenantId: string,
+    input: {
+      category?: string;
+      reason?: string;
+      suspendedUntil?: string;
+    },
+  ) {
+    const administrator =
+      await this.requireActivePlatformAdministrator(administratorUserId);
+
+    const normalizedTenantId = String(tenantId || '').trim();
+
+    if (administrator.tenantId === normalizedTenantId) {
+      throw new BadRequestException(
+        'No puede suspender el tenant de su propia cuenta global.',
+      );
+    }
+
+    const suspension = this.normalizeSuspensionInput(input);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: normalizedTenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('El tenant solicitado no existe.');
+    }
+
+    if (tenant.status !== 'ACTIVE' || !tenant.active) {
+      throw new BadRequestException('El tenant ya est? suspendido o cerrado.');
+    }
+
+    const now = new Date();
+
+    const [updatedTenant] = await this.prisma.$transaction([
+      this.prisma.tenant.update({
+        where: { id: tenant.id },
+        data: {
+          active: false,
+          status: 'SUSPENDED',
+          suspendedAt: now,
+          suspendedUntil: suspension.suspendedUntil,
+          suspensionCategory: suspension.category,
+          suspensionReason: suspension.reason,
+          suspendedByPlatformUserId: administrator.id,
+          reactivatedAt: null,
+          reactivatedByPlatformUserId: null,
+          reactivationReason: null,
+        },
+      }),
+      this.prisma.platformCompanyAccessAudit.updateMany({
+        where: {
+          tenantId: tenant.id,
+          status: 'ACTIVE',
+          exitedAt: null,
+        },
+        data: {
+          status: 'CLOSED',
+          exitedAt: now,
+          closedByPlatformUserId: administrator.id,
+          closureSource: 'TENANT_SUSPENSION',
+          closureReason:
+            'Acceso cerrado por suspensi?n administrativa del tenant.',
+        },
+      }),
+    ]);
+
+    return {
+      entityType: 'TENANT',
+      action: 'SUSPENDED',
+      tenant: updatedTenant,
+      performedBy: administrator,
+    };
+  }
+
+  async reactivateTenant(
+    administratorUserId: string,
+    tenantId: string,
+    reason: string,
+  ) {
+    const administrator =
+      await this.requireActivePlatformAdministrator(administratorUserId);
+
+    const normalizedReason = this.normalizeReactivationReason(reason);
+
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: String(tenantId || '').trim() },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('El tenant solicitado no existe.');
+    }
+
+    if (tenant.status === 'CLOSED') {
+      throw new BadRequestException('Un tenant cerrado no puede reactivarse.');
+    }
+
+    const updatedTenant = await this.prisma.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        active: true,
+        status: 'ACTIVE',
+        reactivatedAt: new Date(),
+        reactivatedByPlatformUserId: administrator.id,
+        reactivationReason: normalizedReason,
+        suspendedUntil: null,
+      },
+    });
+
+    return {
+      entityType: 'TENANT',
+      action: 'REACTIVATED',
+      tenant: updatedTenant,
+      performedBy: administrator,
+    };
+  }
+
+  async suspendCompany(
+    administratorUserId: string,
+    companyId: string,
+    input: {
+      category?: string;
+      reason?: string;
+      suspendedUntil?: string;
+    },
+  ) {
+    const administrator =
+      await this.requireActivePlatformAdministrator(administratorUserId);
+
+    const suspension = this.normalizeSuspensionInput(input);
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: String(companyId || '').trim() },
+    });
+
+    if (!company) {
+      throw new NotFoundException('La empresa solicitada no existe.');
+    }
+
+    if (company.status !== 'ACTIVE' || !company.active) {
+      throw new BadRequestException('La empresa ya est? suspendida o cerrada.');
+    }
+
+    const now = new Date();
+
+    const [updatedCompany] = await this.prisma.$transaction([
+      this.prisma.company.update({
+        where: { id: company.id },
+        data: {
+          active: false,
+          status: 'SUSPENDED',
+          suspendedAt: now,
+          suspendedUntil: suspension.suspendedUntil,
+          suspensionCategory: suspension.category,
+          suspensionReason: suspension.reason,
+          suspendedByPlatformUserId: administrator.id,
+          reactivatedAt: null,
+          reactivatedByPlatformUserId: null,
+          reactivationReason: null,
+        },
+      }),
+      this.prisma.platformCompanyAccessAudit.updateMany({
+        where: {
+          companyId: company.id,
+          status: 'ACTIVE',
+          exitedAt: null,
+        },
+        data: {
+          status: 'CLOSED',
+          exitedAt: now,
+          closedByPlatformUserId: administrator.id,
+          closureSource: 'COMPANY_SUSPENSION',
+          closureReason:
+            'Acceso cerrado por suspensi?n administrativa de la empresa.',
+        },
+      }),
+    ]);
+
+    return {
+      entityType: 'COMPANY',
+      action: 'SUSPENDED',
+      company: updatedCompany,
+      performedBy: administrator,
+    };
+  }
+
+  async reactivateCompany(
+    administratorUserId: string,
+    companyId: string,
+    reason: string,
+  ) {
+    const administrator =
+      await this.requireActivePlatformAdministrator(administratorUserId);
+
+    const normalizedReason = this.normalizeReactivationReason(reason);
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: String(companyId || '').trim() },
+      include: {
+        tenant: true,
+      },
+    });
+
+    if (!company) {
+      throw new NotFoundException('La empresa solicitada no existe.');
+    }
+
+    if (!company.tenant.active || company.tenant.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No puede reactivar la empresa mientras su tenant est? suspendido.',
+      );
+    }
+
+    if (company.status === 'CLOSED') {
+      throw new BadRequestException(
+        'Una empresa cerrada no puede reactivarse.',
+      );
+    }
+
+    const updatedCompany = await this.prisma.company.update({
+      where: { id: company.id },
+      data: {
+        active: true,
+        status: 'ACTIVE',
+        reactivatedAt: new Date(),
+        reactivatedByPlatformUserId: administrator.id,
+        reactivationReason: normalizedReason,
+        suspendedUntil: null,
+      },
+    });
+
+    return {
+      entityType: 'COMPANY',
+      action: 'REACTIVATED',
+      company: updatedCompany,
+      performedBy: administrator,
+    };
+  }
+
+  async suspendUser(
+    administratorUserId: string,
+    userId: string,
+    input: {
+      category?: string;
+      reason?: string;
+      suspendedUntil?: string;
+    },
+  ) {
+    const administrator =
+      await this.requireActivePlatformAdministrator(administratorUserId);
+
+    const normalizedUserId = String(userId || '').trim();
+
+    if (administrator.id === normalizedUserId) {
+      throw new BadRequestException('No puede suspender su propia cuenta.');
+    }
+
+    const suspension = this.normalizeSuspensionInput(input);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: normalizedUserId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('El usuario solicitado no existe.');
+    }
+
+    if (user.status !== 'ACTIVE' || !user.active) {
+      throw new BadRequestException('El usuario ya est? suspendido o cerrado.');
+    }
+
+    if (user.platformRole === 'PLATFORM_SUPERADMIN') {
+      const activeSuperadmins = await this.prisma.user.count({
+        where: {
+          active: true,
+          status: 'ACTIVE',
+          platformRole: 'PLATFORM_SUPERADMIN',
+        },
+      });
+
+      if (activeSuperadmins <= 1) {
+        throw new BadRequestException(
+          'No puede suspender al ?ltimo superadministrador activo.',
+        );
+      }
+    }
+
+    const now = new Date();
+
+    const [updatedUser] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          active: false,
+          status: 'SUSPENDED',
+          suspendedAt: now,
+          suspendedUntil: suspension.suspendedUntil,
+          suspensionCategory: suspension.category,
+          suspensionReason: suspension.reason,
+          suspendedByPlatformUserId: administrator.id,
+          reactivatedAt: null,
+          reactivatedByPlatformUserId: null,
+          reactivationReason: null,
+        },
+      }),
+      this.prisma.platformCompanyAccessAudit.updateMany({
+        where: {
+          platformUserId: user.id,
+          status: 'ACTIVE',
+          exitedAt: null,
+        },
+        data: {
+          status: 'CLOSED',
+          exitedAt: now,
+          closedByPlatformUserId: administrator.id,
+          closureSource: 'USER_SUSPENSION',
+          closureReason:
+            'Acceso cerrado por suspensi?n administrativa del usuario.',
+        },
+      }),
+    ]);
+
+    return {
+      entityType: 'USER',
+      action: 'SUSPENDED',
+      user: updatedUser,
+      performedBy: administrator,
+    };
+  }
+
+  async reactivateUser(
+    administratorUserId: string,
+    userId: string,
+    reason: string,
+  ) {
+    const administrator =
+      await this.requireActivePlatformAdministrator(administratorUserId);
+
+    const normalizedReason = this.normalizeReactivationReason(reason);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: String(userId || '').trim() },
+      include: {
+        tenant: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('El usuario solicitado no existe.');
+    }
+
+    if (!user.tenant.active || user.tenant.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'No puede reactivar el usuario mientras su tenant est? suspendido.',
+      );
+    }
+
+    if (user.status === 'CLOSED') {
+      throw new BadRequestException('Un usuario cerrado no puede reactivarse.');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        active: true,
+        status: 'ACTIVE',
+        reactivatedAt: new Date(),
+        reactivatedByPlatformUserId: administrator.id,
+        reactivationReason: normalizedReason,
+        suspendedUntil: null,
+      },
+    });
+
+    return {
+      entityType: 'USER',
+      action: 'REACTIVATED',
+      user: updatedUser,
+      performedBy: administrator,
+    };
+  }
+
   async getDashboardSummary() {
     const [
       registeredTenants,

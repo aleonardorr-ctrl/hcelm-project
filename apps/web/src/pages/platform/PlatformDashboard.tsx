@@ -295,6 +295,70 @@ type PlatformAccessAuditResponse = {
   generatedAt: string;
 };
 
+type PlatformAdministrativeActionItem = {
+  id: string;
+  entityType: "TENANT" | "COMPANY" | "USER";
+  action: "SUSPEND" | "REACTIVATE";
+  targetEntityId: string;
+  targetTenantId: string | null;
+  targetCompanyId: string | null;
+  targetUserId: string | null;
+  targetName: string;
+  targetIdentifier: string | null;
+  previousStatus: AdministrativeStatus;
+  resultingStatus: AdministrativeStatus;
+  category: string | null;
+  reason: string;
+  suspendedUntil: string | null;
+  performedByPlatformUserId: string;
+  performedByEmail: string | null;
+  performedByName: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  closedAccessCount: number;
+  successful: boolean;
+  failureReason: string | null;
+  createdAt: string;
+};
+
+type PlatformAdministrativeActionFilters = {
+  entityType?: string;
+  action?: string;
+  successful?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  search?: string;
+};
+
+type PlatformAdministrativeActionResponse = {
+  items: PlatformAdministrativeActionItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  summary: {
+    total: number;
+    suspended: number;
+    reactivated: number;
+    successful: number;
+    failed: number;
+  };
+  appliedFilters: {
+    entityType: string | null;
+    action: string | null;
+    successful: string | null;
+    performedByPlatformUserId: string | null;
+    dateFrom: string | null;
+    dateTo: string | null;
+    search: string | null;
+  };
+  generatedAt: string;
+};
+
 type NavigationItem = {
   label: string;
   description: string;
@@ -515,6 +579,31 @@ function accessStatusClass(status: string) {
   return "border-slate-200 bg-slate-100 text-slate-700";
 }
 
+function administrativeEntityTypeLabel(entityType: string) {
+  if (entityType === "TENANT") return "Tenant";
+  if (entityType === "COMPANY") return "Empresa";
+  if (entityType === "USER") return "Usuario";
+  return entityType || "No definido";
+}
+
+function administrativeActionLabel(action: string) {
+  if (action === "SUSPEND") return "Suspensión";
+  if (action === "REACTIVATE") return "Reactivación";
+  return action || "No definida";
+}
+
+function administrativeActionClass(action: string) {
+  if (action === "SUSPEND") {
+    return "border-amber-200 bg-amber-50 text-amber-900";
+  }
+
+  if (action === "REACTIVATE") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-900";
+  }
+
+  return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
 export default function PlatformDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -549,6 +638,31 @@ export default function PlatformDashboard() {
   const [accessAuditClosureError, setAccessAuditClosureError] = useState<
     string | null
   >(null);
+  const [administrativeAuditData, setAdministrativeAuditData] =
+    useState<PlatformAdministrativeActionResponse | null>(null);
+  const [administrativeAuditLoading, setAdministrativeAuditLoading] =
+    useState(true);
+  const [administrativeAuditError, setAdministrativeAuditError] = useState<
+    string | null
+  >(null);
+  const [administrativeAuditEntityType, setAdministrativeAuditEntityType] =
+    useState("");
+  const [administrativeAuditAction, setAdministrativeAuditAction] =
+    useState("");
+  const [administrativeAuditSuccessful, setAdministrativeAuditSuccessful] =
+    useState("");
+  const [administrativeAuditDateFrom, setAdministrativeAuditDateFrom] =
+    useState("");
+  const [administrativeAuditDateTo, setAdministrativeAuditDateTo] =
+    useState("");
+  const [administrativeAuditSearch, setAdministrativeAuditSearch] =
+    useState("");
+  const [administrativeAuditPage, setAdministrativeAuditPage] = useState(1);
+  const [administrativeAuditExporting, setAdministrativeAuditExporting] =
+    useState(false);
+  const [selectedAdministrativeAudit, setSelectedAdministrativeAudit] =
+    useState<PlatformAdministrativeActionItem | null>(null);
+
   const [expandedTenantIds, setExpandedTenantIds] = useState<Set<string>>(
     new Set(),
   );
@@ -858,6 +972,7 @@ export default function PlatformDashboard() {
 
       await reloadPlatformSummary();
       await loadAccessAudits(accessAuditPage);
+      await loadAdministrativeAudits(administrativeAuditPage);
 
       const successMessage =
         administrativeAction.action === "suspend"
@@ -1167,8 +1282,252 @@ export default function PlatformDashboard() {
     }
   }
 
+  function buildAdministrativeAuditParams(
+    page: number,
+    pageSize: number,
+    overrides?: PlatformAdministrativeActionFilters,
+  ) {
+    const filters = {
+      entityType:
+        overrides?.entityType !== undefined
+          ? overrides.entityType
+          : administrativeAuditEntityType,
+      action:
+        overrides?.action !== undefined
+          ? overrides.action
+          : administrativeAuditAction,
+      successful:
+        overrides?.successful !== undefined
+          ? overrides.successful
+          : administrativeAuditSuccessful,
+      dateFrom:
+        overrides?.dateFrom !== undefined
+          ? overrides.dateFrom
+          : administrativeAuditDateFrom,
+      dateTo:
+        overrides?.dateTo !== undefined
+          ? overrides.dateTo
+          : administrativeAuditDateTo,
+      search:
+        overrides?.search !== undefined
+          ? overrides.search
+          : administrativeAuditSearch,
+    };
+
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+
+    if (filters.entityType) {
+      params.set("entityType", filters.entityType);
+    }
+
+    if (filters.action) {
+      params.set("action", filters.action);
+    }
+
+    if (filters.successful) {
+      params.set("successful", filters.successful);
+    }
+
+    if (filters.dateFrom) {
+      params.set("dateFrom", filters.dateFrom);
+    }
+
+    if (filters.dateTo) {
+      params.set("dateTo", filters.dateTo);
+    }
+
+    if (filters.search.trim()) {
+      params.set("search", filters.search.trim());
+    }
+
+    return params;
+  }
+
+  async function loadAdministrativeAudits(
+    page = administrativeAuditPage,
+    overrides?: PlatformAdministrativeActionFilters,
+  ) {
+    setAdministrativeAuditLoading(true);
+    setAdministrativeAuditError(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error(
+          "No se encontr\u00f3 una sesi\u00f3n global autenticada.",
+        );
+      }
+
+      const params = buildAdministrativeAuditParams(page, 10, overrides);
+
+      const response = await fetch(
+        `http://localhost:3000/api/platform/administrative-actions?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok || !body) {
+        const message =
+          body?.message || "No se pudo cargar el historial administrativo.";
+
+        throw new Error(
+          Array.isArray(message) ? message.join(". ") : String(message),
+        );
+      }
+
+      const administrativeHistory =
+        body as PlatformAdministrativeActionResponse;
+
+      setAdministrativeAuditData(administrativeHistory);
+      setAdministrativeAuditPage(administrativeHistory.pagination.page);
+    } catch (error) {
+      setAdministrativeAuditError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo cargar el historial administrativo.",
+      );
+    } finally {
+      setAdministrativeAuditLoading(false);
+    }
+  }
+
+  async function exportAdministrativeAuditsCsv() {
+    setAdministrativeAuditExporting(true);
+    setAdministrativeAuditError(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error(
+          "No se encontr\u00f3 una sesi\u00f3n global autenticada.",
+        );
+      }
+
+      const allItems: PlatformAdministrativeActionItem[] = [];
+      let currentPage = 1;
+      let totalPages = 1;
+
+      do {
+        const params = buildAdministrativeAuditParams(currentPage, 100);
+
+        const response = await fetch(
+          `http://localhost:3000/api/platform/administrative-actions?${params.toString()}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+
+        const body = await response.json().catch(() => null);
+
+        if (!response.ok || !body) {
+          const message =
+            body?.message ||
+            "No se pudo preparar la exportaci\u00f3n administrativa.";
+
+          throw new Error(
+            Array.isArray(message) ? message.join(". ") : String(message),
+          );
+        }
+
+        const pageData = body as PlatformAdministrativeActionResponse;
+
+        allItems.push(...pageData.items);
+        totalPages = pageData.pagination.totalPages;
+        currentPage += 1;
+      } while (currentPage <= totalPages);
+
+      const headers = [
+        "ID",
+        "Fecha",
+        "Entidad",
+        "Acci\u00f3n",
+        "Nombre",
+        "Identificador",
+        "Estado anterior",
+        "Estado resultante",
+        "Categor\u00eda",
+        "Motivo",
+        "Suspendido hasta",
+        "Administrador",
+        "Correo",
+        "Resultado",
+        "Motivo de falla",
+        "Accesos cerrados",
+        "IP",
+      ];
+
+      const rows = allItems.map((item) => [
+        item.id,
+        formatCsvDate(item.createdAt),
+        administrativeEntityTypeLabel(item.entityType),
+        administrativeActionLabel(item.action),
+        item.targetName,
+        item.targetIdentifier || "",
+        administrativeStatusLabel(item.previousStatus),
+        administrativeStatusLabel(item.resultingStatus),
+        suspensionCategoryLabel(item.category),
+        item.reason,
+        formatCsvDate(item.suspendedUntil),
+        item.performedByName || "",
+        item.performedByEmail || "",
+        item.successful ? "Exitoso" : "Fallido",
+        item.failureReason || "",
+        item.closedAccessCount,
+        item.ipAddress || "",
+      ]);
+
+      const csv = [
+        headers.map(csvCell).join(";"),
+        ...rows.map((row) => row.map(csvCell).join(";")),
+      ].join("\r\n");
+
+      const blob = new Blob(["\uFEFF", csv], {
+        type: "text/csv;charset=utf-8",
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `historial_administrativo_hcelm_${new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")}.csv`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setAdministrativeAuditError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo exportar el historial administrativo.",
+      );
+    } finally {
+      setAdministrativeAuditExporting(false);
+    }
+  }
+
   useEffect(() => {
     void loadAccessAudits(1);
+    void loadAdministrativeAudits(1);
     // La carga inicial se realiza una sola vez.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1537,7 +1896,7 @@ export default function PlatformDashboard() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wide text-slate-600">
-                    Acci?n administrativa reversible
+                    Acción administrativa reversible
                   </p>
 
                   <h2
@@ -3738,6 +4097,528 @@ export default function PlatformDashboard() {
 
                       setAccessAuditPage(nextPage);
                       void loadAccessAudits(nextPage);
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5 sm:p-6">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div>
+                  <p className="text-sm font-bold uppercase tracking-wide text-violet-700">
+                    Auditoría administrativa
+                  </p>
+
+                  <h2 className="mt-1 text-2xl font-black text-slate-950">
+                    Suspensiones y reactivaciones
+                  </h2>
+
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Historial permanente de las decisiones administrativas
+                    aplicadas a tenants, empresas y usuarios de HCELM.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      administrativeAuditLoading ||
+                      administrativeAuditExporting ||
+                      !administrativeAuditData?.pagination.totalItems
+                    }
+                    onClick={() => void exportAdministrativeAuditsCsv()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-black text-emerald-800 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Download className="h-4 w-4" />
+
+                    {administrativeAuditExporting
+                      ? "Preparando CSV..."
+                      : "Exportar CSV"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={administrativeAuditLoading}
+                    onClick={() =>
+                      void loadAdministrativeAudits(administrativeAuditPage)
+                    }
+                    className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm font-black text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {administrativeAuditLoading
+                      ? "Actualizando..."
+                      : "Actualizar historial"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+                <div className="xl:col-span-2">
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Buscar
+                  </label>
+
+                  <input
+                    type="search"
+                    value={administrativeAuditSearch}
+                    onChange={(event) =>
+                      setAdministrativeAuditSearch(event.target.value)
+                    }
+                    placeholder="Nombre, RUC, correo, motivo..."
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Entidad
+                  </label>
+
+                  <select
+                    value={administrativeAuditEntityType}
+                    onChange={(event) =>
+                      setAdministrativeAuditEntityType(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  >
+                    <option value="">Todas</option>
+                    <option value="TENANT">Tenants</option>
+                    <option value="COMPANY">Empresas</option>
+                    <option value="USER">Usuarios</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Acción
+                  </label>
+
+                  <select
+                    value={administrativeAuditAction}
+                    onChange={(event) =>
+                      setAdministrativeAuditAction(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  >
+                    <option value="">Todas</option>
+                    <option value="SUSPEND">Suspensiones</option>
+                    <option value="REACTIVATE">Reactivaciones</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Resultado
+                  </label>
+
+                  <select
+                    value={administrativeAuditSuccessful}
+                    onChange={(event) =>
+                      setAdministrativeAuditSuccessful(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  >
+                    <option value="">Todos</option>
+                    <option value="true">Exitosos</option>
+                    <option value="false">Fallidos</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Desde
+                  </label>
+
+                  <input
+                    type="date"
+                    value={administrativeAuditDateFrom}
+                    onChange={(event) =>
+                      setAdministrativeAuditDateFrom(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">
+                    Hasta
+                  </label>
+
+                  <input
+                    type="date"
+                    value={administrativeAuditDateTo}
+                    onChange={(event) =>
+                      setAdministrativeAuditDateTo(event.target.value)
+                    }
+                    className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={administrativeAuditLoading}
+                  onClick={() => {
+                    setAdministrativeAuditPage(1);
+                    void loadAdministrativeAudits(1);
+                  }}
+                  className="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-60"
+                >
+                  Aplicar filtros
+                </button>
+
+                <button
+                  type="button"
+                  disabled={administrativeAuditLoading}
+                  onClick={() => {
+                    const emptyFilters: PlatformAdministrativeActionFilters = {
+                      entityType: "",
+                      action: "",
+                      successful: "",
+                      dateFrom: "",
+                      dateTo: "",
+                      search: "",
+                    };
+
+                    setAdministrativeAuditEntityType("");
+                    setAdministrativeAuditAction("");
+                    setAdministrativeAuditSuccessful("");
+                    setAdministrativeAuditDateFrom("");
+                    setAdministrativeAuditDateTo("");
+                    setAdministrativeAuditSearch("");
+                    setAdministrativeAuditPage(1);
+
+                    void loadAdministrativeAudits(1, emptyFilters);
+                  }}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            </div>
+
+            {administrativeAuditData ? (
+              <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-5 sm:p-5">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-bold uppercase text-slate-500">
+                    Total
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-slate-950">
+                    {administrativeAuditData.summary.total}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-bold uppercase text-amber-700">
+                    Suspensiones
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-amber-950">
+                    {administrativeAuditData.summary.suspended}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs font-bold uppercase text-emerald-700">
+                    Reactivaciones
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-emerald-950">
+                    {administrativeAuditData.summary.reactivated}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
+                  <p className="text-xs font-bold uppercase text-cyan-700">
+                    Exitosas
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-cyan-950">
+                    {administrativeAuditData.summary.successful}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-xs font-bold uppercase text-red-700">
+                    Fallidas
+                  </p>
+                  <p className="mt-1 text-2xl font-black text-red-950">
+                    {administrativeAuditData.summary.failed}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {administrativeAuditError ? (
+              <div className="m-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <p className="font-black">
+                  No se pudo cargar el historial administrativo
+                </p>
+                <p className="mt-1">{administrativeAuditError}</p>
+              </div>
+            ) : null}
+
+            {administrativeAuditLoading ? (
+              <div className="space-y-3 p-5">
+                <div className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+                <div className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+              </div>
+            ) : null}
+
+            {!administrativeAuditLoading &&
+            !administrativeAuditError &&
+            administrativeAuditData?.items.length === 0 ? (
+              <div className="p-10 text-center">
+                <ClipboardList className="mx-auto h-12 w-12 text-slate-300" />
+                <p className="mt-3 font-black text-slate-900">
+                  No existen acciones con estos filtros
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Cambie los criterios de búsqueda o el rango de fechas.
+                </p>
+              </div>
+            ) : null}
+
+            {!administrativeAuditLoading &&
+            administrativeAuditData &&
+            administrativeAuditData.items.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-[1350px] w-full text-left">
+                  <thead className="bg-slate-950 text-xs uppercase tracking-wide text-white">
+                    <tr>
+                      <th className="px-4 py-3">Fecha</th>
+                      <th className="px-4 py-3">Acción</th>
+                      <th className="px-4 py-3">Entidad</th>
+                      <th className="px-4 py-3">Objetivo</th>
+                      <th className="px-4 py-3">Cambio de estado</th>
+                      <th className="px-4 py-3">Motivo</th>
+                      <th className="px-4 py-3">Administrador</th>
+                      <th className="px-4 py-3">Resultado</th>
+                      <th className="px-4 py-3">Detalle</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200">
+                    {administrativeAuditData.items.map((item) => (
+                      <tr key={item.id} className="align-top hover:bg-slate-50">
+                        <td className="px-4 py-4 text-sm text-slate-700">
+                          {new Date(item.createdAt).toLocaleString("es-PE")}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <span
+                            className={[
+                              "inline-flex rounded-full border px-2.5 py-1 text-xs font-black",
+                              administrativeActionClass(item.action),
+                            ].join(" ")}
+                          >
+                            {administrativeActionLabel(item.action)}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4 text-sm font-bold text-slate-800">
+                          {administrativeEntityTypeLabel(item.entityType)}
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <p className="font-black text-slate-950">
+                            {item.targetName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {item.targetIdentifier || "Sin identificador"}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4 text-sm text-slate-700">
+                          <p>
+                            {administrativeStatusLabel(item.previousStatus)}
+                          </p>
+                          <p className="mt-1 font-black text-slate-950">
+                            → {administrativeStatusLabel(item.resultingStatus)}
+                          </p>
+                        </td>
+
+                        <td className="max-w-sm px-4 py-4">
+                          <p className="text-xs font-bold uppercase text-slate-500">
+                            {suspensionCategoryLabel(item.category)}
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {item.reason}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <p className="font-black text-slate-950">
+                            {item.performedByName || "Administrador global"}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {item.performedByEmail || "Correo no disponible"}
+                          </p>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <span
+                            className={[
+                              "inline-flex rounded-full border px-2.5 py-1 text-xs font-black",
+                              item.successful
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                : "border-red-200 bg-red-50 text-red-800",
+                            ].join(" ")}
+                          >
+                            {item.successful ? "Exitoso" : "Fallido"}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-4">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedAdministrativeAudit((current) =>
+                                current?.id === item.id ? null : item,
+                              )
+                            }
+                            className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-black text-violet-800 hover:bg-violet-100"
+                          >
+                            <Eye className="h-4 w-4" />
+                            {selectedAdministrativeAudit?.id === item.id
+                              ? "Ocultar"
+                              : "Ver detalle"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {selectedAdministrativeAudit ? (
+              <div className="border-t border-slate-200 bg-violet-50/50 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-violet-700">
+                      Detalle de la acción administrativa
+                    </p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">
+                      {selectedAdministrativeAudit.targetName}
+                    </h3>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAdministrativeAudit(null)}
+                    className="rounded-xl border border-slate-300 bg-white p-2 text-slate-600 hover:bg-slate-100"
+                    aria-label="Cerrar detalle administrativo"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <AuditDetailBlock
+                    title="Identificación"
+                    lines={[
+                      `ID: ${selectedAdministrativeAudit.id}`,
+                      `Entidad: ${administrativeEntityTypeLabel(
+                        selectedAdministrativeAudit.entityType,
+                      )}`,
+                      `Identificador: ${
+                        selectedAdministrativeAudit.targetIdentifier ||
+                        "No disponible"
+                      }`,
+                    ]}
+                  />
+
+                  <AuditDetailBlock
+                    title="Estados"
+                    lines={[
+                      `Anterior: ${administrativeStatusLabel(
+                        selectedAdministrativeAudit.previousStatus,
+                      )}`,
+                      `Resultante: ${administrativeStatusLabel(
+                        selectedAdministrativeAudit.resultingStatus,
+                      )}`,
+                      `Accesos cerrados: ${selectedAdministrativeAudit.closedAccessCount}`,
+                    ]}
+                  />
+
+                  <AuditDetailBlock
+                    title="Administrador"
+                    lines={[
+                      selectedAdministrativeAudit.performedByName ||
+                        "Nombre no disponible",
+                      selectedAdministrativeAudit.performedByEmail ||
+                        "Correo no disponible",
+                      selectedAdministrativeAudit.ipAddress ||
+                        "IP no registrada",
+                    ]}
+                  />
+
+                  <AuditDetailBlock
+                    title="Resultado"
+                    lines={[
+                      selectedAdministrativeAudit.successful
+                        ? "Operación exitosa"
+                        : "Operación fallida",
+                      selectedAdministrativeAudit.failureReason ||
+                        "Sin motivo de falla",
+                      selectedAdministrativeAudit.suspendedUntil
+                        ? `Suspendido hasta: ${new Date(
+                            selectedAdministrativeAudit.suspendedUntil,
+                          ).toLocaleString("es-PE")}`
+                        : "Sin fecha límite de suspensión",
+                    ]}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {administrativeAuditData &&
+            administrativeAuditData.pagination.totalItems > 0 ? (
+              <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <p className="text-sm text-slate-600">
+                  Página {administrativeAuditData.pagination.page} de{" "}
+                  {administrativeAuditData.pagination.totalPages} ?{" "}
+                  {administrativeAuditData.pagination.totalItems} registro(s)
+                </p>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={
+                      administrativeAuditLoading ||
+                      !administrativeAuditData.pagination.hasPreviousPage
+                    }
+                    onClick={() => {
+                      const previousPage =
+                        administrativeAuditData.pagination.page - 1;
+
+                      setAdministrativeAuditPage(previousPage);
+                      setSelectedAdministrativeAudit(null);
+                      void loadAdministrativeAudits(previousPage);
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      administrativeAuditLoading ||
+                      !administrativeAuditData.pagination.hasNextPage
+                    }
+                    onClick={() => {
+                      const nextPage =
+                        administrativeAuditData.pagination.page + 1;
+
+                      setAdministrativeAuditPage(nextPage);
+                      setSelectedAdministrativeAudit(null);
+                      void loadAdministrativeAudits(nextPage);
                     }}
                     className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >

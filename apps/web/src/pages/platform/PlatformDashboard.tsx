@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   BadgeCheck,
+  Ban,
   Bell,
   BookOpenCheck,
   Boxes,
@@ -26,6 +27,7 @@ import {
   PackageCheck,
   PanelLeftClose,
   PanelLeftOpen,
+  RotateCcw,
   Search,
   ShieldCheck,
   Timer,
@@ -41,12 +43,29 @@ import {
   setSessionItem,
 } from "../../lib/auth";
 
+type AdministrativeStatus = "ACTIVE" | "SUSPENDED" | "CLOSED";
+
+type AdministrativeEntityFields = {
+  active: boolean;
+  status: AdministrativeStatus;
+  suspendedAt: string | null;
+  suspendedUntil: string | null;
+  suspensionCategory: string | null;
+  suspensionReason: string | null;
+  suspendedByPlatformUserId: string | null;
+  reactivatedAt: string | null;
+  reactivatedByPlatformUserId: string | null;
+  reactivationReason: string | null;
+};
+
 type PlatformMetrics = {
   registeredTenants: number;
   activeCompanies: number;
   inactiveCompanies: number;
+  suspendedCompanies: number;
   activeUsers: number;
   inactiveUsers: number;
+  suspendedUsers: number;
   platformSuperadmins: number;
   activeModuleInstallations: number;
   inactiveModuleInstallations: number;
@@ -59,13 +78,12 @@ type PlatformAlert = {
   message: string;
 };
 
-type PlatformCompanyOverview = {
+type PlatformCompanyOverview = AdministrativeEntityFields & {
   id: string;
   code: string;
   legalName: string;
   tradeName: string | null;
   ruc: string;
-  active: boolean;
   isDefault: boolean;
   businessUnitCount: number;
   membershipCount: number;
@@ -101,7 +119,7 @@ type CompanyContextResponse = {
     code?: string;
     name?: string;
   } | null;
-  user?: {
+  userá: {
     id?: string;
     email?: string;
     fullName?: string | null;
@@ -117,11 +135,10 @@ type CompanyContextResponse = {
   };
 };
 
-type PlatformTenantOverview = {
+type PlatformTenantOverview = AdministrativeEntityFields & {
   id: string;
   name: string;
   ruc: string;
-  active: boolean;
   companyCount: number;
   userCount: number;
   createdAt: string;
@@ -129,10 +146,54 @@ type PlatformTenantOverview = {
   companies: PlatformCompanyOverview[];
 };
 
+type PlatformUserOverview = AdministrativeEntityFields & {
+  id: string;
+  tenantId: string;
+  email: string;
+  fullName: string | null;
+  dni: string | null;
+  role: string;
+  platformRole: string | null;
+  createdAt: string;
+  updatedAt: string;
+  tenant: {
+    id: string;
+    name: string;
+    ruc: string;
+    active: boolean;
+    status: AdministrativeStatus;
+  };
+  memberships: Array<{
+    id: string;
+    companyId: string;
+    role: string;
+    isDefault: boolean;
+    active: boolean;
+    company: {
+      id: string;
+      code: string;
+      legalName: string;
+      tradeName: string | null;
+      ruc: string;
+      active: boolean;
+      status: AdministrativeStatus;
+    };
+  }>;
+};
+
+type AdministrativeActionTarget = {
+  entityType: "tenants" | "companies" | "users";
+  entityLabel: "Tenant" | "Empresa" | "Usuario";
+  id: string;
+  name: string;
+  action: "suspend" | "reactivate";
+};
+
 type PlatformSummary = {
   metrics: PlatformMetrics;
   overview: {
     tenants: PlatformTenantOverview[];
+    users: PlatformUserOverview[];
   };
   security: {
     platformAccessProtected: boolean;
@@ -388,6 +449,40 @@ function formatCsvDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString("es-PE");
 }
 
+function administrativeStatusLabel(status: AdministrativeStatus) {
+  if (status === "ACTIVE") return "Activo";
+  if (status === "SUSPENDED") return "Suspendido";
+  if (status === "CLOSED") return "Cerrado";
+
+  return status;
+}
+
+function administrativeStatusClass(status: AdministrativeStatus) {
+  if (status === "ACTIVE") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+
+  if (status === "SUSPENDED") {
+    return "border-amber-300 bg-amber-50 text-amber-900";
+  }
+
+  return "border-red-200 bg-red-50 text-red-800";
+}
+
+function suspensionCategoryLabel(category: string | null) {
+  const labels: Record<string, string> = {
+    PAYMENT_DEFAULT: "Falta de pago",
+    CONTRACT_BREACH: "Incumplimiento contractual",
+    DOCUMENTATION_PENDING: "Documentación pendiente",
+    CLIENT_REQUEST: "Solicitud del cliente",
+    SECURITY_INCIDENT: "Incidente de seguridad",
+    ADMINISTRATIVE_MAINTENANCE: "Mantenimiento administrativo",
+    OTHER: "Otro motivo",
+  };
+
+  return category ? labels[category] || category : "No especificada";
+}
+
 function accessStatusLabel(status: string) {
   if (status === "ACTIVE") {
     return "Activo";
@@ -457,6 +552,20 @@ export default function PlatformDashboard() {
   const [expandedTenantIds, setExpandedTenantIds] = useState<Set<string>>(
     new Set(),
   );
+  const [administrativeAction, setAdministrativeAction] =
+    useState<AdministrativeActionTarget | null>(null);
+  const [administrativeCategory, setAdministrativeCategory] = useState(
+    "ADMINISTRATIVE_MAINTENANCE",
+  );
+  const [administrativeReason, setAdministrativeReason] = useState("");
+  const [administrativeUntil, setAdministrativeUntil] = useState("");
+  const [administrativeLoading, setAdministrativeLoading] = useState(false);
+  const [administrativeError, setAdministrativeError] = useState<string | null>(
+    null,
+  );
+  const [administrativeSuccess, setAdministrativeSuccess] = useState<
+    string | null
+  >(null);
   const organizationSectionRef = useRef<HTMLElement | null>(null);
 
   const userName = getSessionItem("hcelm_user_name") || "Dr. Alfonso Rodríguez";
@@ -627,6 +736,149 @@ export default function PlatformDashboard() {
       cancelled = true;
     };
   }, []);
+  async function reloadPlatformSummary() {
+    const token =
+      sessionStorage.getItem("ame_token") || localStorage.getItem("ame_token");
+
+    if (!token) {
+      throw new Error("No se encontr? una sesi?n autenticada.");
+    }
+
+    const response = await fetch(
+      "http://localhost:3000/api/platform/dashboard/summary",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+
+    const body = await response.json().catch(() => null);
+
+    if (!response.ok || !body) {
+      const message =
+        body?.message || "No se pudo actualizar el resumen de la plataforma.";
+
+      throw new Error(
+        Array.isArray(message) ? message.join(". ") : String(message),
+      );
+    }
+
+    const platformSummary = body as PlatformSummary;
+
+    setSummary(platformSummary);
+    setExpandedTenantIds(
+      new Set(platformSummary.overview.tenants.map((tenant) => tenant.id)),
+    );
+
+    return platformSummary;
+  }
+
+  function openAdministrativeAction(target: AdministrativeActionTarget) {
+    setAdministrativeAction(target);
+    setAdministrativeCategory("ADMINISTRATIVE_MAINTENANCE");
+    setAdministrativeReason("");
+    setAdministrativeUntil("");
+    setAdministrativeError(null);
+    setAdministrativeSuccess(null);
+  }
+
+  function closeAdministrativeAction() {
+    if (administrativeLoading) {
+      return;
+    }
+
+    setAdministrativeAction(null);
+    setAdministrativeReason("");
+    setAdministrativeUntil("");
+    setAdministrativeError(null);
+  }
+
+  async function executeAdministrativeAction() {
+    if (!administrativeAction || administrativeLoading) {
+      return;
+    }
+
+    const normalizedReason = administrativeReason.trim();
+
+    if (normalizedReason.length < 10 || normalizedReason.length > 500) {
+      setAdministrativeError("El motivo debe tener entre 10 y 500 caracteres.");
+      return;
+    }
+
+    setAdministrativeLoading(true);
+    setAdministrativeError(null);
+    setAdministrativeSuccess(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error("No se encontr? una sesi?n global activa.");
+      }
+
+      const requestBody =
+        administrativeAction.action === "suspend"
+          ? {
+              category: administrativeCategory,
+              reason: normalizedReason,
+              suspendedUntil: administrativeUntil
+                ? new Date(`${administrativeUntil}T23:59:59`).toISOString()
+                : undefined,
+            }
+          : {
+              reason: normalizedReason,
+            };
+
+      const response = await fetch(
+        `http://localhost:3000/api/platform/${administrativeAction.entityType}/${administrativeAction.id}/${administrativeAction.action}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+      );
+
+      const responseBody = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          responseBody?.message ||
+          "No se pudo completar la operación administrativa.";
+
+        throw new Error(
+          Array.isArray(message) ? message.join(". ") : String(message),
+        );
+      }
+
+      await reloadPlatformSummary();
+      await loadAccessAudits(accessAuditPage);
+
+      const successMessage =
+        administrativeAction.action === "suspend"
+          ? `${administrativeAction.entityLabel} suspendido correctamente.`
+          : `${administrativeAction.entityLabel} reactivado correctamente.`;
+
+      setAdministrativeSuccess(successMessage);
+      setAdministrativeAction(null);
+      setAdministrativeReason("");
+      setAdministrativeUntil("");
+    } catch (error) {
+      setAdministrativeError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar la operación administrativa.",
+      );
+    } finally {
+      setAdministrativeLoading(false);
+    }
+  }
+
   function buildAccessAuditParams(
     page: number,
     pageSize: number,
@@ -1129,10 +1381,10 @@ export default function PlatformDashboard() {
 
       setSessionItem(
         "hcelm_user_name",
-        body.user?.fullName?.trim() || userName,
+        body.userá.fullName?.trim() || userName,
       );
 
-      setSessionItem("hcelm_user_role", body.user?.role?.trim() || userRole);
+      setSessionItem("hcelm_user_role", body.userá.role?.trim() || userRole);
 
       setSessionItem("hcelm_professional_verified", "false");
       setSessionItem("hcelm_require_professional_verification", "true");
@@ -1265,6 +1517,205 @@ export default function PlatformDashboard() {
           </button>
         </div>
       </aside>
+
+      {administrativeAction ? (
+        <div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="administrative-action-title"
+            className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <header
+              className={[
+                "border-b p-5 sm:p-6",
+                administrativeAction.action === "suspend"
+                  ? "border-amber-200 bg-amber-50"
+                  : "border-emerald-200 bg-emerald-50",
+              ].join(" ")}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide text-slate-600">
+                    Acci?n administrativa reversible
+                  </p>
+
+                  <h2
+                    id="administrative-action-title"
+                    className="mt-1 text-2xl font-black text-slate-950"
+                  >
+                    {administrativeAction.action === "suspend"
+                      ? `Suspender ${administrativeAction.entityLabel.toLowerCase()}`
+                      : `Reactivar ${administrativeAction.entityLabel.toLowerCase()}`}
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={administrativeLoading}
+                  onClick={closeAdministrativeAction}
+                  className="rounded-xl p-2 text-slate-600 hover:bg-white/70 disabled:opacity-50"
+                  aria-label="Cerrar operación administrativa"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </header>
+
+            <div className="space-y-5 p-5 sm:p-6">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                  {administrativeAction.entityLabel}
+                </p>
+
+                <p className="mt-1 text-lg font-black text-slate-950">
+                  {administrativeAction.name}
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {administrativeAction.action === "suspend"
+                    ? "La información permanecerá almacenada, pero el acceso operativo será bloqueado."
+                    : "La entidad recuperar? el acceso siempre que sus entidades superiores tambi?n est?n activas."}
+                </p>
+              </div>
+
+              {administrativeAction.action === "suspend" ? (
+                <>
+                  <label className="block">
+                    <span className="text-sm font-black text-slate-900">
+                      Categoría de suspensión
+                    </span>
+
+                    <select
+                      value={administrativeCategory}
+                      disabled={administrativeLoading}
+                      onChange={(event) => {
+                        setAdministrativeCategory(event.target.value);
+                        setAdministrativeError(null);
+                      }}
+                      className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                    >
+                      <option value="PAYMENT_DEFAULT">Falta de pago</option>
+                      <option value="CONTRACT_BREACH">
+                        Incumplimiento contractual
+                      </option>
+                      <option value="DOCUMENTATION_PENDING">
+                        Documentación pendiente
+                      </option>
+                      <option value="CLIENT_REQUEST">
+                        Solicitud del cliente
+                      </option>
+                      <option value="SECURITY_INCIDENT">
+                        Incidente de seguridad
+                      </option>
+                      <option value="ADMINISTRATIVE_MAINTENANCE">
+                        Mantenimiento administrativo
+                      </option>
+                      <option value="OTHER">Otro motivo</option>
+                    </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-sm font-black text-slate-900">
+                      Fecha final opcional
+                    </span>
+
+                    <input
+                      type="date"
+                      value={administrativeUntil}
+                      disabled={administrativeLoading}
+                      min={new Date().toISOString().slice(0, 10)}
+                      onChange={(event) =>
+                        setAdministrativeUntil(event.target.value)
+                      }
+                      className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                    />
+
+                    <span className="mt-1 block text-xs text-slate-500">
+                      La reactivación continuar? siendo manual en esta fase.
+                    </span>
+                  </label>
+                </>
+              ) : null}
+
+              <label className="block">
+                <span className="text-sm font-black text-slate-900">
+                  Motivo obligatorio
+                </span>
+
+                <textarea
+                  value={administrativeReason}
+                  disabled={administrativeLoading}
+                  minLength={10}
+                  maxLength={500}
+                  rows={5}
+                  onChange={(event) => {
+                    setAdministrativeReason(event.target.value);
+                    setAdministrativeError(null);
+                  }}
+                  placeholder={
+                    administrativeAction.action === "suspend"
+                      ? "Explique claramente por qué se suspende esta entidad."
+                      : "Explique por qué corresponde restablecer el acceso."
+                  }
+                  className="mt-2 w-full resize-y rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+                />
+
+                <span className="mt-1 block text-right text-xs font-semibold text-slate-500">
+                  {administrativeReason.trim().length}/500
+                </span>
+              </label>
+
+              {administrativeError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                  <p className="font-black">
+                    No se pudo completar la operación
+                  </p>
+                  <p className="mt-1">{administrativeError}</p>
+                </div>
+              ) : null}
+            </div>
+
+            <footer className="flex flex-col-reverse gap-3 border-t border-slate-200 bg-slate-50 p-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={administrativeLoading}
+                onClick={closeAdministrativeAction}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-black text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  administrativeLoading ||
+                  administrativeReason.trim().length < 10
+                }
+                onClick={() => void executeAdministrativeAction()}
+                className={[
+                  "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-50",
+                  administrativeAction.action === "suspend"
+                    ? "bg-amber-700 hover:bg-amber-800"
+                    : "bg-emerald-700 hover:bg-emerald-800",
+                ].join(" ")}
+              >
+                {administrativeAction.action === "suspend" ? (
+                  <Ban className="h-5 w-5" />
+                ) : (
+                  <RotateCcw className="h-5 w-5" />
+                )}
+
+                {administrativeLoading
+                  ? "Procesando..."
+                  : administrativeAction.action === "suspend"
+                    ? "Confirmar suspensión"
+                    : "Confirmar reactivación"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
 
       {accessAuditToClose ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
@@ -1987,6 +2438,23 @@ export default function PlatformDashboard() {
         </header>
 
         <main className="mx-auto w-full max-w-[1920px] space-y-7 p-4 sm:p-6 lg:p-8 2xl:space-y-8 2xl:p-10">
+          {administrativeSuccess ? (
+            <div className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+              <div>
+                <p className="font-black">Operación completada</p>
+                <p className="mt-1 text-sm">{administrativeSuccess}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAdministrativeSuccess(null)}
+                className="rounded-lg p-1.5 hover:bg-emerald-100"
+                aria-label="Cerrar mensaje"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
           <div className="relative md:hidden">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
 
@@ -2248,13 +2716,11 @@ export default function PlatformDashboard() {
 
                               <span
                                 className={[
-                                  "rounded-full px-2.5 py-1 text-xs font-bold",
-                                  tenant.active
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : "bg-slate-200 text-slate-600",
+                                  "rounded-full border px-2.5 py-1 text-xs font-bold",
+                                  administrativeStatusClass(tenant.status),
                                 ].join(" ")}
                               >
-                                {tenant.active ? "Activo" : "Inactivo"}
+                                {administrativeStatusLabel(tenant.status)}
                               </span>
                             </div>
 
@@ -2294,6 +2760,66 @@ export default function PlatformDashboard() {
 
                       {expanded ? (
                         <div className="border-t border-slate-200 bg-white">
+                          <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="font-black text-slate-900">
+                                Control administrativo del tenant
+                              </p>
+
+                              {tenant.status === "SUSPENDED" ? (
+                                <p className="mt-1 text-sm text-amber-800">
+                                  {suspensionCategoryLabel(
+                                    tenant.suspensionCategory,
+                                  )}
+                                  {tenant.suspensionReason
+                                    ? ` ? ${tenant.suspensionReason}`
+                                    : ""}
+                                </p>
+                              ) : (
+                                <p className="mt-1 text-sm text-slate-500">
+                                  Las operaciones afectan a todas sus empresas y
+                                  usuarios.
+                                </p>
+                              )}
+                            </div>
+
+                            {tenant.status === "ACTIVE" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openAdministrativeAction({
+                                    entityType: "tenants",
+                                    entityLabel: "Tenant",
+                                    id: tenant.id,
+                                    name: tenant.name,
+                                    action: "suspend",
+                                  })
+                                }
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-900 hover:bg-amber-100"
+                              >
+                                <Ban className="h-4 w-4" />
+                                Suspender tenant
+                              </button>
+                            ) : tenant.status === "SUSPENDED" ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openAdministrativeAction({
+                                    entityType: "tenants",
+                                    entityLabel: "Tenant",
+                                    id: tenant.id,
+                                    name: tenant.name,
+                                    action: "reactivate",
+                                  })
+                                }
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-black text-emerald-900 hover:bg-emerald-100"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                                Reactivar tenant
+                              </button>
+                            ) : null}
+                          </div>
+
                           <div className="overflow-x-auto">
                             <table className="min-w-[1050px] w-full text-left">
                               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -2375,28 +2901,77 @@ export default function PlatformDashboard() {
                                     <td className="px-5 py-4">
                                       <span
                                         className={[
-                                          "rounded-full px-2.5 py-1 text-xs font-bold",
-                                          company.active
-                                            ? "bg-emerald-100 text-emerald-800"
-                                            : "bg-slate-200 text-slate-600",
+                                          "rounded-full border px-2.5 py-1 text-xs font-bold",
+                                          administrativeStatusClass(
+                                            company.status,
+                                          ),
                                         ].join(" ")}
                                       >
-                                        {company.active ? "Activa" : "Inactiva"}
+                                        {administrativeStatusLabel(
+                                          company.status,
+                                        )}
                                       </span>
                                     </td>
 
                                     <td className="px-5 py-4 text-right">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setContextError(null);
-                                          setContextReason("");
-                                          setSelectedCompany(company);
-                                        }}
-                                        className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 transition hover:border-cyan-300 hover:bg-cyan-100"
-                                      >
-                                        Entrar a empresa
-                                      </button>
+                                      <div className="flex flex-col items-stretch gap-2">
+                                        <button
+                                          type="button"
+                                          disabled={
+                                            company.status !== "ACTIVE" ||
+                                            tenant.status !== "ACTIVE"
+                                          }
+                                          onClick={() => {
+                                            setContextError(null);
+                                            setContextReason("");
+                                            setSelectedCompany(company);
+                                          }}
+                                          className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 transition hover:border-cyan-300 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                        >
+                                          Entrar a empresa
+                                        </button>
+
+                                        {company.status === "ACTIVE" ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              openAdministrativeAction({
+                                                entityType: "companies",
+                                                entityLabel: "Empresa",
+                                                id: company.id,
+                                                name:
+                                                  company.tradeName ||
+                                                  company.legalName,
+                                                action: "suspend",
+                                              })
+                                            }
+                                            className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-900 hover:bg-amber-100"
+                                          >
+                                            Suspender
+                                          </button>
+                                        ) : company.status === "SUSPENDED" ? (
+                                          <button
+                                            type="button"
+                                            disabled={
+                                              tenant.status !== "ACTIVE"
+                                            }
+                                            onClick={() =>
+                                              openAdministrativeAction({
+                                                entityType: "companies",
+                                                entityLabel: "Empresa",
+                                                id: company.id,
+                                                name:
+                                                  company.tradeName ||
+                                                  company.legalName,
+                                                action: "reactivate",
+                                              })
+                                            }
+                                            className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                          >
+                                            Reactivar
+                                          </button>
+                                        ) : null}
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
@@ -2411,6 +2986,318 @@ export default function PlatformDashboard() {
               </div>
             ) : null}
           </section>
+          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 p-5 sm:p-6">
+              <p className="text-sm font-bold uppercase tracking-wide text-cyan-700">
+                Gestión global de identidades
+              </p>
+
+              <h2 className="mt-1 text-2xl font-black text-slate-950">
+                Usuarios de la plataforma
+              </h2>
+
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-slate-500">
+                Se muestran solamente datos administrativos y de acceso. Las
+                contraseñas y sus hashes nunca son enviados al navegador.
+              </p>
+            </div>
+
+            <div className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 sm:grid-cols-3 sm:p-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-bold uppercase text-slate-500">
+                  Registrados
+                </p>
+                <p className="mt-1 text-2xl font-black text-slate-950">
+                  {summary?.overview.users.length ?? 0}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-xs font-bold uppercase text-emerald-700">
+                  Activos
+                </p>
+                <p className="mt-1 text-2xl font-black text-emerald-950">
+                  {summary?.metrics.activeUsers ?? 0}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-xs font-bold uppercase text-amber-700">
+                  Suspendidos
+                </p>
+                <p className="mt-1 text-2xl font-black text-amber-950">
+                  {summary?.metrics.suspendedUsers ?? 0}
+                </p>
+              </div>
+            </div>
+
+            {summaryLoading ? (
+              <div className="p-5">
+                <div className="h-32 animate-pulse rounded-2xl bg-slate-100" />
+              </div>
+            ) : null}
+
+            {!summaryLoading && summary?.overview.users.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1250px] text-left">
+                  <thead className="bg-slate-950 text-xs uppercase tracking-wide text-white">
+                    <tr>
+                      <th className="px-4 py-3">Usuario</th>
+                      <th className="px-4 py-3">Tenant</th>
+                      <th className="px-4 py-3">Rol</th>
+                      <th className="px-4 py-3">Empresas asignadas</th>
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3">Información administrativa</th>
+                      <th className="px-4 py-3 text-right">Acciones</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-200">
+                    {summary.overview.users.map((user) => {
+                      const isCurrentUser = summary.currentUser.id === user.id;
+                      const tenantIsActive =
+                        user.tenant.status === "ACTIVE" && user.tenant.active;
+
+                      return (
+                        <tr
+                          key={user.id}
+                          className="align-top hover:bg-slate-50"
+                        >
+                          <td className="px-4 py-4">
+                            <p className="font-black text-slate-950">
+                              {user.fullName || "Nombre no registrado"}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {user.email}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              DNI: {user.dni || "No registrado"}
+                            </p>
+
+                            {isCurrentUser ? (
+                              <span className="mt-2 inline-flex rounded-full bg-cyan-100 px-2.5 py-1 text-[11px] font-black text-cyan-800">
+                                Sesión actual
+                              </span>
+                            ) : null}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <p className="font-black text-slate-900">
+                              {user.tenant.name}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              RUC {user.tenant.ruc}
+                            </p>
+
+                            {user.tenant.status !== "ACTIVE" ? (
+                              <span
+                                className={[
+                                  "mt-2 inline-flex rounded-full border px-2 py-1 text-[11px] font-black",
+                                  administrativeStatusClass(user.tenant.status),
+                                ].join(" ")}
+                              >
+                                Tenant{" "}
+                                {administrativeStatusLabel(
+                                  user.tenant.status,
+                                ).toLowerCase()}
+                              </span>
+                            ) : null}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <p className="font-bold text-slate-800">
+                              {user.role}
+                            </p>
+
+                            <p className="mt-1 text-xs text-slate-500">
+                              {user.platformRole || "Sin rol global"}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-4">
+                            {user.memberships.length ? (
+                              <div className="space-y-2">
+                                {user.memberships.map((membership) => (
+                                  <div
+                                    key={membership.id}
+                                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                                  >
+                                    <p className="text-sm font-black text-slate-900">
+                                      {membership.company.tradeName ||
+                                        membership.company.legalName}
+                                    </p>
+
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {membership.role}
+                                      {membership.isDefault
+                                        ? " · Predeterminada"
+                                        : ""}
+                                    </p>
+
+                                    {!membership.active ||
+                                    membership.company.status !== "ACTIVE" ? (
+                                      <p className="mt-1 text-xs font-bold text-amber-700">
+                                        Acceso empresarial no activo
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm text-slate-500">
+                                Sin membresías empresariales
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-4">
+                            <span
+                              className={[
+                                "inline-flex rounded-full border px-2.5 py-1 text-xs font-black",
+                                administrativeStatusClass(user.status),
+                              ].join(" ")}
+                            >
+                              {administrativeStatusLabel(user.status)}
+                            </span>
+                          </td>
+
+                          <td className="max-w-sm px-4 py-4">
+                            {user.status === "SUSPENDED" ? (
+                              <>
+                                <p className="text-xs font-black uppercase text-amber-700">
+                                  {suspensionCategoryLabel(
+                                    user.suspensionCategory,
+                                  )}
+                                </p>
+
+                                <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-slate-700">
+                                  {user.suspensionReason ||
+                                    "Sin motivo disponible"}
+                                </p>
+
+                                {user.suspendedAt ? (
+                                  <p className="mt-2 text-xs text-slate-500">
+                                    Desde{" "}
+                                    {new Date(user.suspendedAt).toLocaleString(
+                                      "es-PE",
+                                    )}
+                                  </p>
+                                ) : null}
+
+                                {user.suspendedUntil ? (
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Fecha prevista{" "}
+                                    {new Date(
+                                      user.suspendedUntil,
+                                    ).toLocaleString("es-PE")}
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : user.reactivatedAt ? (
+                              <>
+                                <p className="text-sm text-slate-600">
+                                  Reactivado el{" "}
+                                  {new Date(user.reactivatedAt).toLocaleString(
+                                    "es-PE",
+                                  )}
+                                </p>
+
+                                {user.reactivationReason ? (
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    {user.reactivationReason}
+                                  </p>
+                                ) : null}
+                              </>
+                            ) : (
+                              <span className="text-sm text-slate-500">
+                                Sin incidencias administrativas
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="px-4 py-4 text-right">
+                            {user.status === "ACTIVE" ? (
+                              <div>
+                                <button
+                                  type="button"
+                                  disabled={isCurrentUser}
+                                  onClick={() =>
+                                    openAdministrativeAction({
+                                      entityType: "users",
+                                      entityLabel: "Usuario",
+                                      id: user.id,
+                                      name: user.fullName || user.email,
+                                      action: "suspend",
+                                    })
+                                  }
+                                  className="inline-flex min-w-28 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-black text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  <Ban className="h-4 w-4" />
+                                  Suspender
+                                </button>
+
+                                {isCurrentUser ? (
+                                  <p className="mt-2 max-w-40 text-xs leading-4 text-slate-500">
+                                    No puede suspender su propia sesión.
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : user.status === "SUSPENDED" ? (
+                              <div>
+                                <button
+                                  type="button"
+                                  disabled={!tenantIsActive}
+                                  onClick={() =>
+                                    openAdministrativeAction({
+                                      entityType: "users",
+                                      entityLabel: "Usuario",
+                                      id: user.id,
+                                      name: user.fullName || user.email,
+                                      action: "reactivate",
+                                    })
+                                  }
+                                  className="inline-flex min-w-28 items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  Reactivar
+                                </button>
+
+                                {!tenantIsActive ? (
+                                  <p className="mt-2 max-w-44 text-xs leading-4 text-amber-700">
+                                    Primero debe reactivar el tenant.
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-500">
+                                Sin acciones disponibles
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            {!summaryLoading && !summary?.overview.users.length ? (
+              <div className="p-8 text-center">
+                <Users className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 font-black text-slate-800">
+                  No hay usuarios registrados
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  El resumen global no devolvió identidades administrativas.
+                </p>
+              </div>
+            ) : null}
+          </section>
+
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

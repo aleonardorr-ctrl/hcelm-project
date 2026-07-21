@@ -1566,6 +1566,255 @@ export class PlatformService {
     };
   }
 
+  async getAdministrativeActions(query: {
+    page?: string;
+    pageSize?: string;
+    entityType?: string;
+    action?: string;
+    successful?: string;
+    performedByPlatformUserId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  }) {
+    const parsedPage = Number.parseInt(String(query.page || '1'), 10);
+    const parsedPageSize = Number.parseInt(String(query.pageSize || '20'), 10);
+
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+
+    const pageSize =
+      Number.isFinite(parsedPageSize) &&
+      parsedPageSize > 0 &&
+      parsedPageSize <= 100
+        ? parsedPageSize
+        : 20;
+
+    const normalizedEntityType = String(query.entityType || '')
+      .trim()
+      .toUpperCase();
+
+    const normalizedAction = String(query.action || '')
+      .trim()
+      .toUpperCase();
+
+    const normalizedSuccessful = String(query.successful || '')
+      .trim()
+      .toLowerCase();
+
+    const normalizedAdministratorId = String(
+      query.performedByPlatformUserId || '',
+    ).trim();
+
+    const normalizedSearch = String(query.search || '').trim();
+
+    const allowedEntityTypes = new Set(['', 'TENANT', 'COMPANY', 'USER']);
+    const allowedActions = new Set(['', 'SUSPEND', 'REACTIVATE']);
+    const allowedSuccessful = new Set(['', 'true', 'false']);
+
+    if (!allowedEntityTypes.has(normalizedEntityType)) {
+      throw new BadRequestException(
+        'El tipo de entidad administrativa no es válido.',
+      );
+    }
+
+    if (!allowedActions.has(normalizedAction)) {
+      throw new BadRequestException(
+        'La acción administrativa solicitada no es válida.',
+      );
+    }
+
+    if (!allowedSuccessful.has(normalizedSuccessful)) {
+      throw new BadRequestException(
+        'El resultado administrativo solicitado no es válido.',
+      );
+    }
+
+    const parseDate = (
+      value: string | undefined,
+      endOfDay: boolean,
+    ): Date | null => {
+      const normalized = String(value || '').trim();
+
+      if (!normalized) {
+        return null;
+      }
+
+      const date = new Date(
+        endOfDay ? `${normalized}T23:59:59.999` : `${normalized}T00:00:00.000`,
+      );
+
+      if (Number.isNaN(date.getTime())) {
+        throw new BadRequestException(
+          'El rango de fechas administrativas no es válido.',
+        );
+      }
+
+      return date;
+    };
+
+    const dateFrom = parseDate(query.dateFrom, false);
+    const dateTo = parseDate(query.dateTo, true);
+
+    if (dateFrom && dateTo && dateFrom.getTime() > dateTo.getTime()) {
+      throw new BadRequestException(
+        'La fecha inicial no puede ser posterior a la fecha final.',
+      );
+    }
+
+    const where: any = {
+      ...(normalizedEntityType
+        ? {
+            entityType: normalizedEntityType,
+          }
+        : {}),
+      ...(normalizedAction
+        ? {
+            action: normalizedAction,
+          }
+        : {}),
+      ...(normalizedSuccessful
+        ? {
+            successful: normalizedSuccessful === 'true',
+          }
+        : {}),
+      ...(normalizedAdministratorId
+        ? {
+            performedByPlatformUserId: normalizedAdministratorId,
+          }
+        : {}),
+      ...(dateFrom || dateTo
+        ? {
+            createdAt: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
+        : {}),
+      ...(normalizedSearch
+        ? {
+            OR: [
+              {
+                targetName: {
+                  contains: normalizedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                targetIdentifier: {
+                  contains: normalizedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                reason: {
+                  contains: normalizedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                category: {
+                  contains: normalizedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                performedByEmail: {
+                  contains: normalizedSearch,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                performedByName: {
+                  contains: normalizedSearch,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const skip = (page - 1) * pageSize;
+
+    const [
+      items,
+      totalItems,
+      suspendedCount,
+      reactivatedCount,
+      successfulCount,
+      failedCount,
+    ] = await this.prisma.$transaction([
+      this.prisma.platformAdministrativeActionAudit.findMany({
+        where,
+        orderBy: [
+          {
+            createdAt: 'desc',
+          },
+          {
+            id: 'desc',
+          },
+        ],
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.platformAdministrativeActionAudit.count({
+        where,
+      }),
+      this.prisma.platformAdministrativeActionAudit.count({
+        where: {
+          AND: [where, { action: 'SUSPEND' }],
+        },
+      }),
+      this.prisma.platformAdministrativeActionAudit.count({
+        where: {
+          AND: [where, { action: 'REACTIVATE' }],
+        },
+      }),
+      this.prisma.platformAdministrativeActionAudit.count({
+        where: {
+          AND: [where, { successful: true }],
+        },
+      }),
+      this.prisma.platformAdministrativeActionAudit.count({
+        where: {
+          AND: [where, { successful: false }],
+        },
+      }),
+    ]);
+
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / pageSize) : 1;
+
+    return {
+      items,
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages,
+        hasPreviousPage: page > 1,
+        hasNextPage: page < totalPages,
+      },
+      summary: {
+        total: totalItems,
+        suspended: suspendedCount,
+        reactivated: reactivatedCount,
+        successful: successfulCount,
+        failed: failedCount,
+      },
+      appliedFilters: {
+        entityType: normalizedEntityType || null,
+        action: normalizedAction || null,
+        successful:
+          normalizedSuccessful === '' ? null : normalizedSuccessful === 'true',
+        performedByPlatformUserId: normalizedAdministratorId || null,
+        dateFrom: dateFrom?.toISOString() || null,
+        dateTo: dateTo?.toISOString() || null,
+        search: normalizedSearch || null,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   async getDashboardSummary() {
     const [
       registeredTenants,

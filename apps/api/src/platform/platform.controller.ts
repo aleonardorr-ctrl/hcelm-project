@@ -85,6 +85,24 @@ export class PlatformController {
     return this.platformService.getAccessAudits(query);
   }
 
+  @Get('administrative-actions')
+  async getAdministrativeActions(
+    @Query()
+    query: {
+      page?: string;
+      pageSize?: string;
+      entityType?: string;
+      action?: string;
+      successful?: string;
+      performedByPlatformUserId?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      search?: string;
+    },
+  ) {
+    return this.platformService.getAdministrativeActions(query);
+  }
+
   @Post('tenants/:id/suspend')
   @HttpCode(HttpStatus.OK)
   async suspendTenant(

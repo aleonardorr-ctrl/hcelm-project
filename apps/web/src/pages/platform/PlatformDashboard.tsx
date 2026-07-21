@@ -299,14 +299,14 @@ type PlatformAdministrativeActionItem = {
   id: string;
   entityType: "TENANT" | "COMPANY" | "USER";
   action: "SUSPEND" | "REACTIVATE";
-  targetEntityId: string;
+  targetEntityId: string | null;
   targetTenantId: string | null;
   targetCompanyId: string | null;
   targetUserId: string | null;
   targetName: string;
   targetIdentifier: string | null;
-  previousStatus: AdministrativeStatus;
-  resultingStatus: AdministrativeStatus;
+  previousStatus: AdministrativeStatus | null;
+  resultingStatus: AdministrativeStatus | null;
   category: string | null;
   reason: string;
   suspendedUntil: string | null;
@@ -317,7 +317,7 @@ type PlatformAdministrativeActionItem = {
   userAgent: string | null;
   closedAccessCount: number;
   successful: boolean;
-  failureReason: string | null;
+  errorMessage: string | null;
   createdAt: string;
 };
 
@@ -1479,15 +1479,19 @@ export default function PlatformDashboard() {
         administrativeActionLabel(item.action),
         item.targetName,
         item.targetIdentifier || "",
-        administrativeStatusLabel(item.previousStatus),
-        administrativeStatusLabel(item.resultingStatus),
+        item.previousStatus
+          ? administrativeStatusLabel(item.previousStatus)
+          : "No disponible",
+        item.resultingStatus
+          ? administrativeStatusLabel(item.resultingStatus)
+          : "Sin cambio aplicado",
         suspensionCategoryLabel(item.category),
         item.reason,
         formatCsvDate(item.suspendedUntil),
         item.performedByName || "",
         item.performedByEmail || "",
         item.successful ? "Exitoso" : "Fallido",
-        item.failureReason || "",
+        item.errorMessage || "",
         item.closedAccessCount,
         item.ipAddress || "",
       ]);
@@ -4435,10 +4439,15 @@ export default function PlatformDashboard() {
 
                         <td className="px-4 py-4 text-sm text-slate-700">
                           <p>
-                            {administrativeStatusLabel(item.previousStatus)}
+                            {item.previousStatus
+                              ? administrativeStatusLabel(item.previousStatus)
+                              : "Estado no disponible"}
                           </p>
                           <p className="mt-1 font-black text-slate-950">
-                            → {administrativeStatusLabel(item.resultingStatus)}
+                            →{" "}
+                            {item.resultingStatus
+                              ? administrativeStatusLabel(item.resultingStatus)
+                              : "Sin cambio aplicado"}
                           </p>
                         </td>
 
@@ -4536,12 +4545,20 @@ export default function PlatformDashboard() {
                   <AuditDetailBlock
                     title="Estados"
                     lines={[
-                      `Anterior: ${administrativeStatusLabel(
-                        selectedAdministrativeAudit.previousStatus,
-                      )}`,
-                      `Resultante: ${administrativeStatusLabel(
-                        selectedAdministrativeAudit.resultingStatus,
-                      )}`,
+                      `Anterior: ${
+                        selectedAdministrativeAudit.previousStatus
+                          ? administrativeStatusLabel(
+                              selectedAdministrativeAudit.previousStatus,
+                            )
+                          : "No disponible"
+                      }`,
+                      `Resultante: ${
+                        selectedAdministrativeAudit.resultingStatus
+                          ? administrativeStatusLabel(
+                              selectedAdministrativeAudit.resultingStatus,
+                            )
+                          : "Sin cambio aplicado"
+                      }`,
                       `Accesos cerrados: ${selectedAdministrativeAudit.closedAccessCount}`,
                     ]}
                   />
@@ -4564,7 +4581,7 @@ export default function PlatformDashboard() {
                       selectedAdministrativeAudit.successful
                         ? "Operación exitosa"
                         : "Operación fallida",
-                      selectedAdministrativeAudit.failureReason ||
+                      selectedAdministrativeAudit.errorMessage ||
                         "Sin motivo de falla",
                       selectedAdministrativeAudit.suspendedUntil
                         ? `Suspendido hasta: ${new Date(

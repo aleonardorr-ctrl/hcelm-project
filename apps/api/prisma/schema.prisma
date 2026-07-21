@@ -1670,14 +1670,14 @@ model PlatformAdministrativeActionAudit {
   id                        String                           @id @default(uuid()) @db.Uuid
   entityType                PlatformAdministrativeEntityType
   action                    PlatformAdministrativeAction
-  targetEntityId            String                           @db.Uuid
+  targetEntityId            String?                          @db.Uuid
   targetTenantId            String?                          @db.Uuid
   targetCompanyId           String?                          @db.Uuid
   targetUserId              String?                          @db.Uuid
   targetName                String                           @db.VarChar(200)
   targetIdentifier          String?                          @db.VarChar(120)
-  previousStatus            AdministrativeEntityStatus
-  resultingStatus           AdministrativeEntityStatus
+  previousStatus            AdministrativeEntityStatus?
+  resultingStatus           AdministrativeEntityStatus?
   category                  String?                          @db.VarChar(50)
   reason                    String                           @db.VarChar(500)
   suspendedUntil            DateTime?

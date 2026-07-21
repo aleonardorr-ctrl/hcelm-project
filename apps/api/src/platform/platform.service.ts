@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -959,6 +960,201 @@ export class PlatformService {
     }
 
     return administrator;
+  }
+
+  private isUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+  }
+
+  private administrativeErrorDetails(error: unknown) {
+    let statusCode = 500;
+    let message = 'La operación administrativa no pudo completarse.';
+
+    if (error instanceof HttpException) {
+      statusCode = error.getStatus();
+
+      const response = error.getResponse();
+
+      if (typeof response === 'string') {
+        message = response;
+      } else if (response && typeof response === 'object') {
+        const responseMessage = (response as { message?: unknown }).message;
+
+        if (Array.isArray(responseMessage)) {
+          message = responseMessage.map(String).join('. ');
+        } else if (responseMessage) {
+          message = String(responseMessage);
+        }
+      }
+    } else if (error instanceof Error && error.message) {
+      message = error.message;
+    }
+
+    return {
+      statusCode,
+      message: message.trim().slice(0, 500),
+      errorName:
+        error instanceof Error && error.name ? error.name.slice(0, 120) : null,
+    };
+  }
+
+  async recordFailedAdministrativeAction(input: {
+    administratorUserId: string;
+    entityType: 'TENANT' | 'COMPANY' | 'USER';
+    action: 'SUSPEND' | 'REACTIVATE';
+    targetId: string;
+    reason?: string;
+    category?: string;
+    suspendedUntil?: string;
+    requestMetadata?: {
+      ipAddress?: string;
+      userAgent?: string;
+    };
+    error: unknown;
+  }) {
+    try {
+      const administrator = await this.prisma.user.findUnique({
+        where: {
+          id: String(input.administratorUserId || '').trim(),
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+        },
+      });
+
+      if (!administrator?.email) {
+        return null;
+      }
+
+      const requestedTargetId = String(input.targetId || '').trim();
+      const validTargetUuid = this.isUuid(requestedTargetId);
+
+      let targetEntityId: string | null = validTargetUuid
+        ? requestedTargetId
+        : null;
+      let targetTenantId: string | null = null;
+      let targetCompanyId: string | null = null;
+      let targetUserId: string | null = null;
+      let targetName = `${input.entityType} no identificado`;
+      let targetIdentifier: string | null = requestedTargetId || null;
+      let previousStatus: 'ACTIVE' | 'SUSPENDED' | 'CLOSED' | null = null;
+
+      if (validTargetUuid && input.entityType === 'TENANT') {
+        const tenant = await this.prisma.tenant.findUnique({
+          where: { id: requestedTargetId },
+          select: {
+            id: true,
+            name: true,
+            ruc: true,
+            status: true,
+          },
+        });
+
+        if (tenant) {
+          targetEntityId = tenant.id;
+          targetTenantId = tenant.id;
+          targetName = tenant.name;
+          targetIdentifier = tenant.ruc;
+          previousStatus = tenant.status;
+        }
+      }
+
+      if (validTargetUuid && input.entityType === 'COMPANY') {
+        const company = await this.prisma.company.findUnique({
+          where: { id: requestedTargetId },
+          select: {
+            id: true,
+            tenantId: true,
+            legalName: true,
+            tradeName: true,
+            ruc: true,
+            status: true,
+          },
+        });
+
+        if (company) {
+          targetEntityId = company.id;
+          targetTenantId = company.tenantId;
+          targetCompanyId = company.id;
+          targetName = company.tradeName || company.legalName;
+          targetIdentifier = company.ruc;
+          previousStatus = company.status;
+        }
+      }
+
+      if (validTargetUuid && input.entityType === 'USER') {
+        const user = await this.prisma.user.findUnique({
+          where: { id: requestedTargetId },
+          select: {
+            id: true,
+            tenantId: true,
+            fullName: true,
+            email: true,
+            status: true,
+          },
+        });
+
+        if (user) {
+          targetEntityId = user.id;
+          targetTenantId = user.tenantId;
+          targetUserId = user.id;
+          targetName = user.fullName || user.email;
+          targetIdentifier = user.email;
+          previousStatus = user.status;
+        }
+      }
+
+      const errorDetails = this.administrativeErrorDetails(input.error);
+      const normalizedReason =
+        String(input.reason || '')
+          .trim()
+          .slice(0, 500) || 'Intento administrativo rechazado.';
+
+      return await this.prisma.platformAdministrativeActionAudit.create({
+        data: {
+          entityType: input.entityType,
+          action: input.action,
+          targetEntityId,
+          targetTenantId,
+          targetCompanyId,
+          targetUserId,
+          targetName: targetName.slice(0, 200),
+          targetIdentifier: targetIdentifier?.slice(0, 120) || null,
+          previousStatus,
+          resultingStatus: previousStatus,
+          category:
+            String(input.category || '')
+              .trim()
+              .slice(0, 50) || null,
+          reason: normalizedReason,
+          suspendedUntil: null,
+          performedByPlatformUserId: administrator.id,
+          performedByEmail: administrator.email,
+          performedByName: administrator.fullName,
+          ipAddress:
+            String(input.requestMetadata?.ipAddress || '')
+              .trim()
+              .slice(0, 80) || null,
+          userAgent:
+            String(input.requestMetadata?.userAgent || '').trim() || null,
+          successful: false,
+          errorMessage: errorDetails.message,
+          metadata: {
+            requestedTargetId: requestedTargetId || null,
+            requestedSuspendedUntil: input.suspendedUntil || null,
+            httpStatus: errorDetails.statusCode,
+            errorName: errorDetails.errorName,
+          },
+        },
+      });
+    } catch {
+      // La auditoría nunca debe reemplazar ni ocultar el error original.
+      return null;
+    }
   }
 
   async suspendTenant(

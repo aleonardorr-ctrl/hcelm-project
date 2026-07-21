@@ -19,6 +19,21 @@ import { PlatformService } from './platform.service';
 export class PlatformController {
   constructor(private readonly platformService: PlatformService) {}
 
+  private requestMetadata(req: any) {
+    const forwardedFor = req.headers?.['x-forwarded-for'];
+
+    const ipAddress = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : String(forwardedFor || req.ip || req.socket?.remoteAddress || '')
+          .split(',')[0]
+          .trim();
+
+    return {
+      ipAddress,
+      userAgent: String(req.headers?.['user-agent'] || '').trim(),
+    };
+  }
+
   @Post('context/company')
   @HttpCode(HttpStatus.OK)
   async createCompanyContext(
@@ -115,11 +130,29 @@ export class PlatformController {
       suspendedUntil?: string;
     },
   ) {
-    return this.platformService.suspendTenant(
-      req.user?.userId || req.user?.sub || '',
-      tenantId,
-      body,
-    );
+    const administratorUserId = req.user?.userId || req.user?.sub || '';
+
+    try {
+      return await this.platformService.suspendTenant(
+        administratorUserId,
+        tenantId,
+        body,
+      );
+    } catch (error) {
+      await this.platformService.recordFailedAdministrativeAction({
+        administratorUserId,
+        entityType: 'TENANT',
+        action: 'SUSPEND',
+        targetId: tenantId,
+        reason: body?.reason,
+        category: body?.category,
+        suspendedUntil: body?.suspendedUntil,
+        requestMetadata: this.requestMetadata(req),
+        error,
+      });
+
+      throw error;
+    }
   }
 
   @Post('tenants/:id/reactivate')
@@ -129,11 +162,27 @@ export class PlatformController {
     @Param('id') tenantId: string,
     @Body() body: { reason?: string },
   ) {
-    return this.platformService.reactivateTenant(
-      req.user?.userId || req.user?.sub || '',
-      tenantId,
-      body?.reason || '',
-    );
+    const administratorUserId = req.user?.userId || req.user?.sub || '';
+
+    try {
+      return await this.platformService.reactivateTenant(
+        administratorUserId,
+        tenantId,
+        body?.reason || '',
+      );
+    } catch (error) {
+      await this.platformService.recordFailedAdministrativeAction({
+        administratorUserId,
+        entityType: 'TENANT',
+        action: 'REACTIVATE',
+        targetId: tenantId,
+        reason: body?.reason,
+        requestMetadata: this.requestMetadata(req),
+        error,
+      });
+
+      throw error;
+    }
   }
 
   @Post('companies/:id/suspend')
@@ -148,11 +197,29 @@ export class PlatformController {
       suspendedUntil?: string;
     },
   ) {
-    return this.platformService.suspendCompany(
-      req.user?.userId || req.user?.sub || '',
-      companyId,
-      body,
-    );
+    const administratorUserId = req.user?.userId || req.user?.sub || '';
+
+    try {
+      return await this.platformService.suspendCompany(
+        administratorUserId,
+        companyId,
+        body,
+      );
+    } catch (error) {
+      await this.platformService.recordFailedAdministrativeAction({
+        administratorUserId,
+        entityType: 'COMPANY',
+        action: 'SUSPEND',
+        targetId: companyId,
+        reason: body?.reason,
+        category: body?.category,
+        suspendedUntil: body?.suspendedUntil,
+        requestMetadata: this.requestMetadata(req),
+        error,
+      });
+
+      throw error;
+    }
   }
 
   @Post('companies/:id/reactivate')
@@ -162,11 +229,27 @@ export class PlatformController {
     @Param('id') companyId: string,
     @Body() body: { reason?: string },
   ) {
-    return this.platformService.reactivateCompany(
-      req.user?.userId || req.user?.sub || '',
-      companyId,
-      body?.reason || '',
-    );
+    const administratorUserId = req.user?.userId || req.user?.sub || '';
+
+    try {
+      return await this.platformService.reactivateCompany(
+        administratorUserId,
+        companyId,
+        body?.reason || '',
+      );
+    } catch (error) {
+      await this.platformService.recordFailedAdministrativeAction({
+        administratorUserId,
+        entityType: 'COMPANY',
+        action: 'REACTIVATE',
+        targetId: companyId,
+        reason: body?.reason,
+        requestMetadata: this.requestMetadata(req),
+        error,
+      });
+
+      throw error;
+    }
   }
 
   @Post('users/:id/suspend')
@@ -181,11 +264,29 @@ export class PlatformController {
       suspendedUntil?: string;
     },
   ) {
-    return this.platformService.suspendUser(
-      req.user?.userId || req.user?.sub || '',
-      userId,
-      body,
-    );
+    const administratorUserId = req.user?.userId || req.user?.sub || '';
+
+    try {
+      return await this.platformService.suspendUser(
+        administratorUserId,
+        userId,
+        body,
+      );
+    } catch (error) {
+      await this.platformService.recordFailedAdministrativeAction({
+        administratorUserId,
+        entityType: 'USER',
+        action: 'SUSPEND',
+        targetId: userId,
+        reason: body?.reason,
+        category: body?.category,
+        suspendedUntil: body?.suspendedUntil,
+        requestMetadata: this.requestMetadata(req),
+        error,
+      });
+
+      throw error;
+    }
   }
 
   @Post('users/:id/reactivate')
@@ -195,11 +296,27 @@ export class PlatformController {
     @Param('id') userId: string,
     @Body() body: { reason?: string },
   ) {
-    return this.platformService.reactivateUser(
-      req.user?.userId || req.user?.sub || '',
-      userId,
-      body?.reason || '',
-    );
+    const administratorUserId = req.user?.userId || req.user?.sub || '';
+
+    try {
+      return await this.platformService.reactivateUser(
+        administratorUserId,
+        userId,
+        body?.reason || '',
+      );
+    } catch (error) {
+      await this.platformService.recordFailedAdministrativeAction({
+        administratorUserId,
+        entityType: 'USER',
+        action: 'REACTIVATE',
+        targetId: userId,
+        reason: body?.reason,
+        requestMetadata: this.requestMetadata(req),
+        error,
+      });
+
+      throw error;
+    }
   }
 
   @Get('dashboard/summary')

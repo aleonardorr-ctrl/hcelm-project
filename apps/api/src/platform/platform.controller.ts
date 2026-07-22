@@ -13,11 +13,15 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PlatformSuperadminGuard } from './platform-superadmin.guard';
 import { PlatformService } from './platform.service';
+import { PlatformSuspensionSchedulerService } from './platform-suspension-scheduler.service';
 
 @UseGuards(JwtAuthGuard, PlatformSuperadminGuard)
 @Controller('platform')
 export class PlatformController {
-  constructor(private readonly platformService: PlatformService) {}
+  constructor(
+    private readonly platformService: PlatformService,
+    private readonly platformSuspensionSchedulerService: PlatformSuspensionSchedulerService,
+  ) {}
 
   private requestMetadata(req: any) {
     const forwardedFor = req.headers?.['x-forwarded-for'];
@@ -317,6 +321,31 @@ export class PlatformController {
 
       throw error;
     }
+  }
+
+  @Post('administrative-actions/automatic-reactivation/run')
+  @HttpCode(HttpStatus.OK)
+  async runAutomaticReactivationScan(@Request() req: any) {
+    const result =
+      await this.platformSuspensionSchedulerService.scanExpiredSuspensions();
+
+    return {
+      action: 'AUTOMATIC_REACTIVATION_SCAN',
+      invokedManually: true,
+      invokedByPlatformUserId: req.user?.userId || req.user?.sub || null,
+      executionMode:
+        String(process.env.HCELM_AUTOMATIC_REACTIVATION_EXECUTION_ENABLED || '')
+          .trim()
+          .toLowerCase() === 'true'
+          ? 'EXECUTION'
+          : 'OBSERVATION_ONLY',
+      scanEnabled:
+        String(process.env.HCELM_AUTOMATIC_REACTIVATION_SCAN_ENABLED || '')
+          .trim()
+          .toLowerCase() === 'true',
+      completed: true,
+      result: result || null,
+    };
   }
 
   @Get('dashboard/summary')

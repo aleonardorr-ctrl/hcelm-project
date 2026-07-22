@@ -534,6 +534,24 @@ function administrativeStatusClass(status: AdministrativeStatus) {
   return "border-red-200 bg-red-50 text-red-800";
 }
 
+function calendarDateInLima(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function minimumAutomaticReactivationDate() {
+  return calendarDateInLima(new Date(Date.now() + 24 * 60 * 60 * 1000));
+}
+
 function suspensionCategoryLabel(category: string | null) {
   const labels: Record<string, string> = {
     PAYMENT_DEFAULT: "Falta de pago",
@@ -1106,9 +1124,7 @@ export default function PlatformDashboard() {
           ? {
               category: administrativeCategory,
               reason: normalizedReason,
-              suspendedUntil: administrativeUntil
-                ? new Date(administrativeUntil).toISOString()
-                : undefined,
+              suspendedUntil: administrativeUntil || undefined,
             }
           : {
               reason: normalizedReason,
@@ -2178,18 +2194,14 @@ export default function PlatformDashboard() {
 
                   <label className="block">
                     <span className="text-sm font-black text-slate-900">
-                      Fecha y hora final opcional
+                      Fecha de reactivación automática opcional
                     </span>
 
                     <input
-                      type="datetime-local"
+                      type="date"
                       value={administrativeUntil}
                       disabled={administrativeLoading}
-                      min={new Date(
-                        Date.now() - new Date().getTimezoneOffset() * 60000,
-                      )
-                        .toISOString()
-                        .slice(0, 16)}
+                      min={minimumAutomaticReactivationDate()}
                       onChange={(event) =>
                         setAdministrativeUntil(event.target.value)
                       }
@@ -2197,8 +2209,8 @@ export default function PlatformDashboard() {
                     />
 
                     <span className="mt-1 block text-xs text-slate-500">
-                      Si define fecha y hora, HCELM podrá procesar la
-                      reactivación automática al vencer el plazo.
+                      Si define una fecha, HCELM programará la reactivación a
+                      las 00:00 de ese día en America/Lima.
                     </span>
                   </label>
                 </>

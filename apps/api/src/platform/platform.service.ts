@@ -902,17 +902,37 @@ export class PlatformService {
     let suspendedUntil: Date | null = null;
 
     if (suspendedUntilText) {
-      suspendedUntil = new Date(suspendedUntilText);
+      const calendarDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+        suspendedUntilText,
+      );
 
-      if (Number.isNaN(suspendedUntil.getTime())) {
+      if (!calendarDateMatch) {
+        throw new BadRequestException(
+          'La fecha final de suspensión debe tener el formato YYYY-MM-DD.',
+        );
+      }
+
+      const [, yearText, monthText, dayText] = calendarDateMatch;
+      const year = Number(yearText);
+      const month = Number(monthText);
+      const day = Number(dayText);
+      const calendarDate = new Date(Date.UTC(year, month - 1, day));
+
+      if (
+        calendarDate.getUTCFullYear() !== year ||
+        calendarDate.getUTCMonth() !== month - 1 ||
+        calendarDate.getUTCDate() !== day
+      ) {
         throw new BadRequestException(
           'La fecha final de suspensión no es válida.',
         );
       }
 
+      suspendedUntil = new Date(`${suspendedUntilText}T00:00:00-05:00`);
+
       if (suspendedUntil.getTime() <= Date.now()) {
         throw new BadRequestException(
-          'La fecha final debe ser posterior al momento actual.',
+          'La fecha final debe corresponder a un día futuro en America/Lima.',
         );
       }
     }

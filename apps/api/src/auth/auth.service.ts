@@ -165,13 +165,13 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Credenciales invÃ¡lidas.');
+      throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciales invÃ¡lidas.');
+      throw new UnauthorizedException('Credenciales inválidas.');
     }
 
     const membership = await this.prisma.userCompanyMembership.findFirst({

@@ -5,6 +5,7 @@
  */
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import { DataQualityModule } from './admin/data-quality/data-quality.module';
 import { AnamnesisModule } from './anamnesis/anamnesis.module';
@@ -37,6 +38,7 @@ import { IdentityLookupModule } from './identity-lookup/identity-lookup.module';
   imports: [
     IdentityLookupModule,
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     PatientsModule,

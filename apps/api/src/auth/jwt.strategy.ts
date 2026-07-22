@@ -32,7 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!payloadUserId || !payloadTenantId) {
       throw new UnauthorizedException(
-        'El token no contiene una identidad v?lida.',
+        'El token no contiene una identidad válida.',
       );
     }
 
@@ -59,12 +59,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       currentUser.status !== 'ACTIVE'
     ) {
       throw new UnauthorizedException(
-        'La cuenta autenticada est? suspendida o inactiva.',
+        'La cuenta autenticada está suspendida o inactiva.',
       );
     }
 
     if (!currentUser.tenant.active || currentUser.tenant.status !== 'ACTIVE') {
-      throw new UnauthorizedException('El tenant est? suspendido o inactivo.');
+      throw new UnauthorizedException('El tenant está suspendido o inactivo.');
     }
 
     if (payloadCompanyId) {
@@ -81,7 +81,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       if (!company || !company.active || company.status !== 'ACTIVE') {
         throw new UnauthorizedException(
-          'La empresa est? suspendida o inactiva.',
+          'La empresa está suspendida o inactiva.',
         );
       }
     }

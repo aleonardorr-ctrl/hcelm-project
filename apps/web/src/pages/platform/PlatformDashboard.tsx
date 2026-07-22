@@ -119,7 +119,7 @@ type CompanyContextResponse = {
     code?: string;
     name?: string;
   } | null;
-  userá: {
+  user: {
     id?: string;
     email?: string;
     fullName?: string | null;
@@ -1958,10 +1958,10 @@ export default function PlatformDashboard() {
 
       setSessionItem(
         "hcelm_user_name",
-        body.userá.fullName?.trim() || userName,
+        body.user?.fullName?.trim() || userName,
       );
 
-      setSessionItem("hcelm_user_role", body.userá.role?.trim() || userRole);
+      setSessionItem("hcelm_user_role", body.user?.role?.trim() || userRole);
 
       setSessionItem("hcelm_professional_verified", "false");
       setSessionItem("hcelm_require_professional_verification", "true");

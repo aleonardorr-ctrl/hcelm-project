@@ -1,8 +1,10 @@
 export const TOKEN_KEY = "ame_token";
 export const PLATFORM_TOKEN_KEY = "hcelm_platform_token";
+const SESSION_NOTICE_KEY = "hcelm_session_notice";
 
-const PROFESSIONAL_KEYS = [
+const AUTH_CONTEXT_KEYS = [
   "hcelm_professional_verified",
+  "hcelm_professional_user_id",
   "hcelm_professional_name",
   "hcelm_professional_dni",
   "hcelm_professional_type",
@@ -12,24 +14,55 @@ const PROFESSIONAL_KEYS = [
   "hcelm_professional_role",
   "hcelm_require_professional_verification",
   "hcelm_tenant_name",
+  "hcelm_company_id",
+  "hcelm_company_code",
   "hcelm_company_name",
+  "hcelm_company_legal_name",
+  "hcelm_company_ruc",
+  "hcelm_business_unit_id",
+  "hcelm_business_unit_code",
+  "hcelm_business_unit_name",
+  "hcelm_warehouse_id",
+  "hcelm_warehouse_code",
+  "hcelm_warehouse_name",
   "hcelm_user_name",
   "hcelm_user_role",
+  "hcelm_platform_role",
+  "hcelm_access_mode",
+  "hcelm_context_source",
+  "hcelm_platform_access_audit_id",
+  "hcelm_platform_access_reason",
+  "hcelm_platform_access_entered_at",
 ];
+
+const SELECTED_RECORD_KEYS = [
+  "selectedPatient",
+  "selectedPatientId",
+  "selectedEncounter",
+  "selectedEncounterId",
+  "selectedHceNumber",
+  "hcelm_selected_patient",
+  "hcelm_selected_patient_id",
+];
+
+let authFailureInterceptorInstalled = false;
+let authenticationRedirectInProgress = false;
 
 export function clearAuthSession() {
   localStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(PLATFORM_TOKEN_KEY);
+  sessionStorage.removeItem(PLATFORM_TOKEN_KEY);
 
-  PROFESSIONAL_KEYS.forEach((key) => {
+  AUTH_CONTEXT_KEYS.forEach((key) => {
     localStorage.removeItem(key);
     sessionStorage.removeItem(key);
   });
 
-  localStorage.removeItem("selectedPatient");
-  localStorage.removeItem("selectedEncounter");
-  sessionStorage.removeItem("selectedPatient");
-  sessionStorage.removeItem("selectedEncounter");
+  SELECTED_RECORD_KEYS.forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
 }
 
 export function getAuthToken() {
@@ -91,9 +124,8 @@ export function restorePlatformToken() {
     return false;
   }
 
+  clearAuthSession();
   setAuthToken(platformToken);
-  sessionStorage.removeItem(PLATFORM_TOKEN_KEY);
-  localStorage.removeItem(PLATFORM_TOKEN_KEY);
 
   return true;
 }
@@ -101,4 +133,59 @@ export function restorePlatformToken() {
 export function hasPreservedPlatformToken() {
   localStorage.removeItem(PLATFORM_TOKEN_KEY);
   return Boolean(sessionStorage.getItem(PLATFORM_TOKEN_KEY));
+}
+
+export function consumeSessionNotice() {
+  const notice = sessionStorage.getItem(SESSION_NOTICE_KEY);
+  sessionStorage.removeItem(SESSION_NOTICE_KEY);
+  localStorage.removeItem(SESSION_NOTICE_KEY);
+  return notice;
+}
+
+function hasBearerAuthorization(input: RequestInfo | URL, init?: RequestInit) {
+  const headers = new Headers(input instanceof Request ? input.headers : {});
+
+  if (init?.headers) {
+    new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+  }
+
+  return /^Bearer\s+\S+/i.test(headers.get("Authorization") || "");
+}
+
+export function installAuthFailureInterceptor() {
+  if (authFailureInterceptorInstalled) {
+    return;
+  }
+
+  authFailureInterceptorInstalled = true;
+  const nativeFetch = window.fetch.bind(window);
+
+  window.fetch = async (input, init) => {
+    const authenticatedRequest = hasBearerAuthorization(input, init);
+    const response = await nativeFetch(input, init);
+
+    if (
+      response.status !== 401 ||
+      !authenticatedRequest ||
+      authenticationRedirectInProgress
+    ) {
+      return response;
+    }
+
+    authenticationRedirectInProgress = true;
+
+    if (restorePlatformToken()) {
+      window.location.replace("/platform");
+      return response;
+    }
+
+    clearAuthSession();
+    sessionStorage.setItem(
+      SESSION_NOTICE_KEY,
+      "La sesión fue cerrada porque el acceso expiró, fue suspendido o dejó de estar habilitado.",
+    );
+    window.location.replace("/login");
+
+    return response;
+  };
 }

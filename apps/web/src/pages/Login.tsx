@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { clearAuthSession, setAuthToken, setSessionItem } from "../lib/auth";
+import {
+  clearAuthSession,
+  consumeSessionNotice,
+  setAuthToken,
+  setSessionItem,
+} from "../lib/auth";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
@@ -74,7 +79,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    const sessionNotice = consumeSessionNotice();
     clearAuthSession();
+
+    if (sessionNotice) {
+      setError(sessionNotice);
+    }
   }, []);
 
   const selectedCompany = useMemo(

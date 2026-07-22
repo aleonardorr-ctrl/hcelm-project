@@ -88,7 +88,7 @@ export default function Login() {
   }, []);
 
   const selectedCompany = useMemo(
-    () => COMPANIES.find((company) => company.ruc === ruc) || COMPANIES[0],
+    () => COMPANIES.find((company) => company.ruc === ruc) || null,
     [ruc],
   );
 
@@ -98,6 +98,13 @@ export default function Login() {
     if (loading) return;
 
     setError("");
+    const normalizedRuc = ruc.replace(/\D/g, "");
+
+    if (loginMode === "operational" && !/^\d{11}$/.test(normalizedRuc)) {
+      setError("Ingrese un RUC válido de 11 dígitos.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -112,7 +119,7 @@ export default function Login() {
             password,
           }
         : {
-            ruc,
+            ruc: normalizedRuc,
             email: email.trim().toLowerCase(),
             password,
           };
@@ -200,15 +207,21 @@ export default function Login() {
         "hcelm_company_name",
         payload.company?.tradeName?.trim() ||
           payload.company?.legalName?.trim() ||
-          selectedCompany.displayName,
+          selectedCompany?.displayName ||
+          `Empresa RUC ${normalizedRuc}`,
       );
 
       setSessionItem(
         "hcelm_company_legal_name",
-        payload.company?.legalName?.trim() || selectedCompany.legalName,
+        payload.company?.legalName?.trim() ||
+          selectedCompany?.legalName ||
+          `Empresa RUC ${normalizedRuc}`,
       );
 
-      setSessionItem("hcelm_company_ruc", payload.company?.ruc?.trim() || ruc);
+      setSessionItem(
+        "hcelm_company_ruc",
+        payload.company?.ruc?.trim() || normalizedRuc,
+      );
 
       setSessionItem(
         "hcelm_business_unit_id",
@@ -286,7 +299,7 @@ export default function Login() {
             </h1>
 
             <p className="mt-2 text-slate-500">
-              Seleccione la empresa donde realizará sus actividades.
+              Ingrese a la empresa donde realizará sus actividades.
             </p>
           </div>
 
@@ -337,13 +350,14 @@ export default function Login() {
           {loginMode === "operational" ? (
             <div className="mb-6 rounded-lg border border-emerald-100 bg-emerald-50 p-4">
               <p className="text-sm font-bold text-emerald-900">
-                {selectedCompany.displayName}
+                {selectedCompany?.displayName || "Acceso por RUC"}
               </p>
               <p className="mt-1 text-xs text-emerald-700">
-                {selectedCompany.description}
+                {selectedCompany?.description ||
+                  "HCELM identificará la empresa después de validar el RUC y las credenciales."}
               </p>
               <p className="mt-1 text-xs text-emerald-700">
-                RUC: {selectedCompany.ruc}
+                RUC: {ruc || "Pendiente de ingreso"}
               </p>
             </div>
           ) : (
@@ -371,22 +385,56 @@ export default function Login() {
                   htmlFor="login-company"
                   className="block text-sm font-medium text-slate-700"
                 >
-                  Empresa
+                  RUC de la empresa
                 </label>
 
-                <select
+                <input
                   id="login-company"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="organization"
+                  list="login-company-options"
                   value={ruc}
-                  onChange={(event) => setRuc(event.target.value)}
+                  onChange={(event) =>
+                    setRuc(event.target.value.replace(/\D/g, "").slice(0, 11))
+                  }
                   disabled={loading}
+                  maxLength={11}
+                  pattern="\d{11}"
+                  placeholder="Ingrese el RUC de 11 dígitos"
                   className="mt-1 min-h-12 w-full rounded-lg border border-slate-300 bg-white p-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-60"
-                >
+                  required
+                />
+
+                <datalist id="login-company-options">
                   {COMPANIES.map((company) => (
                     <option key={company.ruc} value={company.ruc}>
                       {company.displayName} — {company.legalName}
                     </option>
                   ))}
-                </select>
+                </datalist>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {COMPANIES.map((company) => (
+                    <button
+                      key={company.ruc}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setRuc(company.ruc);
+                        setError("");
+                      }}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
+                    >
+                      {company.displayName}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Puede usar una sugerencia o escribir el RUC de cualquier
+                  empresa activa autorizada en HCELM.
+                </p>
               </div>
             ) : null}
 

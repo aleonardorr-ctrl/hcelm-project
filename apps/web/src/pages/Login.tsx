@@ -10,6 +10,12 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 type LoginMode = "platform" | "operational";
 
+type BusinessUnitOption = {
+  id: string;
+  code?: string | null;
+  name?: string | null;
+};
+
 const COMPANIES = [
   {
     ruc: "20611138777",
@@ -52,6 +58,7 @@ type LoginResponse = {
     code?: string | null;
     name?: string | null;
   } | null;
+  businessUnits?: BusinessUnitOption[];
 };
 
 function getErrorMessage(payload: unknown) {
@@ -75,6 +82,8 @@ export default function Login() {
   const [ruc, setRuc] = useState(COMPANIES[0].ruc);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [businessUnits, setBusinessUnits] = useState<BusinessUnitOption[]>([]);
+  const [selectedBusinessUnitId, setSelectedBusinessUnitId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -105,6 +114,15 @@ export default function Login() {
       return;
     }
 
+    if (
+      loginMode === "operational" &&
+      businessUnits.length > 1 &&
+      !selectedBusinessUnitId
+    ) {
+      setError("Seleccione la unidad de negocio para continuar.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -122,6 +140,7 @@ export default function Login() {
             ruc: normalizedRuc,
             email: email.trim().toLowerCase(),
             password,
+            businessUnitId: selectedBusinessUnitId || undefined,
           };
 
       const response = await fetch(endpoint, {
@@ -139,6 +158,21 @@ export default function Login() {
       if (!response.ok || !payload) {
         setError(getErrorMessage(payload));
         return;
+      }
+
+      if (!isPlatformLogin) {
+        const availableBusinessUnits = Array.isArray(payload.businessUnits)
+          ? payload.businessUnits.filter(
+              (unit) => typeof unit?.id === "string" && unit.id.trim(),
+            )
+          : [];
+
+        setBusinessUnits(availableBusinessUnits);
+
+        if (availableBusinessUnits.length > 1 && !selectedBusinessUnitId) {
+          setError("");
+          return;
+        }
       }
 
       const token =
@@ -308,6 +342,8 @@ export default function Login() {
               type="button"
               onClick={() => {
                 setLoginMode("operational");
+                setBusinessUnits([]);
+                setSelectedBusinessUnitId("");
                 setError("");
               }}
               disabled={loading}
@@ -329,6 +365,8 @@ export default function Login() {
               type="button"
               onClick={() => {
                 setLoginMode("platform");
+                setBusinessUnits([]);
+                setSelectedBusinessUnitId("");
                 setError("");
               }}
               disabled={loading}
@@ -395,9 +433,11 @@ export default function Login() {
                   autoComplete="organization"
                   list="login-company-options"
                   value={ruc}
-                  onChange={(event) =>
-                    setRuc(event.target.value.replace(/\D/g, "").slice(0, 11))
-                  }
+                  onChange={(event) => {
+                    setRuc(event.target.value.replace(/\D/g, "").slice(0, 11));
+                    setBusinessUnits([]);
+                    setSelectedBusinessUnitId("");
+                  }}
                   disabled={loading}
                   maxLength={11}
                   pattern="\d{11}"
@@ -422,6 +462,8 @@ export default function Login() {
                       disabled={loading}
                       onClick={() => {
                         setRuc(company.ruc);
+                        setBusinessUnits([]);
+                        setSelectedBusinessUnitId("");
                         setError("");
                       }}
                       className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-60"
@@ -436,6 +478,46 @@ export default function Login() {
                   empresa activa autorizada en HCELM.
                 </p>
               </div>
+            ) : null}
+
+            {loginMode === "operational" && businessUnits.length > 1 ? (
+              <fieldset className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <legend className="px-1 text-sm font-bold text-emerald-950">
+                  Seleccione la unidad de negocio
+                </legend>
+                <p className="mb-3 text-xs text-emerald-800">
+                  Sus credenciales fueron validadas. Elija dónde realizará la
+                  sesión operativa.
+                </p>
+                <div className="space-y-2">
+                  {businessUnits.map((unit) => (
+                    <label
+                      key={unit.id}
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-200 bg-white p-3"
+                    >
+                      <input
+                        type="radio"
+                        name="businessUnitId"
+                        value={unit.id}
+                        checked={selectedBusinessUnitId === unit.id}
+                        onChange={() => {
+                          setSelectedBusinessUnitId(unit.id);
+                          setError("");
+                        }}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block text-sm font-bold text-slate-900">
+                          {unit.name || unit.code || "Unidad de negocio"}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          Código: {unit.code || "Sin código"}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
             ) : null}
 
             <div>
@@ -487,7 +569,9 @@ export default function Login() {
                 ? "Ingresando..."
                 : loginMode === "platform"
                   ? "Ingresar a administración global"
-                  : "Ingresar a HCELM"}
+                  : businessUnits.length > 1
+                    ? "Ingresar a la unidad seleccionada"
+                    : "Ingresar a HCELM"}
             </button>
           </form>
 

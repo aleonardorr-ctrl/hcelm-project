@@ -3,6 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 
 type ModuleStatus = "activo" | "proceso" | "proxima_fase";
 
+type EnabledModules = {
+  CLINICAL: boolean;
+  PHARMACY: boolean;
+  DRUGSTORE: boolean;
+  BILLING: boolean;
+  MANAGEMENT: boolean;
+};
+
 type PlatformModule = {
   title: string;
   subtitle: string;
@@ -40,6 +48,7 @@ const platformModules: PlatformModule[] = [
     description:
       "Compras, proveedores, lotes, transferencias hacia boticas y control de distribución.",
     emoji: "🏭",
+    to: "/drugstore",
     status: "proxima_fase",
     moduleKey: "DRUGSTORE",
   },
@@ -53,13 +62,34 @@ const platformModules: PlatformModule[] = [
     moduleKey: "CASH_SALES",
   },
   {
-    title: "Inventario",
-    subtitle: "Stock, FEFO y kardex",
+    title: "Inventario de Botica",
+    subtitle: "Kardex y FEFO minorista",
     description:
-      "Stock por empresa, almacén, lote, vencimiento, ubicación física y movimientos valorizados.",
+      "Stock por lote, vencimientos, kardex, simulación FEFO y control de salidas para las ventas de Botica Premium.",
     emoji: "📦",
+    to: "/pharmacy/inventory",
+    status: "activo",
+    moduleKey: "PHARMACY_INVENTORY",
+  },
+  {
+    title: "Inventario de Droguería",
+    subtitle: "Almacenes, lotes y distribución",
+    description:
+      "Stock mayorista, cadena de frío, trazabilidad, FEFO de despacho, transferencias y distribución empresarial.",
+    emoji: "🏬",
+    to: "/drugstore/inventory",
     status: "proxima_fase",
-    moduleKey: "INVENTORY",
+    moduleKey: "DRUGSTORE_INVENTORY",
+  },
+  {
+    title: "FEFO de Droguería",
+    subtitle: "Despacho por vencimiento y trazabilidad",
+    description:
+      "Priorizar lotes próximos a vencer para despachos y transferencias, controlar excepciones y mantener trazabilidad mayorista.",
+    emoji: "⏳",
+    to: "/drugstore/fefo",
+    status: "activo",
+    moduleKey: "DRUGSTORE_FEFO",
   },
   {
     title: "Facturación SUNAT",
@@ -92,7 +122,11 @@ const platformModules: PlatformModule[] = [
   },
 ];
 
-export default function Home() {
+export default function Home({
+  enabledModules,
+}: {
+  enabledModules: EnabledModules;
+}) {
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -118,6 +152,32 @@ export default function Home() {
     sessionStorage.getItem("hcelm_professional_role") ||
     sessionStorage.getItem("hcelm_user_role") ||
     "Rol operativo";
+  const userRole = String(
+    sessionStorage.getItem("hcelm_user_role") || "",
+  ).toUpperCase();
+  const platformRole = String(
+    sessionStorage.getItem("hcelm_platform_role") || "",
+  ).toUpperCase();
+  const canAdministerOrganization =
+    ["ADMIN", "SUPERADMIN", "SUPER_ADMIN"].includes(userRole) ||
+    platformRole === "PLATFORM_SUPERADMIN";
+
+  const visibleModules = platformModules.filter((module) => {
+    if (module.moduleKey === "SAAS_ADMIN") return canAdministerOrganization;
+    if (module.moduleKey === "CLINIC") return enabledModules.CLINICAL;
+    if (module.moduleKey === "PHARMACY") return enabledModules.PHARMACY;
+    if (module.moduleKey === "DRUGSTORE") return enabledModules.DRUGSTORE;
+    if (module.moduleKey === "BILLING") return enabledModules.BILLING;
+    if (module.moduleKey === "CASH_SALES") return enabledModules.BILLING;
+    if (module.moduleKey === "PHARMACY_INVENTORY")
+      return enabledModules.PHARMACY;
+    if (module.moduleKey === "DRUGSTORE_INVENTORY")
+      return enabledModules.DRUGSTORE;
+    if (module.moduleKey === "DRUGSTORE_FEFO") return enabledModules.DRUGSTORE;
+    if (module.moduleKey === "REPORTS") return enabledModules.MANAGEMENT;
+
+    return false;
+  });
 
   return (
     <div className="space-y-6">
@@ -183,7 +243,7 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {platformModules.map((module) => (
+          {visibleModules.map((module) => (
             <PlatformModuleCard key={module.moduleKey} module={module} />
           ))}
         </div>

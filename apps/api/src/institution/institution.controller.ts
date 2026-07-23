@@ -33,7 +33,11 @@ export class InstitutionController {
 
   @Get('system-modules')
   getSystemModules(@CurrentUser() user: any) {
-    return this.institutionService.getSystemModules(user.tenantId);
+    return this.institutionService.getSystemModules(
+      user.tenantId,
+      user.companyId,
+      user.businessUnitId,
+    );
   }
 
   @Put('system-modules')

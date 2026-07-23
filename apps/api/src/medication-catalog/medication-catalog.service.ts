@@ -91,6 +91,8 @@ export class MedicationCatalogService {
 
   async listCatalog(params: {
     tenantId: string;
+    companyId: string;
+    businessUnitId: string;
     query?: string;
     status?: string;
     productType?: string;
@@ -129,7 +131,11 @@ export class MedicationCatalogService {
         take: pageSize,
         include: {
           inventoryLots: {
-            where: { active: true },
+            where: {
+              active: true,
+              companyId: params.companyId,
+              businessUnitId: params.businessUnitId,
+            },
             orderBy: [{ businessUnit: 'asc' }, { expirationDate: 'asc' }],
           },
         },

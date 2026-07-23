@@ -120,7 +120,10 @@ function SystemModulesProvider({ children }: { children: ReactNode }) {
           const key = String(item?.key || "") as SystemModuleKey;
 
           if (key in nextModules) {
-            nextModules[key] = item?.enabled === true;
+            nextModules[key] =
+              typeof item?.effectiveEnabled === "boolean"
+                ? item.effectiveEnabled
+                : item?.enabled === true;
           }
         });
       }
@@ -287,6 +290,14 @@ function RootRedirect() {
 
 function LoadingModules() {
   return <p style={{ color: "#475569" }}>Cargando modulos del sistema...</p>;
+}
+
+function ContextualHome() {
+  const { loading, modules } = useSystemModules();
+
+  if (loading) return <LoadingModules />;
+
+  return <Home enabledModules={modules} />;
 }
 
 function ModulePlaceholder({
@@ -544,7 +555,7 @@ function AppRoutes() {
             path="/home"
             element={
               <ProfessionalProtected>
-                <Home />
+                <ContextualHome />
               </ProfessionalProtected>
             }
           />
@@ -626,6 +637,25 @@ function AppRoutes() {
                   title="Drogueria"
                   description="Modulo habilitado para su desarrollo independiente y posterior integracion con inventarios y ventas."
                 />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/drugstore/inventory"
+            element={
+              <ModuleProtected moduleKey="DRUGSTORE">
+                <ModulePlaceholder
+                  title="Inventario de Droguería"
+                  description="Próxima fase para almacenes, lotes, cadena de frío, FEFO de despacho, transferencias y distribución empresarial. No utiliza las reglas comerciales minoristas de Botica Premium."
+                />
+              </ModuleProtected>
+            }
+          />
+          <Route
+            path="/drugstore/fefo"
+            element={
+              <ModuleProtected moduleKey="DRUGSTORE">
+                <PharmacyInventory mode="DRUGSTORE" />
               </ModuleProtected>
             }
           />

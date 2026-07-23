@@ -99,6 +99,9 @@ export class MedicationInventoryService {
   async previewFefo(params: {
     tenantId: string;
     userId: string | null;
+    companyId: string;
+    businessUnitId: string;
+    warehouseId?: string;
     medicationId: string;
     businessUnit: string;
     warehouse: string;
@@ -153,6 +156,9 @@ export class MedicationInventoryService {
       {
         tenantId: params.tenantId,
         userId: params.userId,
+        companyId: params.companyId,
+        businessUnitId: params.businessUnitId,
+        warehouseId: params.warehouseId,
         medicationId: params.medicationId,
         businessUnit: params.businessUnit,
         warehouse: params.warehouse,
@@ -167,7 +173,7 @@ export class MedicationInventoryService {
       (params.warehouseId && params.warehouseId !== scope.warehouseId)
     ) {
       throw new ConflictException(
-        'El contexto solicitado no coincide con la instalación activa de Farmacia.',
+        'El contexto solicitado no coincide con la empresa, unidad y almacén autenticados.',
       );
     }
 
@@ -176,6 +182,7 @@ export class MedicationInventoryService {
       params.tenantId,
       scope.companyId,
       scope.businessUnitId,
+      scope.businessUnitCode,
     );
 
     const today = new Date();
@@ -325,6 +332,7 @@ export class MedicationInventoryService {
     tenantId: string,
     companyId: string,
     businessUnitId: string,
+    businessUnitCode: string,
   ) {
     const storedRules = await tx.pharmacyFefoRule.findMany({
       where: {
@@ -353,6 +361,43 @@ export class MedicationInventoryService {
         discountPercent: new Prisma.Decimal(rule.discountPercent),
         action: rule.action,
       }));
+    }
+
+    if (businessUnitCode === 'DROGUERIA') {
+      return [
+        {
+          ruleKey: 'CRITICAL',
+          label: 'Despacho crítico por vencimiento',
+          minDays: 0,
+          maxDays: 30,
+          discountPercent: new Prisma.Decimal(0),
+          action: 'REQUIRE_AUTHORIZATION',
+        },
+        {
+          ruleKey: 'PROMOTION',
+          label: 'Rotación prioritaria de distribución',
+          minDays: 31,
+          maxDays: 90,
+          discountPercent: new Prisma.Decimal(0),
+          action: 'ALERT',
+        },
+        {
+          ruleKey: 'WATCH',
+          label: 'Vigilar rotación mayorista',
+          minDays: 91,
+          maxDays: 180,
+          discountPercent: new Prisma.Decimal(0),
+          action: 'ALERT',
+        },
+        {
+          ruleKey: 'NORMAL',
+          label: 'Vencimiento normal',
+          minDays: 181,
+          maxDays: null,
+          discountPercent: new Prisma.Decimal(0),
+          action: 'NORMAL',
+        },
+      ];
     }
 
     return [
@@ -745,6 +790,8 @@ export class MedicationInventoryService {
 
   async listKardex(params: {
     tenantId: string;
+    companyId: string;
+    businessUnitId: string;
     medicationId?: string;
     lotId?: string;
     page?: number;
@@ -757,6 +804,8 @@ export class MedicationInventoryService {
     );
     const where: Prisma.MedicationInventoryMovementWhereInput = {
       tenantId: params.tenantId,
+      companyId: params.companyId,
+      businessUnitId: params.businessUnitId,
       ...(params.medicationId ? { medicationId: params.medicationId } : {}),
       ...(params.lotId ? { lotId: params.lotId } : {}),
     };
@@ -1002,7 +1051,11 @@ export class MedicationInventoryService {
       | 'businessUnit'
       | 'warehouse'
       | 'scopeCache'
-    >,
+    > & {
+      companyId?: string;
+      businessUnitId?: string;
+      warehouseId?: string;
+    },
     medication: {
       id: string;
       internalCode: string | null;
@@ -1064,6 +1117,10 @@ export class MedicationInventoryService {
             businessUnit: { active: true },
             warehouse: { is: { active: true } },
             ...(companyIds?.length ? { companyId: { in: companyIds } } : {}),
+            ...(params.companyId ? { companyId: params.companyId } : {}),
+            ...(params.businessUnitId
+              ? { businessUnitId: params.businessUnitId }
+              : {}),
           },
           orderBy: [{ createdAt: 'asc' }],
           select: {
@@ -1091,15 +1148,14 @@ export class MedicationInventoryService {
         warehouseCode: installation.warehouse.code,
       };
     } else {
-      const companyId = await this.findActiveCompanyId(
-        tx,
-        params.tenantId,
-        params.userId,
-      );
+      const companyId =
+        params.companyId ||
+        (await this.findActiveCompanyId(tx, params.tenantId, params.userId));
       const businessUnit = await tx.businessUnit.findFirst({
         where: {
           tenantId: params.tenantId,
           companyId,
+          ...(params.businessUnitId ? { id: params.businessUnitId } : {}),
           code: normalizedBusinessUnit,
           active: true,
         },
@@ -1115,6 +1171,7 @@ export class MedicationInventoryService {
           tenantId: params.tenantId,
           companyId,
           businessUnitId: businessUnit.id,
+          ...(params.warehouseId ? { id: params.warehouseId } : {}),
           code: normalizedWarehouse,
           active: true,
         },

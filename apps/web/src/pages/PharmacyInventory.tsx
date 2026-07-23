@@ -74,9 +74,7 @@ type FefoResponse = {
 };
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
-const OPERATING_COMPANY = "Suministros Críticos EIRL";
-const OPERATING_UNIT = "Botica Premium";
-const OPERATING_WAREHOUSE = "Almacén principal";
+type InventoryMode = "PHARMACY" | "DRUGSTORE";
 
 const MOVEMENT_LABELS: Record<string, string> = {
   INITIAL_STOCK: "Stock inicial",
@@ -115,7 +113,22 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString("es-PE");
 }
 
-export default function PharmacyInventory() {
+export default function PharmacyInventory({
+  mode = "PHARMACY",
+}: {
+  mode?: InventoryMode;
+}) {
+  const isDrugstore = mode === "DRUGSTORE";
+  const operatingCompany =
+    sessionStorage.getItem("hcelm_company_name") ||
+    (isDrugstore ? "AME HEALTH SAC" : "Suministros Críticos EIRL");
+  const operatingUnit =
+    sessionStorage.getItem("hcelm_business_unit_name") ||
+    (isDrugstore ? "Droguería AME HEALTH SAC" : "Botica Premium");
+  const operatingWarehouse =
+    sessionStorage.getItem("hcelm_warehouse_name") || "Almacén activo";
+  const modulePath = isDrugstore ? "/drugstore" : "/pharmacy";
+  const moduleLabel = isDrugstore ? "Droguería" : "Botica Premium";
   const [query, setQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -169,7 +182,10 @@ export default function PharmacyInventory() {
           await readError(response, "No se pudo cargar productos."),
         );
       const result = (await response.json()) as CatalogResponse;
-      setProducts(result.items || []);
+      const scopedItems = (result.items || []).filter(
+        (product) => !isDrugstore || product.inventoryLots.length > 0,
+      );
+      setProducts(scopedItems);
     } catch (reason: any) {
       setError(reason?.message || "Error al cargar productos.");
     } finally {
@@ -255,8 +271,8 @@ export default function PharmacyInventory() {
               Plataforma
             </Link>
             <span>/</span>
-            <Link to="/pharmacy" className="hover:text-emerald-700">
-              Botica Premium
+            <Link to={modulePath} className="hover:text-emerald-700">
+              {moduleLabel}
             </Link>
             <span>/</span>
             <span className="text-slate-900">Inventario y Kardex</span>
@@ -264,26 +280,31 @@ export default function PharmacyInventory() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">
-                Inventario, Kardex y FEFO
+                {isDrugstore
+                  ? "FEFO de Droguería"
+                  : "Inventario, Kardex y FEFO"}
               </h1>
               <p className="mt-1 text-sm text-slate-600">
-                Contexto: {OPERATING_COMPANY} / {OPERATING_UNIT} /{" "}
-                {OPERATING_WAREHOUSE}. Consulte movimientos auditados y simule
-                la selección de lotes sin descontar stock.
+                Contexto: {operatingCompany} / {operatingUnit} /{" "}
+                {operatingWarehouse}. Consulte movimientos auditados y simule la
+                selección de lotes sin descontar stock
+                {isDrugstore ? " ni aplicar promociones minoristas." : "."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {!isDrugstore ? (
+                <Link
+                  to="/pharmacy/catalogs?view=records"
+                  className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Productos y lotes
+                </Link>
+              ) : null}
               <Link
-                to="/pharmacy/catalogs?view=records"
-                className="rounded-lg border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Productos y lotes
-              </Link>
-              <Link
-                to="/pharmacy"
+                to={modulePath}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-900"
               >
-                Volver a Farmacia
+                Volver a {moduleLabel}
               </Link>
             </div>
           </div>
@@ -458,7 +479,10 @@ export default function PharmacyInventory() {
                 Simulacion FEFO
               </h2>
               <p className="mt-1 text-sm text-slate-600">
-                Esta consulta no descuenta stock.
+                Esta consulta no descuenta stock
+                {isDrugstore
+                  ? " y ordena los lotes para despacho mayorista."
+                  : "."}
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-[1fr_180px_auto]">
                 <select

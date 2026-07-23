@@ -93,7 +93,12 @@ export class AuthService {
     };
   }
 
-  async login(ruc: string, email: string, password: string) {
+  async login(
+    ruc: string,
+    email: string,
+    password: string,
+    businessUnitId?: string,
+  ) {
     const normalizedRuc = String(ruc || '').trim();
     const normalizedEmail = String(email || '')
       .trim()
@@ -198,7 +203,19 @@ export class AuthService {
       );
     }
 
+    const selectedBusinessUnitId = String(businessUnitId || '').trim();
+    const selectedBusinessUnit = selectedBusinessUnitId
+      ? company.businessUnits.find((unit) => unit.id === selectedBusinessUnitId)
+      : null;
+
+    if (selectedBusinessUnitId && !selectedBusinessUnit) {
+      throw new UnauthorizedException(
+        'La unidad de negocio seleccionada no pertenece a la empresa o no está activa.',
+      );
+    }
+
     const preferredBusinessUnit =
+      selectedBusinessUnit ||
       company.businessUnits.find((unit) => {
         const code = String(unit.code || '').toUpperCase();
 
@@ -207,7 +224,8 @@ export class AuthService {
         }
 
         return code === 'CONSULTORIO';
-      }) || company.businessUnits[0];
+      }) ||
+      company.businessUnits[0];
 
     const payload = {
       sub: user.id,
@@ -249,6 +267,7 @@ export class AuthService {
         ruc: company.ruc,
       },
       businessUnit: preferredBusinessUnit || null,
+      businessUnits: company.businessUnits,
       membership,
       access_token: accessToken,
       token: accessToken,

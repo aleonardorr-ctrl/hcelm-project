@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsEmail, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEmail,
+  IsOptional,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -27,4 +34,13 @@ export class LoginDto {
   @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   @IsNotEmpty({ message: 'La contraseña es obligatoria' })
   password: string;
+
+  @ApiProperty({
+    description: 'Unidad de negocio activa seleccionada para la sesión',
+    format: 'uuid',
+    required: false,
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'La unidad de negocio seleccionada no es válida' })
+  businessUnitId?: string;
 }

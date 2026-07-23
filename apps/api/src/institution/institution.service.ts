@@ -161,7 +161,11 @@ export class InstitutionService {
     });
   }
 
-  async getSystemModules(tenantId: string) {
+  async getSystemModules(
+    tenantId: string,
+    companyId?: string,
+    businessUnitId?: string,
+  ) {
     await this.prisma.tenantSystemModule.createMany({
       data: SYSTEM_MODULES.map((module) => ({
         tenantId,
@@ -177,15 +181,34 @@ export class InstitutionService {
     const storedByKey = new Map(
       storedModules.map((module) => [module.key, module]),
     );
+    const hasOperationalContext = Boolean(companyId && businessUnitId);
+    const installedModules = hasOperationalContext
+      ? await this.prisma.companyModuleInstallation.findMany({
+          where: {
+            tenantId,
+            companyId,
+            businessUnitId,
+            active: true,
+          },
+          select: { moduleKey: true },
+        })
+      : [];
+    const installedKeys = new Set<string>(
+      installedModules.map((module) => module.moduleKey),
+    );
 
     return SYSTEM_MODULES.map((definition) => {
       const stored = storedByKey.get(definition.key);
+      const enabled = stored?.enabled ?? definition.defaultEnabled;
 
       return {
         key: definition.key,
         name: definition.name,
         description: definition.description,
-        enabled: stored?.enabled ?? definition.defaultEnabled,
+        enabled,
+        effectiveEnabled:
+          enabled &&
+          (!hasOperationalContext || installedKeys.has(definition.key)),
       };
     });
   }

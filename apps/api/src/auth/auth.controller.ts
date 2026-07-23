@@ -10,7 +10,12 @@ export class AuthController {
   @Post('login')
   @HttpCode(HttpStatus.OK)
   login(@Body() body: LoginDto) {
-    return this.authService.login(body.ruc, body.email, body.password);
+    return this.authService.login(
+      body.ruc,
+      body.email,
+      body.password,
+      body.businessUnitId,
+    );
   }
 
   @Post('platform-login')

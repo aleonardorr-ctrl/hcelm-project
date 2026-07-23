@@ -54,6 +54,12 @@ export class MedicationCatalogController {
   ) {
     return this.service.listCatalog({
       tenantId: this.getTenantId(req),
+      companyId: this.getContextId(req, 'companyId', 'empresa'),
+      businessUnitId: this.getContextId(
+        req,
+        'businessUnitId',
+        'unidad de negocio',
+      ),
       query,
       status,
       productType,
@@ -73,6 +79,13 @@ export class MedicationCatalogController {
     return this.inventoryService.previewFefo({
       tenantId: this.getTenantId(req),
       userId: this.getUserId(req),
+      companyId: this.getContextId(req, 'companyId', 'empresa'),
+      businessUnitId: this.getContextId(
+        req,
+        'businessUnitId',
+        'unidad de negocio',
+      ),
+      warehouseId: this.getOptionalContextId(req, 'warehouseId'),
       medicationId: id,
       businessUnit: String(businessUnit).trim().toUpperCase(),
       warehouse: String(warehouse).trim().toUpperCase(),
@@ -89,6 +102,12 @@ export class MedicationCatalogController {
   ) {
     return this.inventoryService.listKardex({
       tenantId: this.getTenantId(req),
+      companyId: this.getContextId(req, 'companyId', 'empresa'),
+      businessUnitId: this.getContextId(
+        req,
+        'businessUnitId',
+        'unidad de negocio',
+      ),
       medicationId: id,
       page: Number(page),
       pageSize: Number(pageSize),
@@ -104,6 +123,12 @@ export class MedicationCatalogController {
   ) {
     return this.inventoryService.listKardex({
       tenantId: this.getTenantId(req),
+      companyId: this.getContextId(req, 'companyId', 'empresa'),
+      businessUnitId: this.getContextId(
+        req,
+        'businessUnitId',
+        'unidad de negocio',
+      ),
       lotId,
       page: Number(page),
       pageSize: Number(pageSize),
@@ -246,5 +271,24 @@ export class MedicationCatalogController {
     )
       ? value
       : null;
+  }
+
+  private getContextId(req: any, key: string, label: string): string {
+    const value = this.getOptionalContextId(req, key);
+
+    if (!value) {
+      throw new UnauthorizedException(
+        `No se pudo identificar la ${label} autenticada.`,
+      );
+    }
+
+    return value;
+  }
+
+  private getOptionalContextId(req: any, key: string): string | undefined {
+    const user = req?.user || {};
+    const value = String(user[key] || user.payload?.[key] || '').trim();
+
+    return value || undefined;
   }
 }

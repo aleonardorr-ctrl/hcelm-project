@@ -1963,10 +1963,11 @@ export default function PlatformDashboard() {
 
       setSessionItem("hcelm_user_role", body.user?.role?.trim() || userRole);
 
-      setSessionItem("hcelm_professional_verified", "false");
-      setSessionItem("hcelm_require_professional_verification", "true");
+      setSessionItem("hcelm_professional_verified", "true");
+      sessionStorage.removeItem("hcelm_require_professional_verification");
+      localStorage.removeItem("hcelm_require_professional_verification");
 
-      window.location.href = "/professional-verification";
+      window.location.href = "/home";
     } catch (error) {
       setContextError(
         error instanceof Error

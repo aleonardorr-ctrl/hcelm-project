@@ -29,6 +29,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const payloadUserId = String(payload?.sub || '').trim();
     const payloadTenantId = String(payload?.tenantId || '').trim();
     const payloadCompanyId = String(payload?.companyId || '').trim();
+    const payloadBusinessUnitId = String(payload?.businessUnitId || '').trim();
+    const payloadWarehouseId = String(payload?.warehouseId || '').trim();
 
     if (!payloadUserId || !payloadTenantId) {
       throw new UnauthorizedException(
@@ -86,6 +88,43 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
     }
 
+    if (payloadBusinessUnitId) {
+      const businessUnit = await this.prisma.businessUnit.findFirst({
+        where: {
+          id: payloadBusinessUnitId,
+          tenantId: payloadTenantId,
+          companyId: payloadCompanyId,
+          active: true,
+        },
+        select: { id: true },
+      });
+
+      if (!businessUnit) {
+        throw new UnauthorizedException(
+          'La unidad de negocio está inactiva o no pertenece al contexto autenticado.',
+        );
+      }
+    }
+
+    if (payloadWarehouseId) {
+      const warehouse = await this.prisma.warehouse.findFirst({
+        where: {
+          id: payloadWarehouseId,
+          tenantId: payloadTenantId,
+          companyId: payloadCompanyId,
+          businessUnitId: payloadBusinessUnitId,
+          active: true,
+        },
+        select: { id: true },
+      });
+
+      if (!warehouse) {
+        throw new UnauthorizedException(
+          'El almacén está inactivo o no pertenece al contexto autenticado.',
+        );
+      }
+    }
+
     const platformAccessAuditId = String(
       payload?.platformAccessAuditId || '',
     ).trim();
@@ -120,10 +159,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         );
       }
 
-      const payloadBusinessUnitId = String(
-        payload?.businessUnitId || '',
-      ).trim();
-      const payloadWarehouseId = String(payload?.warehouseId || '').trim();
       const auditWarehouseId = String(audit.warehouseId || '').trim();
 
       const contextMatches =

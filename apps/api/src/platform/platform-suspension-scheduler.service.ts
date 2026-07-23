@@ -504,7 +504,7 @@ export class PlatformSuspensionSchedulerService {
     );
   }
 
-  async scanExpiredSuspensions() {
+  async scanExpiredSuspensions(options?: { observationOnly?: boolean }) {
     if (!this.isEnabled('HCELM_AUTOMATIC_REACTIVATION_SCAN_ENABLED')) {
       return {
         scanEnabled: false,
@@ -517,9 +517,9 @@ export class PlatformSuspensionSchedulerService {
       };
     }
 
-    const executionEnabled = this.isEnabled(
-      'HCELM_AUTOMATIC_REACTIVATION_EXECUTION_ENABLED',
-    );
+    const executionEnabled =
+      !options?.observationOnly &&
+      this.isEnabled('HCELM_AUTOMATIC_REACTIVATION_EXECUTION_ENABLED');
 
     const now = new Date();
 

@@ -212,6 +212,27 @@ type PlatformSummary = {
   };
 };
 
+type AutomaticReactivationScanResponse = {
+  action: "AUTOMATIC_REACTIVATION_SCAN";
+  invokedManually: boolean;
+  executionMode: "OBSERVATION_ONLY" | "EXECUTION";
+  scanEnabled: boolean;
+  completed: boolean;
+  result: {
+    scanEnabled: boolean;
+    executionEnabled: boolean;
+    detected: {
+      tenants: number;
+      companies: number;
+      users: number;
+    };
+    processedAt?: string;
+    processingOrder?: string[];
+    scheduledTimeZone?: string;
+    scheduledTime?: string;
+  } | null;
+};
+
 type PlatformAccessAuditItem = {
   id: string;
   reason: string;
@@ -866,6 +887,12 @@ export default function PlatformDashboard() {
   const [administrativeSuccess, setAdministrativeSuccess] = useState<
     string | null
   >(null);
+  const [automaticScan, setAutomaticScan] =
+    useState<AutomaticReactivationScanResponse | null>(null);
+  const [automaticScanLoading, setAutomaticScanLoading] = useState(false);
+  const [automaticScanError, setAutomaticScanError] = useState<string | null>(
+    null,
+  );
   const organizationSectionRef = useRef<HTMLElement | null>(null);
 
   const userName = getSessionItem("hcelm_user_name") || "Dr. Alfonso Rodríguez";
@@ -1800,6 +1827,58 @@ export default function PlatformDashboard() {
 
       return next;
     });
+  }
+
+  async function runAutomaticReactivationObservation() {
+    if (automaticScanLoading) {
+      return;
+    }
+
+    setAutomaticScanLoading(true);
+    setAutomaticScanError(null);
+
+    try {
+      const token =
+        sessionStorage.getItem("ame_token") ||
+        localStorage.getItem("ame_token");
+
+      if (!token) {
+        throw new Error("No se encontró una sesión global activa.");
+      }
+
+      const response = await fetch(
+        "http://localhost:3000/api/platform/administrative-actions/automatic-reactivation/run",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ observationOnly: true }),
+        },
+      );
+      const responseBody = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message =
+          responseBody?.message ||
+          "No se pudo completar el escaneo de reactivaciones.";
+
+        throw new Error(
+          Array.isArray(message) ? message.join(". ") : String(message),
+        );
+      }
+
+      setAutomaticScan(responseBody as AutomaticReactivationScanResponse);
+    } catch (error) {
+      setAutomaticScanError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar el escaneo de reactivaciones.",
+      );
+    } finally {
+      setAutomaticScanLoading(false);
+    }
   }
 
   async function enterCompanyContext() {
@@ -3183,6 +3262,114 @@ export default function PlatformDashboard() {
                 Última actualización:{" "}
                 {new Date(summary.generatedAt).toLocaleString("es-PE")}
               </p>
+            ) : null}
+          </section>
+
+          <section className="rounded-3xl border border-cyan-200 bg-cyan-50/60 p-5 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-2xl bg-cyan-100 p-3 text-cyan-800">
+                    <Timer className="h-6 w-6" />
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-bold uppercase tracking-wide text-cyan-800">
+                      Reactivación automática
+                    </p>
+                    <h2 className="mt-1 text-2xl font-black text-slate-950">
+                      Escaneo seguro de suspensiones vencidas
+                    </h2>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-slate-600">
+                  Detecta tenants, empresas y usuarios cuya fecha de suspensión
+                  ya venció. Este botón siempre trabaja en modo observación y no
+                  modifica ningún estado.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={automaticScanLoading}
+                onClick={() => void runAutomaticReactivationObservation()}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-cyan-800 px-5 py-3 font-black text-white hover:bg-cyan-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RotateCcw
+                  className={[
+                    "h-5 w-5",
+                    automaticScanLoading ? "animate-spin" : "",
+                  ].join(" ")}
+                />
+                {automaticScanLoading
+                  ? "Escaneando..."
+                  : "Escanear en modo observación"}
+              </button>
+            </div>
+
+            {automaticScanError ? (
+              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <p className="font-black">No se pudo realizar el escaneo</p>
+                <p className="mt-1">{automaticScanError}</p>
+              </div>
+            ) : null}
+
+            {automaticScan ? (
+              <div className="mt-5 rounded-2xl border border-cyan-200 bg-white p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-black text-slate-950">
+                      Resultado del último escaneo
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {automaticScan.result?.processedAt
+                        ? new Date(
+                            automaticScan.result.processedAt,
+                          ).toLocaleString("es-PE")
+                        : "Escaneo completado"}
+                    </p>
+                  </div>
+
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800">
+                    Solo observación
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  {[
+                    {
+                      label: "Tenants detectados",
+                      value: automaticScan.result?.detected.tenants ?? 0,
+                    },
+                    {
+                      label: "Empresas detectadas",
+                      value: automaticScan.result?.detected.companies ?? 0,
+                    },
+                    {
+                      label: "Usuarios detectados",
+                      value: automaticScan.result?.detected.users ?? 0,
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    >
+                      <p className="text-sm font-semibold text-slate-500">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-3xl font-black text-slate-950">
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-4 text-xs leading-5 text-slate-500">
+                  Orden: TENANT → COMPANY → USER · Programación diaria: 00:00 ·
+                  Zona horaria: America/Lima
+                </p>
+              </div>
             ) : null}
           </section>
 

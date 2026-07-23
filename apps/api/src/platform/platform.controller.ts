@@ -325,20 +325,20 @@ export class PlatformController {
 
   @Post('administrative-actions/automatic-reactivation/run')
   @HttpCode(HttpStatus.OK)
-  async runAutomaticReactivationScan(@Request() req: any) {
+  async runAutomaticReactivationScan(
+    @Request() req: any,
+    @Body() body: { observationOnly?: boolean },
+  ) {
     const result =
-      await this.platformSuspensionSchedulerService.scanExpiredSuspensions();
+      await this.platformSuspensionSchedulerService.scanExpiredSuspensions({
+        observationOnly: body?.observationOnly === true,
+      });
 
     return {
       action: 'AUTOMATIC_REACTIVATION_SCAN',
       invokedManually: true,
       invokedByPlatformUserId: req.user?.userId || req.user?.sub || null,
-      executionMode:
-        String(process.env.HCELM_AUTOMATIC_REACTIVATION_EXECUTION_ENABLED || '')
-          .trim()
-          .toLowerCase() === 'true'
-          ? 'EXECUTION'
-          : 'OBSERVATION_ONLY',
+      executionMode: result.executionEnabled ? 'EXECUTION' : 'OBSERVATION_ONLY',
       scanEnabled:
         String(process.env.HCELM_AUTOMATIC_REACTIVATION_SCAN_ENABLED || '')
           .trim()

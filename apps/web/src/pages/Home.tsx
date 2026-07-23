@@ -33,14 +33,83 @@ const platformModules: PlatformModule[] = [
     moduleKey: "CLINIC",
   },
   {
-    title: "Farmacia / Botica",
-    subtitle: "Productos, lotes y recetas",
+    title: "Ventas de Botica Premium",
+    subtitle: "Venta OTC y control FEFO",
     description:
-      "Catálogo farmacéutico, lotes, stock, vencimientos, recetas pendientes y futura dispensación.",
+      "Buscar productos, preparar el carrito, validar FEFO y cobrar ventas OTC con descuento atómico de stock.",
+    emoji: "S/",
+    to: "/pharmacy/sales/new",
+    status: "activo",
+    moduleKey: "PHARMACY_SALES",
+  },
+  {
+    title: "Productos y lotes",
+    subtitle: "Catálogo y existencias",
+    description:
+      "Consultar el maestro corporativo, SKU, códigos, lotes, vencimientos y stock disponible.",
     emoji: "💊",
-    to: "/pharmacy",
-    status: "proceso",
-    moduleKey: "PHARMACY",
+    to: "/pharmacy/catalogs?view=records",
+    status: "activo",
+    moduleKey: "PHARMACY_PRODUCTS",
+  },
+  {
+    title: "Nuevo producto",
+    subtitle: "Registro farmacéutico",
+    description:
+      "Registrar productos manualmente con código maestro HCELM y SKU empresarial sugerido.",
+    emoji: "➕",
+    to: "/pharmacy/catalogs?view=create",
+    status: "activo",
+    moduleKey: "PHARMACY_PRODUCT_CREATE",
+  },
+  {
+    title: "Agregar lote / stock",
+    subtitle: "Ingreso al almacén",
+    description:
+      "Ingresar lote, vencimiento, almacén, ubicación, precios, proveedor y stock mínimo.",
+    emoji: "📦",
+    to: "/pharmacy/catalogs?view=lots",
+    status: "activo",
+    moduleKey: "PHARMACY_LOTS",
+  },
+  {
+    title: "Catálogo maestro de Botica",
+    subtitle: "Importación e historial",
+    description:
+      "Importar productos y lotes desde Excel, revisar registros y consultar el historial de cargas.",
+    emoji: "📚",
+    to: "/pharmacy/catalogs?view=import",
+    status: "activo",
+    moduleKey: "PHARMACY_CATALOG",
+  },
+  {
+    title: "Dispensación de receta",
+    subtitle: "Recetas del consultorio",
+    description:
+      "Recibir recetas emitidas desde consulta, seleccionar producto y lote, y preparar el descuento de stock.",
+    emoji: "🧾",
+    status: "proxima_fase",
+    moduleKey: "PHARMACY_PRESCRIPTIONS",
+  },
+  {
+    title: "Autorizaciones FEFO",
+    subtitle: "Excepciones y lotes críticos",
+    description:
+      "Revisar solicitudes, aprobar o rechazar ventas de lotes críticos y entregar el token de un solo uso.",
+    emoji: "✅",
+    to: "/pharmacy/authorizations/fefo",
+    status: "activo",
+    moduleKey: "PHARMACY_FEFO_AUTHORIZATIONS",
+  },
+  {
+    title: "Inventario, Kardex y FEFO",
+    subtitle: "Control de stock de Botica",
+    description:
+      "Consultar movimientos auditados y simular la salida por vencimiento más próximo.",
+    emoji: "K",
+    to: "/pharmacy/inventory",
+    status: "activo",
+    moduleKey: "PHARMACY_INVENTORY",
   },
   {
     title: "Droguería",
@@ -60,16 +129,6 @@ const platformModules: PlatformModule[] = [
     emoji: "💵",
     status: "proxima_fase",
     moduleKey: "CASH_SALES",
-  },
-  {
-    title: "Inventario de Botica",
-    subtitle: "Kardex y FEFO minorista",
-    description:
-      "Stock por lote, vencimientos, kardex, simulación FEFO y control de salidas para las ventas de Botica Premium.",
-    emoji: "📦",
-    to: "/pharmacy/inventory",
-    status: "activo",
-    moduleKey: "PHARMACY_INVENTORY",
   },
   {
     title: "Inventario de Droguería",
@@ -165,12 +224,11 @@ export default function Home({
   const visibleModules = platformModules.filter((module) => {
     if (module.moduleKey === "SAAS_ADMIN") return canAdministerOrganization;
     if (module.moduleKey === "CLINIC") return enabledModules.CLINICAL;
-    if (module.moduleKey === "PHARMACY") return enabledModules.PHARMACY;
+    if (module.moduleKey.startsWith("PHARMACY_"))
+      return enabledModules.PHARMACY;
     if (module.moduleKey === "DRUGSTORE") return enabledModules.DRUGSTORE;
     if (module.moduleKey === "BILLING") return enabledModules.BILLING;
     if (module.moduleKey === "CASH_SALES") return enabledModules.BILLING;
-    if (module.moduleKey === "PHARMACY_INVENTORY")
-      return enabledModules.PHARMACY;
     if (module.moduleKey === "DRUGSTORE_INVENTORY")
       return enabledModules.DRUGSTORE;
     if (module.moduleKey === "DRUGSTORE_FEFO") return enabledModules.DRUGSTORE;

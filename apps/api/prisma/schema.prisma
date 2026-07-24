@@ -167,6 +167,7 @@ model Patient {
   pharmacySales PharmacySale[]
 
   @@unique([tenantId, hceNumber])
+  @@unique([tenantId, documentType, documentNumber])
   @@index([tenantId])
   @@index([documentNumber])
   @@index([fullName])

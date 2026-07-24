@@ -16,16 +16,18 @@ export class PatientsService {
 
   async create(tenantId: string, data: CreatePatientDto) {
     try {
+      const documentType = this.normalizeDocumentType(data.documentType);
+      const documentNumber = this.normalizeDocumentNumber(data.documentNumber);
       const initialHceNumber = generateHceNumber({
-        documentType: data.documentType,
-        documentNumber: data.documentNumber,
+        documentType,
+        documentNumber,
       });
 
       const patient = await this.prisma.patient.create({
         data: {
           tenantId,
-          documentType: data.documentType,
-          documentNumber: data.documentNumber,
+          documentType,
+          documentNumber,
           hceNumber: initialHceNumber,
           fullName: data.fullName,
           birthDate: data.birthDate ? new Date(data.birthDate) : null,
@@ -182,8 +184,7 @@ export class PatientsService {
           ? anamnesis.diagnosticosSecundarios
           : [],
 
-        motivoConsulta:
-          anamnesis?.motivoConsulta || encounter.reason || null,
+        motivoConsulta: anamnesis?.motivoConsulta || encounter.reason || null,
       };
     });
   }
@@ -201,9 +202,14 @@ export class PatientsService {
         throw new NotFoundException('Paciente no encontrado en esta clínica.');
       }
 
-      const nextDocumentType = data.documentType ?? existingPatient.documentType;
+      const nextDocumentType =
+        data.documentType !== undefined
+          ? this.normalizeDocumentType(data.documentType)
+          : existingPatient.documentType;
       const nextDocumentNumber =
-        data.documentNumber ?? existingPatient.documentNumber;
+        data.documentNumber !== undefined
+          ? this.normalizeDocumentNumber(data.documentNumber)
+          : existingPatient.documentNumber;
 
       const documentChanged =
         data.documentType !== undefined || data.documentNumber !== undefined;
@@ -313,5 +319,15 @@ export class PatientsService {
     }
 
     return null;
+  }
+
+  private normalizeDocumentType(documentType: string): string {
+    return String(documentType || '')
+      .trim()
+      .toUpperCase();
+  }
+
+  private normalizeDocumentNumber(documentNumber: string): string {
+    return String(documentNumber || '').trim();
   }
 }

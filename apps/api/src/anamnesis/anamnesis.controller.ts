@@ -4,37 +4,40 @@ import {
   Get,
   Param,
   Body,
-  Request,
   HttpException,
   HttpStatus,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AnamnesisService } from './anamnesis.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { AuditInterceptor } from '../common/interceptors/audit.interceptor';
+import { SaveAnamnesisDto } from './dto/save-anamnesis.dto';
 
+@UseGuards(JwtAuthGuard)
+@UseInterceptors(AuditInterceptor)
 @Controller('anamnesis')
 export class AnamnesisController {
   constructor(private readonly anamnesisService: AnamnesisService) {}
 
   @Post()
-  async create(@Request() req: any, @Body() createAnamnesisDto: any) {
+  async create(
+    @CurrentUser() user: any,
+    @Body() createAnamnesisDto: SaveAnamnesisDto,
+  ) {
     try {
-      const tenantId =
-        req.user?.tenantId || '00000000-0000-0000-0000-000000000001';
-
       console.log('📥 Recibiendo Anamnesis:', {
-        tenantId,
+        tenantId: user.tenantId,
         patientId: createAnamnesisDto.patientId,
         encounterId: createAnamnesisDto.encounterId || null,
         motivo: createAnamnesisDto.motivoConsulta,
       });
 
-      if (!createAnamnesisDto.patientId || !createAnamnesisDto.motivoConsulta) {
-        throw new HttpException(
-          'Faltan campos obligatorios (Paciente y Motivo)',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      return await this.anamnesisService.create(tenantId, createAnamnesisDto);
+      return await this.anamnesisService.create(user.tenantId, {
+        ...createAnamnesisDto,
+        issuedBy: user.email || user.userId,
+      });
     } catch (error: any) {
       console.error('❌ Error en POST /anamnesis:', error);
 
@@ -49,13 +52,10 @@ export class AnamnesisController {
 
   @Get('by-encounter/:encounterId')
   async findByEncounter(
-    @Request() req: any,
+    @CurrentUser() user: any,
     @Param('encounterId') encounterId: string,
   ) {
     try {
-      const tenantId =
-        req.user?.tenantId || '00000000-0000-0000-0000-000000000001';
-
       if (!encounterId) {
         throw new HttpException(
           'El encounterId es obligatorio',
@@ -64,12 +64,12 @@ export class AnamnesisController {
       }
 
       console.log('🔎 Buscando anamnesis por encounterId:', {
-        tenantId,
+        tenantId: user.tenantId,
         encounterId,
       });
 
       return await this.anamnesisService.findByEncounter(
-        tenantId,
+        user.tenantId,
         encounterId,
       );
     } catch (error: any) {

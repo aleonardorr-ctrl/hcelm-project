@@ -12,7 +12,6 @@ import {
   ChevronRight,
   CircleUserRound,
   ClipboardList,
-  CreditCard,
   DatabaseBackup,
   Download,
   Eye,
@@ -394,49 +393,48 @@ const navigationItems: NavigationItem[] = [
     label: "Vista general",
     description: "Indicadores globales y actividad de la plataforma.",
     icon: LayoutDashboard,
-    href: "/platform",
+    href: "#vista-general",
     status: "available",
   },
   {
-    label: "Grupos y tenants",
-    description: "Clientes, grupos empresariales y organizaciones.",
+    label: "Tenants y empresas",
+    description: "Clientes, empresas, unidades y control administrativo.",
     icon: Building2,
-    status: "planned",
+    href: "#tenants-empresas",
+    status: "available",
   },
   {
-    label: "Empresas",
-    description: "RUC, razón social, sedes y unidades de negocio.",
-    icon: Boxes,
-    status: "planned",
+    label: "Reactivaciones",
+    description: "Escaneo seguro de suspensiones vencidas.",
+    icon: Timer,
+    href: "#reactivaciones",
+    status: "available",
   },
   {
-    label: "Usuarios y accesos",
-    description: "Administradores, trabajadores, roles y permisos.",
+    label: "Usuarios",
+    description: "Identidades, roles y estado administrativo.",
     icon: Users,
-    status: "planned",
+    href: "#usuarios",
+    status: "available",
   },
   {
-    label: "Módulos",
-    description: "Activación de HCE, farmacia, SUNAT y otros módulos.",
-    icon: PackageCheck,
-    status: "planned",
-  },
-  {
-    label: "Suscripciones",
-    description: "Planes, pagos, vencimientos y límites contratados.",
-    icon: CreditCard,
-    status: "planned",
-  },
-  {
-    label: "Seguridad",
-    description: "Sesiones, MFA, DNI electrónico e identidad digital.",
-    icon: ShieldCheck,
-    status: "planned",
-  },
-  {
-    label: "Auditoría",
-    description: "Trazabilidad de acciones administrativas y soporte.",
+    label: "Auditoría administrativa",
+    description: "Suspensiones, reactivaciones y responsables.",
     icon: ClipboardList,
+    href: "#auditoria-administrativa",
+    status: "available",
+  },
+  {
+    label: "Seguridad y accesos",
+    description: "Ingresos temporales y trazabilidad global.",
+    icon: ShieldCheck,
+    href: "#seguridad-accesos",
+    status: "available",
+  },
+  {
+    label: "Módulos y suscripciones",
+    description: "Activaciones, planes, pagos y límites contratados.",
+    icon: PackageCheck,
     status: "planned",
   },
   {
@@ -2093,7 +2091,7 @@ export default function PlatformDashboard() {
               <div className="min-w-0">
                 <p className="truncate text-lg font-black">HCELM</p>
                 <p className="truncate text-xs text-slate-400">
-                  Administración de plataforma
+                  Centro de Control Global
                 </p>
               </div>
             ) : null}
@@ -2134,13 +2132,14 @@ export default function PlatformDashboard() {
 
             if (item.href) {
               return (
-                <Link
+                <a
                   key={item.label}
-                  to={item.href}
-                  className="flex min-h-14 items-center gap-3 rounded-xl bg-cyan-400 px-3 text-slate-950"
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className="flex min-h-14 items-center gap-3 rounded-xl px-3 text-slate-200 transition hover:bg-cyan-400 hover:text-slate-950"
                 >
                   {content}
-                </Link>
+                </a>
               );
             }
 
@@ -3136,16 +3135,19 @@ export default function PlatformDashboard() {
               </button>
             ) : null}
           </div>
-          <section className="overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl">
+          <section
+            id="vista-general"
+            className="scroll-mt-24 overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl"
+          >
             <div className="grid gap-8 p-6 sm:p-8 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px] 2xl:p-10">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-bold uppercase tracking-wide text-cyan-300">
                   <ShieldCheck className="h-4 w-4" />
-                  Control global de HCELM
+                  Centro de Control Global HCELM
                 </div>
 
                 <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-tight sm:text-4xl">
-                  Administración integral de la plataforma SaaS
+                  Administración global de la plataforma SaaS
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
@@ -3265,7 +3267,10 @@ export default function PlatformDashboard() {
             ) : null}
           </section>
 
-          <section className="rounded-3xl border border-cyan-200 bg-cyan-50/60 p-5 shadow-sm sm:p-6">
+          <section
+            id="reactivaciones"
+            className="scroll-mt-24 rounded-3xl border border-cyan-200 bg-cyan-50/60 p-5 shadow-sm sm:p-6"
+          >
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
               <div className="max-w-3xl">
                 <div className="flex items-center gap-3">
@@ -3374,6 +3379,7 @@ export default function PlatformDashboard() {
           </section>
 
           <section
+            id="tenants-empresas"
             ref={organizationSectionRef}
             className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white shadow-sm"
           >
@@ -3752,7 +3758,10 @@ export default function PlatformDashboard() {
               </div>
             ) : null}
           </section>
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <section
+            id="auditoria-administrativa"
+            className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          >
             <div className="border-b border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>
@@ -4318,7 +4327,10 @@ export default function PlatformDashboard() {
             ) : null}
           </section>
 
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <section
+            id="usuarios"
+            className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          >
             <div className="border-b border-slate-200 p-5 sm:p-6">
               <p className="text-sm font-bold uppercase tracking-wide text-cyan-700">
                 Gestión global de identidades
@@ -4630,7 +4642,10 @@ export default function PlatformDashboard() {
             ) : null}
           </section>
 
-          <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <section
+            id="seguridad-accesos"
+            className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+          >
             <div className="border-b border-slate-200 p-5 sm:p-6">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div>

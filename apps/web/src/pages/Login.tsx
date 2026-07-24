@@ -380,7 +380,7 @@ export default function Login() {
                 Administración global
               </span>
               <span className="mt-1 block text-xs text-slate-500">
-                Exclusivo para superadministradores de HCELM.
+                Acceso exclusivo al Centro de Control Global HCELM.
               </span>
             </button>
           </div>
@@ -401,7 +401,7 @@ export default function Login() {
           ) : (
             <div className="mb-6 rounded-lg border border-cyan-200 bg-cyan-50 p-4">
               <p className="text-sm font-bold text-cyan-950">
-                Centro de Administración Global HCELM
+                Centro de Control Global HCELM
               </p>
               <p className="mt-1 text-xs text-cyan-800">
                 No requiere seleccionar empresa. Los ingresos temporales se

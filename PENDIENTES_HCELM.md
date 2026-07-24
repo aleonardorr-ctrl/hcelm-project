@@ -1,338 +1,336 @@
-# HCELM - BITÁCORA OFICIAL DEL PROYECTO
+# HCELM — Bitácora oficial del proyecto
 
-## Información general
+Última actualización: 23 de julio de 2026
 
-Proyecto: HCELM (Historia Clínica Electrónica Las Mercedes)
+Estado de referencia: rama `master`
 
-Propietario: Dr. Alfonso Leonardo Rodríguez Rojas
+## 1. Información general
 
-Objetivo:
+**Proyecto:** HCELM — Historia Clínica Electrónica Las Mercedes
 
-Construir una plataforma integral para:
+**Propietario:** Dr. Alfonso Leonardo Rodríguez Rojas
 
-* Historia Clínica Electrónica
-* Consultorio
-* Tópico de procedimientos
-* Botica
-* Droguería
-* Inventario
-* Caja
-* Reportes gerenciales
-* Facturación electrónica
-* Integraciones institucionales
+HCELM es una plataforma SaaS multiempresa orientada a integrar:
 
----
+- Historia clínica electrónica.
+- Consultorio y tópico de procedimientos.
+- Pacientes, atenciones, diagnósticos y recetas.
+- Laboratorio y exámenes auxiliares.
+- Botica, farmacia, inventario, lotes, FEFO y ventas.
+- Facturación electrónica.
+- Administración organizacional y control global.
+- Auditoría, seguridad y trazabilidad.
+- Caja, droguería y reportes gerenciales.
+- Integraciones institucionales.
 
-# REGLAS DE DESARROLLO
+## 2. Nomenclatura oficial
 
-## Regla 1
+El módulo exclusivo para superadministradores se denomina:
 
-Antes de iniciar cualquier desarrollo:
+**Centro de Control Global HCELM**
 
-* Revisar esta bitácora.
-* Revisar el último commit estable.
-* Revisar pendientes relacionados.
+Términos relacionados:
 
-## Regla 2
+- **Administración global:** tipo de acceso reservado para superadministradores.
+- **Vista general:** página inicial del Centro de Control Global HCELM.
+- **Acceso operativo:** ingreso al contexto de una empresa y unidad de negocio.
 
-Evitar modificar archivos grandes directamente.
+No deben utilizarse como nombre principal expresiones alternativas como
+“Centro de Administración Global” o “Administración de plataforma”.
 
-## Regla 3
+## 3. Reglas de desarrollo
 
-Todo desarrollo nuevo debe construirse como módulo independiente.
+1. Revisar esta bitácora, el último commit estable y los cambios locales antes
+   de iniciar un desarrollo.
+2. Mantener los módulos separados y con responsabilidades claras.
+3. Evitar ampliar archivos monolíticos; refactorizar progresivamente.
+4. Mantener cada generador PDF en un archivo independiente.
+5. Proteger los cambios locales existentes y limitar cada avance a su alcance.
+6. Ejecutar formato, pruebas relevantes, compilación y `git diff --check`.
+7. No habilitar funciones de alto impacto sin una validación específica.
+8. Actualizar esta bitácora al cerrar cada módulo o decisión estratégica.
+9. Crear commits pequeños, verificables y con mensajes descriptivos.
 
-## Regla 4
+## 4. Decisiones arquitectónicas vigentes
 
-Todo PDF debe mantenerse en archivo independiente.
+### DA-001 — Arquitectura modular
 
-## Regla 5
+Los dominios se desarrollan como módulos independientes y luego se integran.
+La prioridad es:
 
-Antes de cambios importantes:
+1. Seguridad y estabilidad.
+2. Integridad y trazabilidad de datos.
+3. Modularidad.
+4. Escalabilidad.
+5. Nuevas funcionalidades.
 
-git add .
-git commit -m "checkpoint"
+### DA-002 — PDFs independientes
 
-## Regla 6
+Los documentos clínicos y administrativos se generan desde utilidades
+independientes. Actualmente existen, entre otros:
 
-Actualizar esta bitácora al terminar cada módulo.
+- Receta.
+- Historia clínica.
+- Alta voluntaria.
+- Referencia.
+- Observación.
+- Pase clínico SINADEF.
+- Orden de laboratorio.
+- Orden de imágenes.
 
----
+### DA-003 — Refactor progresivo de Anamnesis
 
-# DECISIONES ARQUITECTÓNICAS
+No se deben seguir incorporando grandes funciones directamente en
+`Anamnesis.tsx`. La estructura objetivo separará selección de paciente,
+funciones vitales, diagnóstico, prescripción, exámenes auxiliares y destino.
 
-## DA-001
+### DA-004 — Separación de contextos de acceso
 
-Se acuerda desarrollar HCELM mediante módulos independientes.
+- El superadministrador utiliza el endpoint independiente
+  `/api/auth/platform-login`.
+- El usuario operativo ingresa mediante el contexto de empresa y unidad.
+- Todo ingreso temporal de un superadministrador a una empresa debe quedar
+  auditado.
 
-Objetivo:
+### DA-005 — Reactivaciones seguras
 
-Evitar que un cambio rompa funcionalidades ya implementadas.
+El escaneo manual del Centro de Control Global HCELM funciona siempre en modo
+observación. La ejecución automática real debe permanecer desactivada hasta
+que exista aprobación y validación específicas:
 
----
+`HCELM_AUTOMATIC_REACTIVATION_EXECUTION_ENABLED=false`
+
+## 5. Estado actual por dominio
 
-## DA-002
+### 5.1 Centro de Control Global HCELM
+
+**Implementado**
+
+- Login independiente para superadministradores.
+- Vista general e indicadores obtenidos desde la API.
+- Navegación a tenants y empresas, reactivaciones, usuarios, auditoría y
+  seguridad.
+- Visualización de tenants, empresas, unidades de negocio y usuarios.
+- Suspensión y reactivación administrativa de tenants, empresas y usuarios.
+- Fecha opcional de reactivación automática.
+- Escaneo seguro de suspensiones vencidas en modo observación.
+- Auditoría administrativa de suspensiones y reactivaciones.
+- Ingreso temporal auditado al contexto de una empresa.
+- Historial de accesos y cierre administrativo de sesiones.
+- Exportación de auditorías.
 
-Los documentos PDF se desarrollarán en archivos independientes.
+**Pendiente**
 
-Estado actual:
+- Gestión completa de módulos y suscripciones.
+- Planes, pagos, vencimientos y límites contratados.
+- Respaldos y recuperación.
+- Herramientas formales de soporte.
+- Configuración global editable.
+- MFA, DNI electrónico y firma digital.
+- Habilitación controlada de la ejecución automática real.
 
-* recipePdf.ts
-* hcePdf.ts
-* voluntaryDischargePdf.ts
-* referralPdf.ts
-* observationPdf.ts
-* sinadefReferralPdf.ts
-* labOrderPdf.ts
+### 5.2 Autenticación y contexto operativo
 
----
+**Implementado**
 
-## DA-003
+- Login institucional por RUC.
+- Selección y validación del contexto operativo.
+- Validación de empresa, unidad de negocio y almacén.
+- Separación entre sesión operativa y sesión de plataforma.
+- Protección del acceso del superadministrador.
+- Pruebas unitarias y e2e del mensaje de estado de la API.
 
-Se acuerda refactorizar progresivamente Anamnesis.tsx.
+**Pendiente**
 
-Objetivo:
+- MFA.
+- DNI electrónico.
+- Recuperación de credenciales y políticas avanzadas de sesión.
 
-Dividirlo en componentes más pequeños.
+### 5.3 Pacientes y atención clínica
 
-Estructura objetivo:
+**Implementado**
 
-modules/clinical/anamnesis/
+- Registro, listado, búsqueda y actualización de pacientes.
+- Generación de número de HCE.
+- Anamnesis.
+- Funciones vitales y alertas clínicas.
+- Diagnósticos.
+- Prescripciones.
+- Destino final.
+- Sala de espera.
+- Nueva atención clínica.
 
-* AnamnesisPage.tsx
-* PatientSelector.tsx
-* VitalSignsSection.tsx
-* DiagnosisSection.tsx
-* PrescriptionSection.tsx
-* AuxiliaryExamsSection.tsx
-* DestinationSection.tsx
+**Siguiente prioridad**
 
----
+- Construir una vista consolidada Paciente → Atenciones.
+- Incorporar historial de atenciones.
+- Incorporar historial de recetas y documentos.
+- Adjuntar resultados y documentos al paciente.
+- Mejorar búsqueda y filtros.
+- Conectar de forma uniforme el paciente seleccionado con todos los módulos.
+- Refactorizar progresivamente `Anamnesis.tsx`.
 
-## DA-004
+### 5.4 Laboratorio y exámenes auxiliares
+
+**Implementado**
 
-Los módulos deberán desarrollarse por separado y luego integrarse.
+- Catálogo estructurado de laboratorio.
+- Categorías y selector de exámenes.
+- Integración del selector con la atención clínica.
+- Generación de orden de laboratorio en PDF.
 
-Prioridades:
+**Pendiente**
 
-1. Estabilidad
-2. Modularidad
-3. Escalabilidad
-4. Nuevas funcionalidades
+- Flujo completo de toma y procesamiento de muestras.
+- Registro y validación de resultados.
+- Adjuntar resultados de laboratorio a la atención y al paciente.
+- Integración completa con imágenes diagnósticas.
 
----
+### 5.5 Botica, farmacia e inventario
 
-# FUNCIONALIDADES IMPLEMENTADAS
+**Implementado**
 
-## Acceso
+- Acceso directo a operaciones de Botica desde `/home`.
+- Catálogo de medicamentos.
+- Inventario y lotes.
+- Fechas de vencimiento.
+- Reglas FEFO.
+- Autorizaciones FEFO.
+- Venta de farmacia.
+- Contexto por empresa, unidad y almacén.
 
-🟢 Login institucional
+**Pendiente**
 
-🟢 Validación profesional
+- Kardex integral.
+- Compras y proveedores.
+- Transferencias entre almacenes.
+- Devoluciones.
+- Cierre completo del flujo receta → dispensación → venta.
+- Reportes de stock y valorización.
 
----
+### 5.6 Facturación electrónica
 
-## Clínica
+**Implementado o preparado**
 
-🟢 Pacientes básicos
+- Perfil fiscal de empresa.
+- Clientes comerciales.
+- Series y correlativos.
+- Preparación de comprobantes en borrador.
+- Base para trabajos de documentos electrónicos.
 
-🟢 Anamnesis
+**Pendiente**
 
-🟢 Diagnósticos
+- Integración productiva con SUNAT u OSE.
+- Firma y envío de comprobantes.
+- CDR, estados y reintentos.
+- Notas de crédito y débito.
+- Validación integral en ambiente de homologación.
 
-🟢 Receta
+### 5.7 Institución, organización y calidad de datos
 
-🟢 Destino final
+**Implementado**
 
----
+- Configuración institucional.
+- Estructura de empresas y unidades de negocio.
+- Colaboración entre empresas.
+- Verificación profesional.
+- Herramientas de calidad de datos.
 
-## PDFs
+**Pendiente**
 
-🟢 Receta
+- Completar reglas de calidad y correcciones asistidas.
+- Consolidar catálogos maestros.
+- Completar permisos administrativos por rol.
 
-🟢 Historia clínica completa
+### 5.8 Certificados y documentos PDF
 
-🟢 Alta voluntaria
+**Implementado**
 
-🟢 Referencia
+- Emisión de certificados.
+- Receta.
+- Historia clínica.
+- Alta voluntaria.
+- Referencia.
+- Observación.
+- Pase clínico SINADEF.
+- Orden de laboratorio.
+- Orden de imágenes.
 
-🟢 Observación
+**Pendiente**
 
-🟢 Pase clínico SINADEF
+- Historial central de documentos por paciente.
+- Adjuntar documentos externos.
+- Control de versiones y anulaciones.
+- Firma digital.
+- Integración operativa con SINADEF y otras entidades.
 
-🟢 Orden de laboratorio
+### 5.9 Dominios aún no desarrollados completamente
 
----
+- Caja: apertura, cierre, arqueo y medios de pago.
+- Droguería: clientes, proveedores, cotizaciones, ventas y cuentas.
+- Reportes gerenciales: ventas, stock valorizado, caja, CxC, CxP e
+  indicadores.
+- Integraciones externas: DNIe, SINADEF productivo, CMP y otros servicios
+  institucionales.
 
-# PENDIENTES PRIORIDAD ALTA
+## 6. Hoja de ruta priorizada
 
-🔴 Refactor modular de Anamnesis
+### Fase 1 — Pacientes e historial de atenciones
 
-🔴 Mejorar módulo Pacientes
+1. Auditar el modelo actual de paciente, atención, receta y documento.
+2. Definir la vista consolidada del paciente.
+3. Implementar historial de atenciones.
+4. Incorporar recetas, órdenes y PDFs relacionados.
+5. Preparar adjuntos clínicos.
+6. Añadir pruebas y validar permisos multiempresa.
 
-🔴 Historial de atenciones
+### Fase 2 — Resultados y documentos clínicos
 
-🔴 Historial de recetas
+1. Resultados de laboratorio.
+2. Resultados de imágenes.
+3. Adjuntos externos.
+4. Historial documental.
 
-🔴 Historial de documentos PDF
+### Fase 3 — Cierre operativo de Botica
 
-🔴 Adjuntar documentos al paciente
+1. Kardex.
+2. Compras y proveedores.
+3. Transferencias y devoluciones.
+4. Dispensación conectada a receta.
+5. Reportes de inventario.
 
-🔴 Buscador avanzado de pacientes
+### Fase 4 — Facturación electrónica productiva
 
-🔴 Orden de imágenes PDF
+1. Homologación.
+2. Firma y envío.
+3. Respuestas y reintentos.
+4. Notas de crédito y débito.
 
-🔴 Catálogo de exámenes auxiliares
+### Fase 5 — Administración comercial y gerencial
 
-🔴 Buscador de exámenes por categoría
+1. Suscripciones y planes.
+2. Caja.
+3. Droguería.
+4. Reportes gerenciales.
+5. Respaldos y soporte.
 
-🔴 Resultados de laboratorio adjuntos
+## 7. Últimos avances estables
 
-🔴 Resultados de imágenes adjuntos
+- `4695d80` — Unificación del Centro de Control Global HCELM y navegación.
+- `c140c27` — Actualización de las pruebas del estado de la API.
+- `9d622e0` — Panel seguro de reactivaciones automáticas.
+- `5bca58f` — Operaciones de Botica directamente en `/home`.
+- `e6ea173` — Contexto de unidades, módulos y FEFO.
+- `963aa3f` — Validación del contexto operativo.
+- `61b1817` — Login operativo por RUC dinámico.
 
----
+## 8. Próximo trabajo acordado
 
-# INTEGRACIONES EXTERNAS
+**Tema:** Pacientes e historial de atenciones.
 
-## DNI Electrónico
+Antes de implementar:
 
-🔴 Inicio de sesión con DNIe
-
-🔴 Identificación profesional mediante DNIe
-
----
-
-## SINADEF
-
-🔴 Integración operativa mediante DNIe
-
-🟢 Pase clínico para certificación
-
-🔴 Adjuntar certificado oficial emitido por SINADEF
-
----
-
-## Colegio Médico del Perú
-
-🔴 Conexión con certificados médicos digitales CMP
-
-🔴 Evaluar integración mediante API o portal institucional
-
----
-
-# FARMACIA Y BOTICA
-
-🔵 Pendiente
-
-* Productos
-* Lotes
-* Vencimientos
-* Kardex
-* FEFO
-* Stock por almacén
-* Venta por receta
-
----
-
-# DROGUERÍA
-
-🔵 Pendiente
-
-* Clientes
-* Proveedores
-* Cotizaciones
-* Ventas
-* Facturación
-* Cuentas por cobrar
-* Cuentas por pagar
-
----
-
-# CAJA
-
-🔵 Pendiente
-
-* Apertura
-* Cierre
-* Arqueo
-* Yape
-* Plin
-* Transferencias
-* Tarjetas
-
----
-
-# REPORTES GERENCIALES
-
-🔵 Pendiente
-
-* Ventas
-* Stock valorizado
-* CXC
-* CXP
-* Flujo de caja
-* Indicadores
-
----
-
-# ÚLTIMO ACUERDO DE DESARROLLO
-
-Fecha: Junio 2026
-
-Se acuerda:
-
-1. No continuar agregando grandes funcionalidades sobre Anamnesis.tsx monolítico.
-2. Modularizar progresivamente.
-3. Mantener checkpoints frecuentes mediante Git.
-4. Desarrollar módulos completos y luego integrarlos.
-5. Utilizar esta bitácora como documento obligatorio de referencia antes de iniciar nuevos desarrollos.
-
-🔴 HCELM v0.41
-
-Catálogo estructurado de exámenes auxiliares
-
-Estado:
-EN DESARROLLO
-
-Fases:
-
-✓ Diseño de categorías
-🔴 Construcción de laboratoryCatalog.ts
-🔴 Construcción de LaboratorySelector.tsx
-🔴 Integración con Anamnesis
-🔴 Integración con PDF de laboratorio
-🔴 Integración con futuro módulo de imágenes
-
-Observaciones:
-Se elimina duplicidad entre:
-- Exámenes auxiliares
-- Exámenes solicitados
-
-Los exámenes seleccionados generarán automáticamente la orden PDF.
-
-🟡 EN TRABAJO | HCE | Separar Guardar cambios y Finalizar atención | Alta | Guardar mantiene edición; Finalizar cierra atención y redirige a Pacientes
-BITÁCORA HCELM
-
-Módulo Pacientes - avance estable:
-
-- Backend /api/patients activo.
-- GET /api/patients funcional con JWT.
-- POST /api/patients funcional con JWT.
-- Frontend Patients.tsx corregido para usar /api.
-- Frontend Patients.tsx corregido para usar ame_token.
-- Registro inicial de pacientes funcional.
-- Campo fullName corregido según CreatePatientDto.
-- Búsqueda local de pacientes funcional.
-- Se identificó que el backend actual acepta:
-  documentType
-  documentNumber
-  fullName
-  birthDate
-
-Pendientes:
-1. Agregar botón visual Buscar y Limpiar en módulo Pacientes.
-2. Confirmar que paciente registrado aparece correctamente en tabla.
-3. Mejorar visualización de nombre completo si backend devuelve fullName.
-4. Conectar paciente seleccionado con Anamnesis.
-5. Conectar paciente seleccionado con Certificados.
-6. Revisar si existe PATCH /api/patients/:id para edición.
-7. Preparar estructura Paciente → Atención → Funciones vitales.
+1. Revisar modelos Prisma y endpoints existentes.
+2. Revisar la pantalla actual de Pacientes.
+3. Mapear la relación entre paciente, atención, receta, orden y PDF.
+4. Proponer fases pequeñas antes de modificar código.

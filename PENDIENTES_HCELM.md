@@ -50,8 +50,26 @@ No deben utilizarse como nombre principal expresiones alternativas como
 7. No habilitar funciones de alto impacto sin una validación específica.
 8. Actualizar esta bitácora al cerrar cada módulo o decisión estratégica.
 9. Crear commits pequeños, verificables y con mensajes descriptivos.
+10. Desarrollar el manual del usuario y los materiales audiovisuales junto con
+    cada función; la documentación no debe postergarse hasta el final.
 
-## 4. Decisiones arquitectónicas vigentes
+## 4. Definición de módulo terminado
+
+Un módulo se considera terminado únicamente cuando incluye:
+
+1. Flujo funcional implementado.
+2. Permisos, seguridad y trazabilidad revisados.
+3. Pruebas relevantes y compilación aprobadas.
+4. Revisión visual y validación con el usuario.
+5. Manual del usuario actualizado, con requisitos, procedimiento, capturas,
+   advertencias y errores frecuentes.
+6. Guion para un video corto de una tarea concreta.
+7. Guion para un video instructivo completo del módulo.
+8. Material de narración, escenas y subtítulos preparado.
+9. Versión de HCELM identificada en el manual y los videos.
+10. Bitácora y hoja de ruta actualizadas.
+
+## 5. Decisiones arquitectónicas vigentes
 
 ### DA-001 — Arquitectura modular
 
@@ -100,9 +118,9 @@ que exista aprobación y validación específicas:
 
 `HCELM_AUTOMATIC_REACTIVATION_EXECUTION_ENABLED=false`
 
-## 5. Estado actual por dominio
+## 6. Estado actual por dominio
 
-### 5.1 Centro de Control Global HCELM
+### 6.1 Centro de Control Global HCELM
 
 **Implementado**
 
@@ -129,7 +147,7 @@ que exista aprobación y validación específicas:
 - MFA, DNI electrónico y firma digital.
 - Habilitación controlada de la ejecución automática real.
 
-### 5.2 Autenticación y contexto operativo
+### 6.2 Autenticación y contexto operativo
 
 **Implementado**
 
@@ -146,7 +164,7 @@ que exista aprobación y validación específicas:
 - DNI electrónico.
 - Recuperación de credenciales y políticas avanzadas de sesión.
 
-### 5.3 Pacientes y atención clínica
+### 6.3 Pacientes y atención clínica
 
 **Implementado**
 
@@ -170,7 +188,7 @@ que exista aprobación y validación específicas:
 - Conectar de forma uniforme el paciente seleccionado con todos los módulos.
 - Refactorizar progresivamente `Anamnesis.tsx`.
 
-### 5.4 Laboratorio y exámenes auxiliares
+### 6.4 Laboratorio y exámenes auxiliares
 
 **Implementado**
 
@@ -186,7 +204,7 @@ que exista aprobación y validación específicas:
 - Adjuntar resultados de laboratorio a la atención y al paciente.
 - Integración completa con imágenes diagnósticas.
 
-### 5.5 Botica, farmacia e inventario
+### 6.5 Botica, farmacia e inventario
 
 **Implementado**
 
@@ -208,7 +226,7 @@ que exista aprobación y validación específicas:
 - Cierre completo del flujo receta → dispensación → venta.
 - Reportes de stock y valorización.
 
-### 5.6 Facturación electrónica
+### 6.6 Facturación electrónica
 
 **Implementado o preparado**
 
@@ -226,7 +244,7 @@ que exista aprobación y validación específicas:
 - Notas de crédito y débito.
 - Validación integral en ambiente de homologación.
 
-### 5.7 Institución, organización y calidad de datos
+### 6.7 Institución, organización y calidad de datos
 
 **Implementado**
 
@@ -242,7 +260,7 @@ que exista aprobación y validación específicas:
 - Consolidar catálogos maestros.
 - Completar permisos administrativos por rol.
 
-### 5.8 Certificados y documentos PDF
+### 6.8 Certificados y documentos PDF
 
 **Implementado**
 
@@ -264,7 +282,7 @@ que exista aprobación y validación específicas:
 - Firma digital.
 - Integración operativa con SINADEF y otras entidades.
 
-### 5.9 Dominios aún no desarrollados completamente
+### 6.9 Dominios aún no desarrollados completamente
 
 - Caja: apertura, cierre, arqueo y medios de pago.
 - Droguería: clientes, proveedores, cotizaciones, ventas y cuentas.
@@ -273,16 +291,25 @@ que exista aprobación y validación específicas:
 - Integraciones externas: DNIe, SINADEF productivo, CMP y otros servicios
   institucionales.
 
-## 6. Hoja de ruta priorizada
+## 7. Hoja de ruta priorizada
 
-### Fase 1 — Pacientes e historial de atenciones
+### Fase 1 — Revisión y afinamiento de HCE, pacientes e historial
 
-1. Auditar el modelo actual de paciente, atención, receta y documento.
-2. Definir la vista consolidada del paciente.
-3. Implementar historial de atenciones.
-4. Incorporar recetas, órdenes y PDFs relacionados.
-5. Preparar adjuntos clínicos.
-6. Añadir pruebas y validar permisos multiempresa.
+1. Revisar el flujo completo Paciente → Atención → Anamnesis.
+2. Auditar modelos, endpoints, permisos y relaciones existentes.
+3. Revisar funciones vitales, alertas, diagnósticos, recetas, órdenes, destino
+   final, sala de espera y cierre de atención.
+4. Identificar datos duplicados, incompletos o desconectados.
+5. Afinar la experiencia de médicos y personal asistencial.
+6. Definir la vista consolidada del paciente.
+7. Implementar el historial cronológico de atenciones.
+8. Incorporar recetas, órdenes, PDFs y documentos relacionados.
+9. Preparar adjuntos clínicos.
+10. Refactorizar progresivamente `Anamnesis.tsx`.
+11. Añadir pruebas y validar permisos multiempresa.
+12. Producir el manual de Pacientes y HCE.
+13. Preparar videos cortos de registro, búsqueda, inicio y cierre de atención.
+14. Preparar el video largo del flujo clínico completo.
 
 ### Fase 2 — Resultados y documentos clínicos
 
@@ -291,13 +318,22 @@ que exista aprobación y validación específicas:
 3. Adjuntos externos.
 4. Historial documental.
 
-### Fase 3 — Cierre operativo de Botica
+### Fase 3 — Revisión, afinamiento y cierre operativo de Botica
 
-1. Kardex.
-2. Compras y proveedores.
-3. Transferencias y devoluciones.
-4. Dispensación conectada a receta.
-5. Reportes de inventario.
+1. Revisar catálogo, presentaciones, códigos, inventario, almacenes, lotes y
+   vencimientos.
+2. Revisar FEFO y autorizaciones excepcionales.
+3. Clasificar medicamentos de venta libre, con receta y sujetos a control.
+4. Afinar el flujo Receta → Validación → Dispensación → Venta.
+5. Incorporar la trazabilidad del paciente, prescriptor y químico farmacéutico.
+6. Implementar kardex integral.
+7. Completar compras y proveedores.
+8. Implementar transferencias, anulaciones y devoluciones.
+9. Completar precios, impuestos, descuentos y reportes de inventario.
+10. Preparar el comprobante interno antes de la integración electrónica.
+11. Producir los manuales de catálogo, inventario, FEFO, dispensación y venta.
+12. Preparar videos cortos de dispensación y venta.
+13. Preparar el video largo Receta → Dispensación → Venta → Comprobante.
 
 ### Fase 4 — Facturación electrónica productiva
 
@@ -314,7 +350,18 @@ que exista aprobación y validación específicas:
 4. Reportes gerenciales.
 5. Respaldos y soporte.
 
-## 7. Últimos avances estables
+### Documentación paralela obligatoria
+
+En todas las fases se desarrollarán simultáneamente:
+
+- Manual del usuario por módulo y perfil.
+- Capturas actualizadas de la interfaz.
+- Videos cortos de 1 a 3 minutos para tareas concretas.
+- Videos instructivos de 8 a 20 minutos para flujos completos.
+- Guiones, narración, escenas y subtítulos.
+- Registro de la versión de HCELM correspondiente.
+
+## 8. Últimos avances estables
 
 - `4695d80` — Unificación del Centro de Control Global HCELM y navegación.
 - `c140c27` — Actualización de las pruebas del estado de la API.
@@ -324,13 +371,17 @@ que exista aprobación y validación específicas:
 - `963aa3f` — Validación del contexto operativo.
 - `61b1817` — Login operativo por RUC dinámico.
 
-## 8. Próximo trabajo acordado
+## 9. Próximo trabajo acordado
 
-**Tema:** Pacientes e historial de atenciones.
+**Tema:** Revisión y afinamiento de HCE, pacientes e historial de atenciones.
 
 Antes de implementar:
 
 1. Revisar modelos Prisma y endpoints existentes.
 2. Revisar la pantalla actual de Pacientes.
-3. Mapear la relación entre paciente, atención, receta, orden y PDF.
-4. Proponer fases pequeñas antes de modificar código.
+3. Revisar el flujo actual de Anamnesis y cierre de atención.
+4. Mapear la relación entre paciente, atención, receta, orden y PDF.
+5. Inventariar pantallas, documentos y funciones ya incorporados.
+6. Definir el índice inicial del manual de Pacientes y HCE.
+7. Definir los primeros videos cortos y el video largo.
+8. Proponer fases pequeñas antes de modificar código.
